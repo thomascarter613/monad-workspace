@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Monad planning note
-    url: https://github.com/
+    url: https://github.com/thomascarter613/monad-workspace
     about: Use structured issue forms whenever possible. Blank issues are allowed for quick capture and triage.
