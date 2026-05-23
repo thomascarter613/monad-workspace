@@ -1,0 +1,120 @@
+name: Task
+description: Define a specific action inside an epic or work packet.
+title: "[Task]: "
+labels:
+  - "type:task"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for focused actions that support a work packet.
+
+        A task should usually be smaller than a work packet and may not require its own commit.
+
+  - type: input
+    id: parent
+    attributes:
+      label: Parent epic or work packet
+      description: Link or name the parent item.
+      placeholder: "WP-E0-001"
+    validations:
+      required: false
+
+  - type: input
+    id: task-title
+    attributes:
+      label: Task title
+      description: State the action clearly.
+      placeholder: "Create root README"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: product-area
+    attributes:
+      label: Product area
+      options:
+        - Core Runtime
+        - CLI
+        - Repo Intelligence
+        - Context Bridge
+        - Verification
+        - Evolution Engine
+        - Agent Supervision
+        - Policy / Governance
+        - Documentation
+        - Workflow
+        - Business / Monetization
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: task-description
+    attributes:
+      label: Description
+      description: What needs to be done?
+      placeholder: "Create the initial root README that describes Monad at a high level."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: What must be true for this task to be complete?
+      value: |
+        - [ ] 
+        - [ ] 
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: How should this task be checked?
+      placeholder: |
+        - File exists
+        - Content is accurate
+        - Parent work packet remains consistent
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 Critical
+        - P1 High
+        - P2 Normal
+        - P3 Later
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      options:
+        - XS
+        - S
+        - M
+        - L
+        - XL
+        - Unknown
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Task checklist
+      options:
+        - label: The task is small enough to complete directly.
+          required: true
+        - label: The task has clear acceptance criteria.
+          required: true
+        - label: The task is linked to a parent item if applicable.
+          required: false

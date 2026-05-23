@@ -1,0 +1,137 @@
+name: Bug
+description: Report broken behavior, regression, or incorrect output in Monad.
+title: "[Bug]: "
+labels:
+  - "type:bug"
+  - "needs-verification"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for defects, regressions, incorrect output, broken commands, failing checks, or confusing behavior.
+
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: Give a concise description of the bug.
+      placeholder: "monad check exits successfully even when validation fails"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      options:
+        - Core Runtime
+        - CLI
+        - Repo Intelligence
+        - Context Bridge
+        - Verification
+        - Evolution Engine
+        - Agent Supervision
+        - Policy / Governance
+        - Documentation
+        - Workflow
+        - Build / CI
+        - Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current behavior
+      description: What is happening now?
+      placeholder: "The command exits with code 0 even though the report contains an error diagnostic."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+      placeholder: "The command should exit with a non-zero code when fatal validation errors are present."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest reliable way to reproduce the bug.
+      value: |
+        1. 
+        2. 
+        3. 
+    validations:
+      required: true
+
+  - type: textarea
+    id: command-output
+    attributes:
+      label: Command output / logs
+      description: Paste relevant terminal output, logs, stack traces, or screenshots.
+      render: shell
+      placeholder: |
+        Paste output here.
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Monad version / commit
+      description: Provide the version, branch, or commit where the bug occurred.
+      placeholder: "main @ abc1234"
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide OS, shell, Rust version, package manager, and other relevant context.
+      value: |
+        OS:
+        Shell:
+        Rust:
+        Node/Bun/npm/pnpm/yarn:
+        Other:
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - P0 Critical
+        - P1 High
+        - P2 Normal
+        - P3 Low
+    validations:
+      required: true
+
+  - type: textarea
+    id: suspected-cause
+    attributes:
+      label: Suspected cause
+      description: Optional notes about what might be wrong.
+      placeholder: "The diagnostic severity may not be mapped to process exit behavior."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: Reporter checklist
+      options:
+        - label: I included reproduction steps.
+          required: true
+        - label: I described expected behavior.
+          required: true
+        - label: I included command output or environment details if relevant.
+          required: false

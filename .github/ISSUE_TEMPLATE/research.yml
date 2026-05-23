@@ -1,0 +1,145 @@
+name: Research
+description: Capture a research spike, comparison, investigation, or discovery task.
+title: "[Research]: "
+labels:
+  - "type:research"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for time-boxed discovery work.
+
+        Research issues should produce a decision, recommendation, notes, or follow-up work packets.
+
+  - type: input
+    id: research-question
+    attributes:
+      label: Research question
+      description: What question are we trying to answer?
+      placeholder: "Should Monad support MCP from the first MVP?"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: research-area
+    attributes:
+      label: Research area
+      options:
+        - Product
+        - Architecture
+        - Rust / Go / TypeScript
+        - Repo Intelligence
+        - AI / Agents
+        - MCP / Integrations
+        - Verification
+        - Security
+        - Monetization
+        - Competitors
+        - Developer Experience
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why does this research matter now?
+      placeholder: "This affects whether Monad exposes repo context through a standard AI tool protocol in MVP."
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Research scope
+      description: What should be investigated?
+      value: |
+        Investigate:
+        - 
+
+        Do not investigate:
+        - 
+    validations:
+      required: true
+
+  - type: textarea
+    id: sources
+    attributes:
+      label: Sources / references to inspect
+      description: List links, tools, repos, docs, papers, or examples that should be reviewed.
+      placeholder: |
+        - Official docs:
+        - GitHub repos:
+        - Competitors:
+        - Articles:
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected-output
+    attributes:
+      label: Expected output
+      description: What should this research produce?
+      value: |
+        - [ ] Summary of findings
+        - [ ] Recommendation
+        - [ ] Risks or trade-offs
+        - [ ] Follow-up issues/work packets if needed
+    validations:
+      required: true
+
+  - type: dropdown
+    id: decision-impact
+    attributes:
+      label: Decision impact
+      description: What kind of decision might this research affect?
+      options:
+        - Product direction
+        - Architecture
+        - MVP scope
+        - Implementation approach
+        - Tooling
+        - Monetization
+        - Security / compliance
+        - No immediate decision
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 Critical
+        - P1 High
+        - P2 Normal
+        - P3 Later
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      options:
+        - XS
+        - S
+        - M
+        - L
+        - XL
+        - Unknown
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: completion
+    attributes:
+      label: Research completion checklist
+      options:
+        - label: Findings will be summarized before closing.
+          required: true
+        - label: A recommendation or explicit non-decision will be recorded.
+          required: true
+        - label: Follow-up work will be created if needed.
+          required: false

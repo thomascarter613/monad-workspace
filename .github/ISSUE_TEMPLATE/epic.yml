@@ -1,0 +1,175 @@
+name: Epic
+description: Define a large Monad outcome composed of multiple work packets.
+title: "[Epic]: "
+labels:
+  - "type:epic"
+  - "needs-verification"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for large outcomes that contain multiple work packets.
+
+        Epics should describe a meaningful product, architecture, workflow, or delivery outcome.
+        They should not be used for tiny tasks.
+
+  - type: input
+    id: epic-id
+    attributes:
+      label: Epic ID
+      description: Use the canonical Monad epic identifier.
+      placeholder: "E0, E1, E2, E3..."
+    validations:
+      required: true
+
+  - type: input
+    id: epic-title
+    attributes:
+      label: Epic title
+      description: Give the epic a clear, outcome-oriented title.
+      placeholder: "Rust Core Foundation"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: product-area
+    attributes:
+      label: Product area
+      description: Which area of Monad does this epic primarily affect?
+      options:
+        - Core Runtime
+        - CLI
+        - Repo Intelligence
+        - Context Bridge
+        - Verification
+        - Evolution Engine
+        - Agent Supervision
+        - Policy / Governance
+        - Documentation
+        - Workflow
+        - Business / Monetization
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What meaningful outcome should this epic produce?
+      placeholder: "Establish the durable Rust foundation for Monad's local-first core runtime."
+    validations:
+      required: true
+
+  - type: textarea
+    id: user-value
+    attributes:
+      label: User value
+      description: Why does this epic matter to Monad users, maintainers, or contributors?
+      placeholder: "This enables Monad to inspect, verify, and evolve repositories through a reliable local runtime."
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is included in this epic?
+      value: |
+        In scope:
+        - 
+
+        Out of scope:
+        - 
+    validations:
+      required: true
+
+  - type: textarea
+    id: work-packets
+    attributes:
+      label: Expected work packets
+      description: List known or expected work packets. These can be refined later.
+      placeholder: |
+        - WP-E1-001 — Create Rust workspace crates
+        - WP-E1-002 — Add CLI shell
+        - WP-E1-003 — Add core diagnostics
+    validations:
+      required: false
+
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: What concrete artifacts should exist when this epic is complete?
+      placeholder: |
+        - Rust workspace exists
+        - monad-cli crate exists
+        - monad-core crate exists
+        - Verification commands pass
+        - Docs/context updated
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification strategy
+      description: How will we know the epic is complete?
+      placeholder: |
+        - All child work packets are complete
+        - Required checks pass
+        - Documentation is updated
+        - Context handoff is updated
+    validations:
+      required: true
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks / open questions
+      description: List known risks, dependencies, or unresolved decisions.
+      placeholder: |
+        - Rust learning curve may slow implementation
+        - Scope may need to be split if too broad
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 Critical
+        - P1 High
+        - P2 Normal
+        - P3 Later
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      options:
+        - XS
+        - S
+        - M
+        - L
+        - XL
+        - Unknown
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Readiness checklist
+      options:
+        - label: The epic has a clear objective.
+          required: true
+        - label: The epic can be broken into work packets.
+          required: true
+        - label: The expected value is understandable.
+          required: true
+        - label: Major risks or unknowns are captured.
+          required: false

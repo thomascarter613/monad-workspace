@@ -1,0 +1,221 @@
+name: Work Packet
+description: Define a bounded, reviewable unit of Monad delivery work.
+title: "[Work Packet]: "
+labels:
+  - "type:work-packet"
+  - "needs-verification"
+  - "context-update-required"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for Monad's primary delivery unit.
+
+        A work packet should be small enough to understand, verify, review, and commit atomically.
+
+  - type: input
+    id: work-packet-id
+    attributes:
+      label: Work Packet ID
+      description: Use the canonical Monad work packet identifier.
+      placeholder: "WP-E0-001"
+    validations:
+      required: true
+
+  - type: input
+    id: epic-id
+    attributes:
+      label: Parent Epic ID
+      description: Which epic does this work packet belong to?
+      placeholder: "E0"
+    validations:
+      required: true
+
+  - type: input
+    id: work-packet-title
+    attributes:
+      label: Work packet title
+      description: Use an outcome-oriented title.
+      placeholder: "Establish repository foundation"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: product-area
+    attributes:
+      label: Product area
+      options:
+        - Core Runtime
+        - CLI
+        - Repo Intelligence
+        - Context Bridge
+        - Verification
+        - Evolution Engine
+        - Agent Supervision
+        - Policy / Governance
+        - Documentation
+        - Workflow
+        - Business / Monetization
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What should this work packet accomplish?
+      placeholder: "Create the initial Monad repository foundation."
+    validations:
+      required: true
+
+  - type: textarea
+    id: user-value
+    attributes:
+      label: User value
+      description: Why does this work matter?
+      placeholder: "Gives the project a stable, reproducible base before implementation begins."
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Define what is in and out of scope.
+      value: |
+        In scope:
+        - 
+
+        Out of scope:
+        - 
+    validations:
+      required: true
+
+  - type: textarea
+    id: files-affected
+    attributes:
+      label: Expected files or directories affected
+      description: List the expected file tree impact.
+      placeholder: |
+        - README.md
+        - docs/README.md
+        - work/README.md
+        - .monad/README.md
+    validations:
+      required: false
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks
+      description: Break the work packet into concrete tasks.
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] 
+    validations:
+      required: true
+
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: What concrete outputs should exist when this work packet is done?
+      placeholder: |
+        - Files created or modified
+        - Verification commands pass
+        - Context handoff updated
+        - Atomic commit prepared
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification commands / evidence
+      description: How will this work be verified?
+      value: |
+        ```bash
+        git status --short
+        ```
+
+        Expected result:
+        - 
+    validations:
+      required: true
+
+  - type: textarea
+    id: definition-of-done
+    attributes:
+      label: Definition of Done
+      description: What must be true before this work packet can be closed?
+      value: |
+        - [ ] Scope completed
+        - [ ] Verification completed
+        - [ ] Documentation updated if needed
+        - [ ] Context handoff updated if needed
+        - [ ] Atomic commit prepared or completed
+    validations:
+      required: true
+
+  - type: input
+    id: commit-message
+    attributes:
+      label: Recommended Conventional Commit
+      description: Provide the expected atomic commit message.
+      placeholder: "chore(repo): establish monad repository foundation"
+    validations:
+      required: true
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks / blockers / open questions
+      description: List anything that could prevent completion.
+      placeholder: |
+        - No known blockers
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 Critical
+        - P1 High
+        - P2 Normal
+        - P3 Later
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      options:
+        - XS
+        - S
+        - M
+        - L
+        - XL
+        - Unknown
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Definition of Ready
+      options:
+        - label: Objective is clear.
+          required: true
+        - label: Scope is bounded.
+          required: true
+        - label: Deliverables are listed.
+          required: true
+        - label: Verification is defined.
+          required: true
+        - label: Commit message is defined.
+          required: true

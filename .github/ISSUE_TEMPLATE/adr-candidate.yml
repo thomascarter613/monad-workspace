@@ -1,0 +1,159 @@
+name: ADR Candidate
+description: Propose an architecture decision that may become a formal ADR.
+title: "[ADR Candidate]: "
+labels:
+  - "type:adr"
+  - "status:needs-decision"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for decisions that may need to become Architecture Decision Records.
+
+        Not every decision needs an ADR. Use this when the decision affects architecture, product direction, workflow, security, extensibility, or long-term maintainability.
+
+  - type: input
+    id: decision-title
+    attributes:
+      label: Decision title
+      description: State the decision in a clear, neutral way.
+      placeholder: "Use Rust for the local core runtime"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: decision-area
+    attributes:
+      label: Decision area
+      options:
+        - Product
+        - Architecture
+        - Core Runtime
+        - CLI
+        - Repo Intelligence
+        - Context Bridge
+        - Verification
+        - Evolution Engine
+        - Agent Supervision
+        - Policy / Governance
+        - Security
+        - Workflow
+        - Business / Monetization
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What situation, problem, or trade-off forces this decision?
+      placeholder: "Monad needs a durable local runtime that can safely inspect repositories, run checks, modify files, and produce verifiable evidence."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-decision
+    attributes:
+      label: Proposed decision
+      description: What are we proposing to decide?
+      placeholder: "Implement Monad's durable local core runtime in Rust."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: List serious alternatives and why they may or may not be chosen.
+      value: |
+        Alternatives:
+        - 
+
+        Rejected or less-preferred options:
+        - 
+    validations:
+      required: true
+
+  - type: textarea
+    id: consequences
+    attributes:
+      label: Consequences
+      description: What are the expected positive and negative consequences?
+      value: |
+        Positive:
+        - 
+
+        Negative / trade-offs:
+        - 
+
+        Neutral:
+        - 
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-artifacts
+    attributes:
+      label: Affected artifacts
+      description: Which files, modules, docs, workflows, or product areas would this decision affect?
+      placeholder: |
+        - docs/adr/
+        - crates/monad-core/
+        - crates/monad-cli/
+        - docs/architecture/
+    validations:
+      required: false
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: Decision urgency
+      options:
+        - Needed before current work continues
+        - Needed before implementation
+        - Needed before MVP
+        - Can wait
+    validations:
+      required: true
+
+  - type: dropdown
+    id: adr-needed
+    attributes:
+      label: Should this become a formal ADR?
+      options:
+        - Yes
+        - Probably
+        - Unsure
+        - Probably not
+        - No
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Validation / evidence needed
+      description: What evidence would help make this decision?
+      placeholder: |
+        - Prototype result
+        - Research comparison
+        - Benchmark
+        - Security review
+        - Maintainer review
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: decision-checklist
+    attributes:
+      label: Decision checklist
+      options:
+        - label: The decision context is clear.
+          required: true
+        - label: At least one alternative is listed.
+          required: true
+        - label: Consequences are described.
+          required: true
+        - label: If accepted, this will be promoted to a repo ADR.
+          required: false
