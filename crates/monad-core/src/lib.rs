@@ -32,7 +32,8 @@ pub use repo_contract::{
 };
 pub use repository_graph::{
     RepositoryGraph, RepositoryGraphEdge, RepositoryGraphEdgeKind, RepositoryGraphNode,
-    RepositoryGraphNodeKind, build_repository_graph,
+    RepositoryGraphNodeKind, RepositoryGraphRenderFormat, build_repository_graph,
+    render_repository_graph,
 };
 pub use repository_inspection::{
     RepositoryBoundedTraversal, RepositoryEntry, RepositoryEntryCategory, RepositoryEntryKind,
@@ -231,6 +232,14 @@ mod tests {
             "workspace_root"
         );
         assert_eq!(RepositoryGraphEdgeKind::Contains.as_str(), "contains");
+    }
+
+    #[test]
+    fn repository_graph_render_format_is_exported_from_core_root() {
+        assert_eq!(RepositoryGraphRenderFormat::Text.as_str(), "text");
+        assert_eq!(RepositoryGraphRenderFormat::Json.as_str(), "json");
+        assert_eq!(RepositoryGraphRenderFormat::Mermaid.as_str(), "mermaid");
+        assert_eq!(RepositoryGraphRenderFormat::Dot.as_str(), "dot");
     }
 
     #[test]
