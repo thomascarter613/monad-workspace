@@ -7,24 +7,17 @@
 //! stays thin and delegates to this library.
 
 pub mod checks;
-pub mod dependency_detection;
 pub mod diagnostics;
 pub mod error;
 pub mod manifest;
 pub mod output;
 pub mod repo_contract;
-pub mod repository_context_pack;
 pub mod repository_graph;
 pub mod repository_inspection;
-pub mod repository_policy;
 pub mod toolchain_detection;
 pub mod workspace;
 
 pub use checks::run_workspace_checks;
-pub use dependency_detection::{
-    RepositoryDependencyDetection, RepositoryDependencySignal, RepositoryDependencySignalKind,
-    detect_repository_dependency_signals,
-};
 pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
 pub use error::{MonadError, MonadResult};
 pub use manifest::{
@@ -32,22 +25,12 @@ pub use manifest::{
     ManifestWorkspace, MonadManifest,
 };
 pub use output::{
-    OutputFormat, RepositoryDependencySummaryEntry, RepositoryInspectionSummary,
-    RepositoryInspectionSummaryEntry, RepositoryPolicySummaryDiagnostic,
+    OutputFormat, RepositoryInspectionSummary, RepositoryInspectionSummaryEntry,
     RepositoryToolchainSummaryEntry, WorkspaceSummary, render_diagnostic_report,
     render_repository_inspection_summary, render_workspace_summary,
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
-};
-pub use repository_context_pack::{
-    CURRENT_REPOSITORY_CONTEXT_PACK_SCHEMA_VERSION, REPOSITORY_CONTEXT_PACK_JSON_FILENAME,
-    REPOSITORY_CONTEXT_PACK_MARKDOWN_FILENAME, RepositoryContextPack,
-    RepositoryContextPackExportResult, RepositoryContextPackExportedFile,
-    RepositoryContextPackFact, RepositoryContextPackRenderFormat, RepositoryContextPackSection,
-    RepositoryContextPackSectionKind, build_repository_context_pack,
-    default_repository_context_pack_export_dir, export_repository_context_pack,
-    render_repository_context_pack,
 };
 pub use repository_graph::{
     RepositoryGraph, RepositoryGraphEdge, RepositoryGraphEdgeKind, RepositoryGraphNode,
@@ -60,10 +43,6 @@ pub use repository_inspection::{
     RepositoryTraversalDecision, RepositoryTraversalEntry, RepositoryTraversalGuardrails,
     RepositoryTraversalMode, RepositoryTraversalPlan, RepositoryTraversalPlanEntry,
     build_traversal_plan, inspect_workspace, traverse_workspace_bounded,
-};
-pub use repository_policy::{
-    RepositoryPolicyDiagnostic, RepositoryPolicyReport, RepositoryPolicySeverity,
-    evaluate_repository_intelligence_policy,
 };
 pub use toolchain_detection::{
     RepositoryToolchainDetection, RepositoryToolchainKind, RepositoryToolchainSignal,
@@ -150,50 +129,15 @@ pub fn repository_inspection_summary_from_workspace(
     let bounded_traversal = traverse_workspace_bounded(&inspection)?;
     let graph = build_repository_graph(&bounded_traversal);
     let toolchains = detect_repository_toolchains(&bounded_traversal);
-    let dependencies = detect_repository_dependency_signals(&bounded_traversal);
-    let policy =
-        evaluate_repository_intelligence_policy(&inspection, &bounded_traversal, &dependencies);
 
     Ok(
-        RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_toolchains_dependencies_and_policy(
+        RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_and_toolchains(
             &inspection,
             &bounded_traversal,
             &graph,
             &toolchains,
-            &dependencies,
-            &policy,
         ),
     )
-}
-
-pub fn repository_context_pack_from_workspace(
-    context: &WorkspaceContext,
-) -> MonadResult<RepositoryContextPack> {
-    let inspection = inspect_workspace(context)?;
-    let bounded_traversal = traverse_workspace_bounded(&inspection)?;
-    let graph = build_repository_graph(&bounded_traversal);
-    let toolchains = detect_repository_toolchains(&bounded_traversal);
-    let dependencies = detect_repository_dependency_signals(&bounded_traversal);
-    let policy =
-        evaluate_repository_intelligence_policy(&inspection, &bounded_traversal, &dependencies);
-
-    Ok(build_repository_context_pack(
-        &inspection,
-        &bounded_traversal,
-        &graph,
-        &toolchains,
-        &dependencies,
-        &policy,
-    ))
-}
-
-pub fn export_repository_context_pack_from_workspace(
-    context: &WorkspaceContext,
-) -> MonadResult<RepositoryContextPackExportResult> {
-    let pack = repository_context_pack_from_workspace(context)?;
-    let output_dir = default_repository_context_pack_export_dir(context.root());
-
-    export_repository_context_pack(&pack, output_dir)
 }
 
 #[cfg(test)]
@@ -321,83 +265,6 @@ mod tests {
     }
 
     #[test]
-    fn repository_dependency_detection_types_are_exported_from_core_root() {
-        assert_eq!(
-            RepositoryDependencySignalKind::Manifest.as_str(),
-            "manifest"
-        );
-        assert_eq!(
-            RepositoryDependencySignalKind::Lockfile.as_str(),
-            "lockfile"
-        );
-
-        let detection = RepositoryDependencyDetection::from_signals(Vec::new());
-
-        assert_eq!(detection.detected_toolchain_count(), 0);
-        assert_eq!(detection.signal_count(), 0);
-    }
-
-    #[test]
-    fn repository_policy_types_are_exported_from_core_root() {
-        assert_eq!(RepositoryPolicySeverity::Info.as_str(), "info");
-        assert_eq!(RepositoryPolicySeverity::Advisory.as_str(), "advisory");
-        assert_eq!(RepositoryPolicySeverity::Warning.as_str(), "warning");
-
-        let report = RepositoryPolicyReport::new(Vec::new());
-
-        assert_eq!(report.diagnostic_count(), 0);
-        assert!(!report.has_warnings());
-    }
-
-    #[test]
-    fn repository_context_pack_types_are_exported_from_core_root() {
-        assert_eq!(CURRENT_REPOSITORY_CONTEXT_PACK_SCHEMA_VERSION, 1);
-        assert_eq!(
-            RepositoryContextPackRenderFormat::Markdown.as_str(),
-            "markdown"
-        );
-        assert_eq!(RepositoryContextPackRenderFormat::Json.as_str(), "json");
-        assert_eq!(RepositoryContextPackSectionKind::Policy.as_str(), "policy");
-
-        let pack = RepositoryContextPack::new(
-            CURRENT_REPOSITORY_CONTEXT_PACK_SCHEMA_VERSION,
-            ".",
-            Vec::new(),
-        );
-
-        assert_eq!(pack.schema_version(), 1);
-        assert_eq!(pack.root(), ".");
-        assert_eq!(pack.section_count(), 0);
-        assert_eq!(pack.fact_count(), 0);
-    }
-
-    #[test]
-    fn repository_context_pack_export_types_are_exported_from_core_root() {
-        assert_eq!(
-            REPOSITORY_CONTEXT_PACK_MARKDOWN_FILENAME,
-            "repository-context-pack.md"
-        );
-        assert_eq!(
-            REPOSITORY_CONTEXT_PACK_JSON_FILENAME,
-            "repository-context-pack.json"
-        );
-
-        let output_dir =
-            default_repository_context_pack_export_dir(std::path::Path::new("/tmp/monad"));
-
-        assert_eq!(
-            output_dir,
-            std::path::PathBuf::from("/tmp/monad/.monad/context/generated")
-        );
-
-        let result = RepositoryContextPackExportResult::new(".", Vec::new());
-
-        assert_eq!(result.file_count(), 0);
-        assert_eq!(result.total_bytes_written(), 0);
-        assert!(!result.has_format(RepositoryContextPackRenderFormat::Markdown));
-    }
-
-    #[test]
     fn repository_entry_category_is_exported_from_core_root() {
         assert_eq!(RepositoryEntryCategory::Source.as_str(), "source");
         assert_eq!(
@@ -443,8 +310,5 @@ mod tests {
         assert_eq!(summary.graph_edge_count, 0);
         assert_eq!(summary.toolchain_count, 0);
         assert_eq!(summary.toolchain_signal_count, 0);
-        assert_eq!(summary.dependency_toolchain_count, 0);
-        assert_eq!(summary.dependency_signal_count, 0);
-        assert_eq!(summary.policy_diagnostic_count, 0);
     }
 }
