@@ -41,9 +41,12 @@ pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
 };
 pub use repository_context_pack::{
-    CURRENT_REPOSITORY_CONTEXT_PACK_SCHEMA_VERSION, RepositoryContextPack,
+    CURRENT_REPOSITORY_CONTEXT_PACK_SCHEMA_VERSION, REPOSITORY_CONTEXT_PACK_JSON_FILENAME,
+    REPOSITORY_CONTEXT_PACK_MARKDOWN_FILENAME, RepositoryContextPack,
+    RepositoryContextPackExportResult, RepositoryContextPackExportedFile,
     RepositoryContextPackFact, RepositoryContextPackRenderFormat, RepositoryContextPackSection,
     RepositoryContextPackSectionKind, build_repository_context_pack,
+    default_repository_context_pack_export_dir, export_repository_context_pack,
     render_repository_context_pack,
 };
 pub use repository_graph::{
@@ -182,6 +185,15 @@ pub fn repository_context_pack_from_workspace(
         &dependencies,
         &policy,
     ))
+}
+
+pub fn export_repository_context_pack_from_workspace(
+    context: &WorkspaceContext,
+) -> MonadResult<RepositoryContextPackExportResult> {
+    let pack = repository_context_pack_from_workspace(context)?;
+    let output_dir = default_repository_context_pack_export_dir(context.root());
+
+    export_repository_context_pack(&pack, output_dir)
 }
 
 #[cfg(test)]
@@ -357,6 +369,32 @@ mod tests {
         assert_eq!(pack.root(), ".");
         assert_eq!(pack.section_count(), 0);
         assert_eq!(pack.fact_count(), 0);
+    }
+
+    #[test]
+    fn repository_context_pack_export_types_are_exported_from_core_root() {
+        assert_eq!(
+            REPOSITORY_CONTEXT_PACK_MARKDOWN_FILENAME,
+            "repository-context-pack.md"
+        );
+        assert_eq!(
+            REPOSITORY_CONTEXT_PACK_JSON_FILENAME,
+            "repository-context-pack.json"
+        );
+
+        let output_dir =
+            default_repository_context_pack_export_dir(std::path::Path::new("/tmp/monad"));
+
+        assert_eq!(
+            output_dir,
+            std::path::PathBuf::from("/tmp/monad/.monad/context/generated")
+        );
+
+        let result = RepositoryContextPackExportResult::new(".", Vec::new());
+
+        assert_eq!(result.file_count(), 0);
+        assert_eq!(result.total_bytes_written(), 0);
+        assert!(!result.has_format(RepositoryContextPackRenderFormat::Markdown));
     }
 
     #[test]

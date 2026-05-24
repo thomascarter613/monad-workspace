@@ -1,15 +1,16 @@
 //! Repository context pack foundation for Monad.
 //!
-//! WP-E2-013 introduces an AI-readable repository context pack model.
+//! WP-E2-013 introduced an AI-readable repository context pack model.
+//! WP-E2-015 adds deterministic file export support.
 //!
-//! The context pack is intentionally built in `monad-core` rather than the CLI.
-//! The CLI can later expose it through a command such as:
+//! The context pack is intentionally built and exported in `monad-core` rather
+//! than the CLI. The CLI can later expose this through a thin command flag such
+//! as:
 //!
-//! - `monad context`
-//! - `monad context --format=json`
-//! - `monad context --format=markdown`
+//! - `monad context --write`
+//! - `monad context --write --format=json`
 //!
-//! This slice does not add a new CLI command yet.
+//! This slice does not add a CLI write flag yet.
 //!
 //! A repository context pack aggregates the repository intelligence produced by
 //! earlier E2 slices:
@@ -20,6 +21,9 @@
 //! - toolchain detection;
 //! - dependency signal detection;
 //! - advisory policy diagnostics.
+
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use serde_json::json;
 
@@ -34,6 +38,12 @@ use crate::{
 /// The context pack is an AI-facing/read-model artifact and can evolve on a
 /// different cadence from the repository manifest.
 pub const CURRENT_REPOSITORY_CONTEXT_PACK_SCHEMA_VERSION: u16 = 1;
+
+/// Default Markdown context-pack filename.
+pub const REPOSITORY_CONTEXT_PACK_MARKDOWN_FILENAME: &str = "repository-context-pack.md";
+
+/// Default JSON context-pack filename.
+pub const REPOSITORY_CONTEXT_PACK_JSON_FILENAME: &str = "repository-context-pack.json";
 
 /// Supported repository context pack render formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,6 +61,15 @@ impl RepositoryContextPackRenderFormat {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Markdown => "markdown",
+            Self::Json => "json",
+        }
+    }
+
+    /// Returns the default file extension for this render format.
+    #[must_use]
+    pub const fn file_extension(self) -> &'static str {
+        match self {
+            Self::Markdown => "md",
             Self::Json => "json",
         }
     }
@@ -287,6 +306,111 @@ impl RepositoryContextPack {
     }
 }
 
+/// One exported context-pack file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepositoryContextPackExportedFile {
+    format: RepositoryContextPackRenderFormat,
+    path: PathBuf,
+    bytes_written: usize,
+}
+
+impl RepositoryContextPackExportedFile {
+    /// Creates an exported file record.
+    #[must_use]
+    pub fn new(
+        format: RepositoryContextPackRenderFormat,
+        path: impl Into<PathBuf>,
+        bytes_written: usize,
+    ) -> Self {
+        Self {
+            format,
+            path: path.into(),
+            bytes_written,
+        }
+    }
+
+    /// Returns the exported file format.
+    #[must_use]
+    pub const fn format(&self) -> RepositoryContextPackRenderFormat {
+        self.format
+    }
+
+    /// Returns the exported file path.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Returns the number of bytes written.
+    #[must_use]
+    pub const fn bytes_written(&self) -> usize {
+        self.bytes_written
+    }
+}
+
+/// Result of exporting a repository context pack.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepositoryContextPackExportResult {
+    output_dir: PathBuf,
+    files: Vec<RepositoryContextPackExportedFile>,
+}
+
+impl RepositoryContextPackExportResult {
+    /// Creates an export result.
+    #[must_use]
+    pub fn new(
+        output_dir: impl Into<PathBuf>,
+        files: Vec<RepositoryContextPackExportedFile>,
+    ) -> Self {
+        Self {
+            output_dir: output_dir.into(),
+            files,
+        }
+    }
+
+    /// Returns the output directory.
+    #[must_use]
+    pub fn output_dir(&self) -> &Path {
+        &self.output_dir
+    }
+
+    /// Returns exported files.
+    #[must_use]
+    pub fn files(&self) -> &[RepositoryContextPackExportedFile] {
+        &self.files
+    }
+
+    /// Returns the number of exported files.
+    #[must_use]
+    pub fn file_count(&self) -> usize {
+        self.files.len()
+    }
+
+    /// Returns total bytes written.
+    #[must_use]
+    pub fn total_bytes_written(&self) -> usize {
+        self.files
+            .iter()
+            .map(RepositoryContextPackExportedFile::bytes_written)
+            .sum()
+    }
+
+    /// Returns true when a file for the requested format was exported.
+    #[must_use]
+    pub fn has_format(&self, format: RepositoryContextPackRenderFormat) -> bool {
+        self.files.iter().any(|file| file.format() == format)
+    }
+}
+
+/// Returns the default generated context-pack export directory for a repository root.
+#[must_use]
+pub fn default_repository_context_pack_export_dir(repository_root: &Path) -> PathBuf {
+    repository_root
+        .join(".monad")
+        .join("context")
+        .join("generated")
+}
+
 /// Builds an AI-readable repository context pack from existing repository intelligence.
 #[must_use]
 pub fn build_repository_context_pack(
@@ -328,6 +452,59 @@ pub fn render_repository_context_pack(
     }
 }
 
+/// Exports a repository context pack as deterministic Markdown and JSON files.
+///
+/// The caller supplies the output directory. For the default repository-local
+/// location, use [`default_repository_context_pack_export_dir`].
+pub fn export_repository_context_pack(
+    pack: &RepositoryContextPack,
+    output_dir: impl AsRef<Path>,
+) -> MonadResult<RepositoryContextPackExportResult> {
+    let output_dir = output_dir.as_ref();
+
+    fs::create_dir_all(output_dir).map_err(|error| {
+        MonadError::invalid_input(format!(
+            "failed to create context pack export directory {}: {error}",
+            output_dir.display()
+        ))
+    })?;
+
+    let markdown_path = output_dir.join(REPOSITORY_CONTEXT_PACK_MARKDOWN_FILENAME);
+    let json_path = output_dir.join(REPOSITORY_CONTEXT_PACK_JSON_FILENAME);
+
+    let markdown =
+        render_repository_context_pack(pack, RepositoryContextPackRenderFormat::Markdown);
+    let json = render_repository_context_pack(pack, RepositoryContextPackRenderFormat::Json);
+
+    write_context_pack_file(&markdown_path, &markdown)?;
+    write_context_pack_file(&json_path, &json)?;
+
+    Ok(RepositoryContextPackExportResult::new(
+        output_dir.to_path_buf(),
+        vec![
+            RepositoryContextPackExportedFile::new(
+                RepositoryContextPackRenderFormat::Markdown,
+                markdown_path,
+                markdown.len(),
+            ),
+            RepositoryContextPackExportedFile::new(
+                RepositoryContextPackRenderFormat::Json,
+                json_path,
+                json.len(),
+            ),
+        ],
+    ))
+}
+
+fn write_context_pack_file(path: &Path, contents: &str) -> MonadResult<()> {
+    fs::write(path, contents).map_err(|error| {
+        MonadError::invalid_input(format!(
+            "failed to write context pack file {}: {error}",
+            path.display()
+        ))
+    })
+}
+
 fn build_overview_section(inspection: &RepositoryInspection) -> RepositoryContextPackSection {
     RepositoryContextPackSection::new(
         RepositoryContextPackSectionKind::Overview,
@@ -365,13 +542,19 @@ fn build_traversal_section(
         "Bounded Traversal",
         vec![
             RepositoryContextPackFact::new("mode", bounded_traversal.mode().as_str()),
-            RepositoryContextPackFact::new("entry_count", bounded_traversal.entry_count().to_string()),
+            RepositoryContextPackFact::new(
+                "entry_count",
+                bounded_traversal.entry_count().to_string(),
+            ),
             RepositoryContextPackFact::new(
                 "max_observed_depth",
                 bounded_traversal.max_observed_depth().to_string(),
             ),
             RepositoryContextPackFact::new("max_allowed_depth", guardrails.max_depth().to_string()),
-            RepositoryContextPackFact::new("follow_symlinks", guardrails.follow_symlinks().to_string()),
+            RepositoryContextPackFact::new(
+                "follow_symlinks",
+                guardrails.follow_symlinks().to_string(),
+            ),
             RepositoryContextPackFact::new(
                 "include_generated_or_external",
                 guardrails.include_generated_or_external().to_string(),
@@ -384,8 +567,14 @@ fn build_traversal_section(
                 "deterministic_ordering",
                 guardrails.deterministic_ordering().to_string(),
             ),
-            RepositoryContextPackFact::new("candidate_count", bounded_traversal.candidate_count().to_string()),
-            RepositoryContextPackFact::new("shallow_only_count", bounded_traversal.shallow_only_count().to_string()),
+            RepositoryContextPackFact::new(
+                "candidate_count",
+                bounded_traversal.candidate_count().to_string(),
+            ),
+            RepositoryContextPackFact::new(
+                "shallow_only_count",
+                bounded_traversal.shallow_only_count().to_string(),
+            ),
             RepositoryContextPackFact::new("skip_count", bounded_traversal.skip_count().to_string()),
         ],
         vec![
@@ -774,18 +963,16 @@ mod tests {
             ),
             Some("3")
         );
-        assert_eq!(
+        assert!(
             pack.fact_value(RepositoryContextPackSectionKind::Graph, "node_count")
-                .is_some(),
-            true
+                .is_some()
         );
-        assert_eq!(
+        assert!(
             pack.fact_value(
                 RepositoryContextPackSectionKind::Dependencies,
                 "manifest_count"
             )
-            .is_some(),
-            true
+            .is_some()
         );
 
         fs::remove_dir_all(root).ok();
@@ -836,6 +1023,60 @@ mod tests {
         assert!(rendered.contains(r#""has_policy_warnings": true"#));
 
         fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn context_pack_default_export_dir_is_repository_local_and_deterministic() {
+        let root = PathBuf::from("/tmp/monad");
+
+        let output_dir = default_repository_context_pack_export_dir(&root);
+
+        assert_eq!(
+            output_dir,
+            PathBuf::from("/tmp/monad/.monad/context/generated")
+        );
+    }
+
+    #[test]
+    fn context_pack_exports_markdown_and_json_files() {
+        let root = create_context_pack_workspace("export");
+        let pack = build_pack_from_workspace(&root);
+        let output_dir = default_repository_context_pack_export_dir(&root);
+
+        let result =
+            export_repository_context_pack(&pack, &output_dir).expect("context pack should export");
+
+        let markdown_path = output_dir.join(REPOSITORY_CONTEXT_PACK_MARKDOWN_FILENAME);
+        let json_path = output_dir.join(REPOSITORY_CONTEXT_PACK_JSON_FILENAME);
+
+        assert_eq!(result.file_count(), 2);
+        assert!(result.total_bytes_written() > 0);
+        assert!(result.has_format(RepositoryContextPackRenderFormat::Markdown));
+        assert!(result.has_format(RepositoryContextPackRenderFormat::Json));
+        assert!(markdown_path.exists());
+        assert!(json_path.exists());
+
+        let markdown =
+            fs::read_to_string(markdown_path).expect("markdown export should be readable");
+        let json = fs::read_to_string(json_path).expect("json export should be readable");
+
+        assert!(markdown.starts_with("# Monad Repository Context Pack"));
+        assert!(json.contains(r#""kind": "repository_context_pack""#));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn exported_file_records_capture_format_path_and_bytes() {
+        let file = RepositoryContextPackExportedFile::new(
+            RepositoryContextPackRenderFormat::Json,
+            "repository-context-pack.json",
+            42,
+        );
+
+        assert_eq!(file.format(), RepositoryContextPackRenderFormat::Json);
+        assert_eq!(file.path(), Path::new("repository-context-pack.json"));
+        assert_eq!(file.bytes_written(), 42);
     }
 
     #[test]
