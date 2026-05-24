@@ -4,6 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
 
+CONTEXT_GENERATED_DIR=".monad/context/generated"
+
+cleanup_generated_context() {
+  rm -rf "${CONTEXT_GENERATED_DIR}"
+}
+
 echo "==> Checking git diff whitespace"
 git diff --check
 
@@ -75,5 +81,12 @@ cargo run --quiet -p monad-cli -- context --format=md >/dev/null
 
 echo "==> Running CLI context text alias smoke test"
 cargo run --quiet -p monad-cli -- context --format=text >/dev/null
+
+echo "==> Running CLI context write smoke test"
+cleanup_generated_context
+cargo run --quiet -p monad-cli -- context --write >/dev/null
+test -f "${CONTEXT_GENERATED_DIR}/repository-context-pack.md"
+test -f "${CONTEXT_GENERATED_DIR}/repository-context-pack.json"
+cleanup_generated_context
 
 echo "Verification baseline passed."

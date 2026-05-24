@@ -4,14 +4,16 @@
 //! `monad-core`, and print the result.
 //!
 //! Durable repository intelligence, inspection, graph construction, graph
-//! rendering, and context-pack generation belong in `monad-core`.
+//! rendering, context-pack generation, and context-pack export belong in
+//! `monad-core`.
 
 use std::env;
 use std::process::ExitCode;
 
 use monad_core::{
-    OutputFormat, RepositoryContextPackRenderFormat, RepositoryGraphRenderFormat, WorkspaceContext,
-    build_repository_graph, checked_runtime_identity, inspect_workspace,
+    OutputFormat, RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
+    RepositoryGraphRenderFormat, WorkspaceContext, build_repository_graph,
+    checked_runtime_identity, export_repository_context_pack_from_workspace, inspect_workspace,
     load_manifest_from_workspace, render_diagnostic_report, render_repository_context_pack,
     render_repository_graph, render_repository_inspection_summary, render_workspace_summary,
     repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
@@ -54,10 +56,13 @@ enum CliCommand {
         graph_format: RepositoryGraphRenderFormat,
     },
 
-    /// Render AI-readable repository context pack.
+    /// Render or export AI-readable repository context pack.
     Context {
         /// Requested context-pack render format.
         context_format: RepositoryContextPackRenderFormat,
+
+        /// Whether to write generated context-pack files.
+        write: bool,
     },
 }
 
@@ -66,6 +71,7 @@ impl CliCommand {
     fn parse(args: impl IntoIterator<Item = String>) -> Result<Self, String> {
         let mut requested_format: Option<String> = None;
         let mut command: Option<String> = None;
+        let mut write = false;
 
         for argument in args.into_iter().skip(1) {
             if argument == "--help" || argument == "-h" {
@@ -74,6 +80,11 @@ impl CliCommand {
 
             if argument == "--version" || argument == "-V" {
                 return Ok(Self::Version);
+            }
+
+            if argument == "--write" {
+                write = true;
+                continue;
             }
 
             if let Some(value) = argument.strip_prefix("--format=") {
@@ -98,30 +109,44 @@ impl CliCommand {
 
         match command.as_deref() {
             None => {
+                reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Info { output_format })
             }
-            Some("help") => Ok(Self::Help),
-            Some("version") => Ok(Self::Version),
+            Some("help") => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::Help)
+            }
+            Some("version") => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::Version)
+            }
             Some("info") => {
+                reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Info { output_format })
             }
             Some("check") => {
+                reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Check { output_format })
             }
             Some("inspect") => {
+                reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Inspect { output_format })
             }
             Some("graph") => {
+                reject_write_for_non_context(write)?;
                 let graph_format = parse_graph_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Graph { graph_format })
             }
             Some("context") => {
                 let context_format = parse_context_format_or_default(requested_format.as_deref())?;
-                Ok(Self::Context { context_format })
+                Ok(Self::Context {
+                    context_format,
+                    write,
+                })
             }
             Some(other) => Err(format!("unknown command: {other}")),
         }
@@ -153,7 +178,19 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
         CliCommand::Check { output_format } => render_check(output_format),
         CliCommand::Inspect { output_format } => render_inspect(output_format),
         CliCommand::Graph { graph_format } => render_graph(graph_format),
-        CliCommand::Context { context_format } => render_context(context_format),
+        CliCommand::Context {
+            context_format,
+            write,
+        } => render_context(context_format, write),
+    }
+}
+
+/// Rejects `--write` when the selected command does not support writing.
+fn reject_write_for_non_context(write: bool) -> Result<(), String> {
+    if write {
+        Err("--write is only supported for the context command".to_string())
+    } else {
+        Ok(())
     }
 }
 
@@ -203,7 +240,7 @@ fn help_text() -> String {
         "Monad",
         "",
         "Usage:",
-        "  monad [command] [--format=<format>]",
+        "  monad [command] [--format=<format>] [--write]",
         "",
         "Commands:",
         "  info      Show workspace summary",
@@ -229,6 +266,9 @@ fn help_text() -> String {
         "  md",
         "  text",
         "  json",
+        "",
+        "Context write mode:",
+        "  monad context --write",
     ]
     .join("\n")
 }
@@ -280,13 +320,46 @@ fn render_graph(graph_format: RepositoryGraphRenderFormat) -> Result<String, Str
     Ok(render_repository_graph(&graph, graph_format))
 }
 
-/// Renders AI-readable repository context pack.
-fn render_context(context_format: RepositoryContextPackRenderFormat) -> Result<String, String> {
+/// Renders or exports AI-readable repository context pack.
+fn render_context(
+    context_format: RepositoryContextPackRenderFormat,
+    write: bool,
+) -> Result<String, String> {
     let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
-    let pack =
-        repository_context_pack_from_workspace(&context).map_err(|error| error.to_string())?;
 
-    Ok(render_repository_context_pack(&pack, context_format))
+    if write {
+        let export_result = export_repository_context_pack_from_workspace(&context)
+            .map_err(|error| error.to_string())?;
+
+        Ok(render_context_export_summary(&export_result))
+    } else {
+        let pack =
+            repository_context_pack_from_workspace(&context).map_err(|error| error.to_string())?;
+
+        Ok(render_repository_context_pack(&pack, context_format))
+    }
+}
+
+/// Renders a concise context-pack export summary.
+fn render_context_export_summary(result: &RepositoryContextPackExportResult) -> String {
+    let mut lines = vec![
+        "Monad repository context pack export".to_string(),
+        format!("  output_dir: {}", result.output_dir().display()),
+        format!("  files: {}", result.file_count()),
+        format!("  bytes: {}", result.total_bytes_written()),
+        "  exported_files:".to_string(),
+    ];
+
+    for file in result.files() {
+        lines.push(format!(
+            "    - {}: {} bytes={}",
+            file.format().as_str(),
+            file.path().display(),
+            file.bytes_written()
+        ));
+    }
+
+    lines.join("\n")
 }
 
 #[cfg(test)]
@@ -424,7 +497,8 @@ mod tests {
         assert_eq!(
             parse_arguments(&["monad", "context"]).expect("context should parse"),
             CliCommand::Context {
-                context_format: RepositoryContextPackRenderFormat::Markdown
+                context_format: RepositoryContextPackRenderFormat::Markdown,
+                write: false,
             }
         );
 
@@ -432,14 +506,16 @@ mod tests {
             parse_arguments(&["monad", "context", "--format=markdown"])
                 .expect("context markdown should parse"),
             CliCommand::Context {
-                context_format: RepositoryContextPackRenderFormat::Markdown
+                context_format: RepositoryContextPackRenderFormat::Markdown,
+                write: false,
             }
         );
 
         assert_eq!(
             parse_arguments(&["monad", "context", "--format=md"]).expect("context md should parse"),
             CliCommand::Context {
-                context_format: RepositoryContextPackRenderFormat::Markdown
+                context_format: RepositoryContextPackRenderFormat::Markdown,
+                write: false,
             }
         );
 
@@ -447,7 +523,8 @@ mod tests {
             parse_arguments(&["monad", "context", "--format=text"])
                 .expect("context text alias should parse"),
             CliCommand::Context {
-                context_format: RepositoryContextPackRenderFormat::Markdown
+                context_format: RepositoryContextPackRenderFormat::Markdown,
+                write: false,
             }
         );
 
@@ -455,7 +532,37 @@ mod tests {
             parse_arguments(&["monad", "context", "--format=json"])
                 .expect("context json should parse"),
             CliCommand::Context {
-                context_format: RepositoryContextPackRenderFormat::Json
+                context_format: RepositoryContextPackRenderFormat::Json,
+                write: false,
+            }
+        );
+    }
+
+    #[test]
+    fn context_command_parses_write_flag() {
+        assert_eq!(
+            parse_arguments(&["monad", "context", "--write"]).expect("context write should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Markdown,
+                write: true,
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "--write", "context"])
+                .expect("write before context should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Markdown,
+                write: true,
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "context", "--format=json", "--write"])
+                .expect("context json write should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Json,
+                write: true,
             }
         );
     }
@@ -466,7 +573,8 @@ mod tests {
             parse_arguments(&["monad", "--format=json", "context"])
                 .expect("format before context should parse"),
             CliCommand::Context {
-                context_format: RepositoryContextPackRenderFormat::Json
+                context_format: RepositoryContextPackRenderFormat::Json,
+                write: false,
             }
         );
 
@@ -477,6 +585,19 @@ mod tests {
                 graph_format: RepositoryGraphRenderFormat::Mermaid
             }
         );
+    }
+
+    #[test]
+    fn write_flag_is_rejected_for_non_context_commands() {
+        let error = parse_arguments(&["monad", "inspect", "--write"])
+            .expect_err("inspect should not accept write");
+
+        assert_eq!(error, "--write is only supported for the context command");
+
+        let error = parse_arguments(&["monad", "--write", "graph"])
+            .expect_err("graph should not accept write");
+
+        assert_eq!(error, "--write is only supported for the context command");
     }
 
     #[test]
@@ -520,12 +641,13 @@ mod tests {
     }
 
     #[test]
-    fn help_text_mentions_context_command_and_formats() {
+    fn help_text_mentions_context_command_formats_and_write_mode() {
         let text = help_text();
 
         assert!(text.contains("context"));
         assert!(text.contains("markdown"));
         assert!(text.contains("md"));
+        assert!(text.contains("monad context --write"));
     }
 
     #[test]
