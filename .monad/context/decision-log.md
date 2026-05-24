@@ -2,17 +2,17 @@
 title: "Decision Log"
 document_type: "context-decision-log"
 status: "current"
-version: "1.1.0"
+version: "1.2.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-002"
+work_packet: "WP-E1-003"
 tags:
 
 * decisions
 * e1
-* core-diagnostics
+* core-error
 
 ---
 
@@ -34,7 +34,8 @@ tags:
 12. E0 — Project Foundation is complete.
 13. E1 — Runtime Foundation began with WP-E1-001.
 14. WP-E1-001 established the Rust workspace foundation.
-15. WP-E1-002 establishes Core Diagnostics in `monad-core`.
+15. WP-E1-002 established Core Diagnostics in `monad-core`.
+16. WP-E1-003 establishes Core Error in `monad-core`.
 
 ## Current Epic
 
@@ -42,8 +43,85 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-002 — Establish Core Diagnostics Foundation
+WP-E1-003 — Establish Core Error Foundation
 
-## Prior E1 Work Packet
+## Prior E1 Work Packets
 
-WP-E1-001 — Establish Rust Workspace Runtime Foundation
+* WP-E1-001 — Establish Rust Workspace Runtime Foundation
+* WP-E1-002 — Establish Core Diagnostics Foundation
+  MD
+
+cat > .monad/context/work-packet-handoffs/WP-E1-003.md <<'MD'
+
+title: "WP-E1-003 Handoff"
+document_type: "work-packet-handoff"
+status: "current"
+version: "0.1.0"
+created: "2026-05-23"
+updated: "2026-05-23"
+owner: "Monad Project"
+epic: "E1"
+work_packet: "WP-E1-003"
+tags:
+
+* handoff
+* rust
+* runtime-foundation
+* core-error
+
+---
+
+# WP-E1-003 Handoff
+
+## Work Packet
+
+WP-E1-003 — Establish Core Error Foundation
+
+## Current Epic
+
+E1 — Runtime Foundation
+
+## Prior Work
+
+E0 — Project Foundation is complete.
+
+WP-E1-001 — Establish Rust Workspace Runtime Foundation is complete.
+
+WP-E1-002 — Establish Core Diagnostics Foundation is complete.
+
+## Objective
+
+Create a durable core error foundation in `monad-core`.
+
+## Core Error
+
+This slice adds:
+
+* `MonadError`;
+* `MonadResult<T>`;
+* stable error codes;
+* conversion from errors to diagnostics;
+* `Display` implementation;
+* standard Rust error trait integration;
+* unit tests.
+
+## Rules
+
+* Use Rust Apprenticeship Mode.
+* Provide complete file contents.
+* Add beginner-readable comments.
+* Keep CLI thin.
+* Put durable runtime logic in `monad-core`.
+* Add tests.
+* Run verification.
+* Use `python3`, not `python`.
+* Do not introduce Bazel, Pants, Buck2, or Nx.
+
+## Expected Verification
+
+```bash
+cargo fmt --check
+cargo test
+tools/scripts/verify.sh
+```
+

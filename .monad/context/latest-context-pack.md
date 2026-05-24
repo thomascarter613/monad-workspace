@@ -2,18 +2,18 @@
 title: "Latest Context Pack"
 document_type: "context-pack"
 status: "current"
-version: "1.1.0"
+version: "1.2.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-002"
+work_packet: "WP-E1-003"
 tags:
 
 * context-pack
 * e1
 * runtime-foundation
-* core-diagnostics
+* core-error
 
 ---
 
@@ -29,13 +29,15 @@ E0 — Project Foundation is complete.
 
 WP-E1-001 — Establish Rust Workspace Runtime Foundation is complete.
 
+WP-E1-002 — Establish Core Diagnostics Foundation is complete.
+
 ## Current Epic
 
 E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-002 — Establish Core Diagnostics Foundation
+WP-E1-003 — Establish Core Error Foundation
 
 ## Runtime Foundation State
 
@@ -47,12 +49,18 @@ crates/
   monad-core/
 ```
 
-Core Diagnostics adds:
+Core Diagnostics added:
 
 * `Severity`;
 * `Diagnostic`;
-* `DiagnosticReport`;
-* startup diagnostics from runtime identity.
+* `DiagnosticReport`.
+
+Core Error adds:
+
+* `MonadError`;
+* `MonadResult<T>`;
+* stable error codes;
+* conversion to diagnostics.
 
 ## Verification
 

@@ -7,8 +7,10 @@
 //! stays thin and delegates to this library.
 
 pub mod diagnostics;
+pub mod error;
 
 pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
+pub use error::{MonadError, MonadResult};
 
 /// Describes the currently compiled Monad runtime identity.
 ///
@@ -82,6 +84,14 @@ pub fn runtime_identity() -> RuntimeIdentity {
     RuntimeIdentity::new()
 }
 
+/// Returns Monad's runtime identity through the shared result type.
+///
+/// This small function exists so early tests and examples can demonstrate
+/// `MonadResult<T>` before more complex runtime operations exist.
+pub fn checked_runtime_identity() -> MonadResult<RuntimeIdentity> {
+    Ok(runtime_identity())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,5 +122,12 @@ mod tests {
         assert_eq!(diagnostic.code, "MONAD0001");
         assert!(diagnostic.message.contains("Monad"));
         assert!(diagnostic.render().contains("[INFO] MONAD0001"));
+    }
+
+    #[test]
+    fn checked_runtime_identity_uses_monad_result() {
+        let identity = checked_runtime_identity().expect("runtime identity should be available");
+
+        assert_eq!(identity.product_name, "Monad");
     }
 }

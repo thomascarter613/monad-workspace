@@ -2,7 +2,7 @@
 title: "E1 Task Records"
 document_type: "task-index"
 status: "draft"
-version: "0.2.0"
+version: "0.3.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
@@ -28,4 +28,7 @@ This directory contains durable task records for E1 — Runtime Foundation.
 | T-WP-E1-001-004 | WP-E1-001 | Add Rust verification to baseline | Complete |
 | T-WP-E1-002-001 | WP-E1-002 | Add diagnostics module | Complete |
 | T-WP-E1-002-002 | WP-E1-002 | Export diagnostics from core runtime | Complete |
-| T-WP-E1-002-003 | WP-E1-002 | Update E1 records and context | In Progress |
+| T-WP-E1-002-003 | WP-E1-002 | Update E1 records and context | Complete |
+| T-WP-E1-003-001 | WP-E1-003 | Add core error module | Complete |
+| T-WP-E1-003-002 | WP-E1-003 | Export core error model | Complete |
+| T-WP-E1-003-003 | WP-E1-003 | Update E1 records and context | In Progress |

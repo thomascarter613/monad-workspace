@@ -2,18 +2,17 @@
 title: "Current State"
 document_type: "ai-context"
 status: "current"
-version: "1.1.0"
+version: "1.2.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-002"
+work_packet: "WP-E1-003"
 tags:
   - current-state
   - handoff
-  - e0-complete
   - e1
-  - core-diagnostics
+  - core-error
 ---
 
 # Current State
@@ -28,7 +27,7 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-002 — Establish Core Diagnostics Foundation
+WP-E1-003 — Establish Core Error Foundation
 
 ## Prior Work
 
@@ -36,21 +35,23 @@ E0 — Project Foundation is complete.
 
 WP-E1-001 — Establish Rust Workspace Runtime Foundation is complete.
 
+WP-E1-002 — Establish Core Diagnostics Foundation is complete.
+
 ## Active Runtime Focus
 
-Core Diagnostics.
+Core Error.
 
 The current slice adds:
 
-- `Severity`;
-- `Diagnostic`;
-- `DiagnosticReport`;
-- diagnostic rendering;
-- startup diagnostic support from `RuntimeIdentity`.
+- `MonadError`;
+- `MonadResult<T>`;
+- stable error codes;
+- conversion from errors to diagnostics;
+- standard Rust error integration.
 
 ## Next Expected Slice
 
-After WP-E1-002, proceed to the next E1 runtime foundation slice, likely the core error model or workspace context foundation.
+After WP-E1-003, proceed to the next E1 runtime foundation slice, likely workspace context discovery.
 
 ## Verification
 

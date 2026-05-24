@@ -2,19 +2,19 @@
 title: "Monad Context Current State"
 document_type: "context-current-state"
 status: "current"
-version: "1.1.0"
+version: "1.2.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-002"
+work_packet: "WP-E1-003"
 tags:
 
 * context
 * current-state
 * e1
 * runtime-foundation
-* core-diagnostics
+* core-error
 
 ---
 
@@ -24,17 +24,20 @@ E0 — Project Foundation is complete.
 
 WP-E1-001 — Establish Rust Workspace Runtime Foundation is complete.
 
+WP-E1-002 — Establish Core Diagnostics Foundation is complete.
+
 The current epic is E1 — Runtime Foundation.
 
-The current work packet is WP-E1-002 — Establish Core Diagnostics Foundation.
+The current work packet is WP-E1-003 — Establish Core Error Foundation.
 
 ## Active Focus
 
-Core Diagnostics.
+Core Error.
 
 ## Runtime Files
 
 * `crates/monad-core/src/diagnostics.rs`
+* `crates/monad-core/src/error.rs`
 * `crates/monad-core/src/lib.rs`
 * `crates/monad-cli/src/main.rs`
 

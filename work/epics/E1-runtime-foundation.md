@@ -2,7 +2,7 @@
 title: "E1 — Runtime Foundation"
 document_type: "epic"
 status: "in-progress"
-version: "0.3.0"
+version: "0.4.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
@@ -42,6 +42,7 @@ E1 includes:
 - initial tests;
 - initial CLI command wiring;
 - diagnostics foundation;
+- core error foundation;
 - manifest/runtime foundation slices as later E1 work packets.
 
 ## Out of Scope
@@ -61,11 +62,12 @@ E1 does not include:
 | Work Packet | Title | Status |
 |---|---|---|
 | WP-E1-001 | Establish Rust workspace runtime foundation | Complete |
-| WP-E1-002 | Establish core diagnostics foundation | In Progress |
+| WP-E1-002 | Establish core diagnostics foundation | Complete |
+| WP-E1-003 | Establish core error foundation | In Progress |
 
 ## Expected Result After Verification
 
-The repository has a working Rust workspace foundation and a reusable `monad-core` diagnostics model.
+The repository has a working Rust workspace foundation, a reusable diagnostics model, and a shared core error model.
 
 ## Verification
 

@@ -15,15 +15,27 @@ REQUIRED_CONTEXT_FILES = [
     Path(".monad/context/decision-log.md"),
     Path(".monad/context/work-packet-handoffs/WP-E1-001.md"),
     Path(".monad/context/work-packet-handoffs/WP-E1-002.md"),
+    Path(".monad/context/work-packet-handoffs/WP-E1-003.md"),
 ]
 
-REQUIRED_TERMS = [
+GLOBAL_REQUIRED_TERMS = [
     "E0",
     "E1",
     "WP-E1-001",
     "WP-E1-002",
+    "WP-E1-003",
     "Runtime Foundation",
     "Core Diagnostics",
+    "Core Error",
+]
+
+CURRENT_CONTEXT_FILES = [
+    Path("docs/09-ai/CURRENT-STATE.md"),
+    Path("docs/09-ai/FRESH-CHAT-HANDOFF.md"),
+    Path(".monad/context/current-state.md"),
+    Path(".monad/context/latest-handoff.md"),
+    Path(".monad/context/latest-context-pack.md"),
+    Path(".monad/context/decision-log.md"),
 ]
 
 
@@ -33,6 +45,7 @@ def has_frontmatter(text: str) -> bool:
 
 def main() -> int:
     failures: list[str] = []
+    combined_text_parts: list[str] = []
 
     for path in REQUIRED_CONTEXT_FILES:
         if not path.exists():
@@ -40,13 +53,25 @@ def main() -> int:
             continue
 
         text = path.read_text(encoding="utf-8")
+        combined_text_parts.append(text)
 
         if not has_frontmatter(text):
             failures.append(f"{path}: missing or malformed YAML frontmatter")
 
-        for term in REQUIRED_TERMS:
+    combined_text = "\n".join(combined_text_parts)
+
+    for term in GLOBAL_REQUIRED_TERMS:
+        if term not in combined_text:
+            failures.append(f"context corpus missing required handoff term {term}")
+
+    for path in CURRENT_CONTEXT_FILES:
+        if not path.exists():
+            continue
+
+        text = path.read_text(encoding="utf-8")
+        for term in ["E1", "WP-E1-003", "Runtime Foundation", "Core Error"]:
             if term not in text:
-                failures.append(f"{path}: missing required handoff term {term}")
+                failures.append(f"{path}: missing current-context term {term}")
 
     if failures:
         print("Context record check failed:")
