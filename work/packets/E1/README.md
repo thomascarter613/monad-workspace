@@ -2,7 +2,7 @@
 title: "E1 Work Packets"
 document_type: "work-packet-index"
 status: "draft"
-version: "0.1.0"
+version: "0.2.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
@@ -22,9 +22,9 @@ This directory contains durable work packet records for E1 — Runtime Foundatio
 
 ## Work Packets
 
-| Work Packet | Title                                       | Status  |
-| ----------- | ------------------------------------------- | ------- |
-| WP-E1-001   | Establish Rust workspace runtime foundation | Planned |
+| Work Packet | Title                                       | Status      |
+| ----------- | ------------------------------------------- | ----------- |
+| WP-E1-001   | Establish Rust workspace runtime foundation | In Progress |
 
 ## Maintenance Rules
 

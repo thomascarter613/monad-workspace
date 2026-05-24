@@ -1,6 +1,9 @@
 [workspace]
 resolver = "2"
-members = []
+members = [
+  "crates/monad-cli",
+  "crates/monad-core",
+]
 
 [workspace.package]
 version = "0.1.0"

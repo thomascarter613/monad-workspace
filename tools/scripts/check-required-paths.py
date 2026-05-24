@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """
-Check that the required E0 foundation and E1 handoff paths exist.
+Check that the required foundation, E1 handoff, and initial Rust runtime paths exist.
 """
 
 from pathlib import Path
 
 
 REQUIRED_PATHS = [
-    # WP-E0-001 — Repository foundation
+    # Root and Rust workspace
     "README.md",
     "LICENSE",
     ".gitignore",
     ".editorconfig",
     "rust-toolchain.toml",
     "Cargo.toml",
+    "crates/monad-cli/Cargo.toml",
+    "crates/monad-cli/src/main.rs",
+    "crates/monad-core/Cargo.toml",
+    "crates/monad-core/src/lib.rs",
+
+    # Documentation and work roots
     "docs/README.md",
     "work/README.md",
     "work/epics/README.md",
@@ -24,7 +30,7 @@ REQUIRED_PATHS = [
     ".monad/context/README.md",
     ".monad/reports/README.md",
 
-    # WP-E0-003 — Context bridge foundation
+    # Context bridge
     "docs/09-ai/CURRENT-STATE.md",
     "docs/09-ai/FRESH-CHAT-HANDOFF.md",
     ".monad/context/current-state.md",
@@ -33,9 +39,10 @@ REQUIRED_PATHS = [
     ".monad/context/decision-log.md",
     ".monad/context/session-chronicles/README.md",
     ".monad/context/work-packet-handoffs/README.md",
+    ".monad/context/work-packet-handoffs/WP-E1-001.md",
     ".monad/context/decision-records/README.md",
 
-    # WP-E0-004 — Workflow standards
+    # Workflow standards
     "docs/07-workflow/OPERATING-MODEL.md",
     "docs/07-workflow/WORK-HIERARCHY.md",
     "docs/07-workflow/WORK-PACKET-STANDARD.md",
@@ -84,32 +91,19 @@ REQUIRED_PATHS = [
     "work/packets/E0/WP-E0-010-establish-deliverable-record-foundation.md",
     "work/packets/E0/WP-E0-011-close-e0-and-prepare-e1-handoff.md",
 
-    # E0 task records
-    "work/tasks/E0/README.md",
-    "work/tasks/E0/T-WP-E0-009-001-create-task-record-directory-and-index.md",
-    "work/tasks/E0/T-WP-E0-009-002-add-task-record-verification.md",
-    "work/tasks/E0/T-WP-E0-009-003-update-e0-planning-and-verification-records.md",
-    "work/tasks/E0/T-WP-E0-010-001-create-deliverable-record-directory-and-index.md",
-    "work/tasks/E0/T-WP-E0-010-002-add-deliverable-record-verification.md",
-    "work/tasks/E0/T-WP-E0-010-003-update-e0-planning-and-verification-records.md",
-    "work/tasks/E0/T-WP-E0-011-001-close-e0-records.md",
-    "work/tasks/E0/T-WP-E0-011-002-update-context-handoff.md",
-    "work/tasks/E0/T-WP-E0-011-003-create-e1-starting-point.md",
-
-    # E0 deliverable records
-    "work/deliverables/E0/README.md",
-    "work/deliverables/E0/D-WP-E0-010-001-deliverable-record-index.md",
-    "work/deliverables/E0/D-WP-E0-010-002-deliverable-record-verifier.md",
-    "work/deliverables/E0/D-WP-E0-010-003-verification-baseline-update.md",
-    "work/deliverables/E0/D-WP-E0-011-001-e0-closure-record.md",
-    "work/deliverables/E0/D-WP-E0-011-002-e1-starting-point.md",
-    "work/deliverables/E0/D-WP-E0-011-003-context-handoff-update.md",
-
-    # E1 handoff records
+    # E1 records
     "work/epics/E1-runtime-foundation.md",
     "work/packets/E1/README.md",
     "work/packets/E1/WP-E1-001-establish-rust-workspace-runtime-foundation.md",
-    ".monad/context/work-packet-handoffs/WP-E1-001.md",
+    "work/tasks/E1/README.md",
+    "work/tasks/E1/T-WP-E1-001-001-create-rust-workspace-crates.md",
+    "work/tasks/E1/T-WP-E1-001-002-add-minimal-core-runtime-identity.md",
+    "work/tasks/E1/T-WP-E1-001-003-add-thin-cli-entrypoint.md",
+    "work/tasks/E1/T-WP-E1-001-004-add-rust-verification-to-baseline.md",
+    "work/deliverables/E1/README.md",
+    "work/deliverables/E1/D-WP-E1-001-001-rust-workspace-manifest.md",
+    "work/deliverables/E1/D-WP-E1-001-002-core-runtime-library.md",
+    "work/deliverables/E1/D-WP-E1-001-003-thin-cli-entrypoint.md",
 ]
 
 
@@ -122,12 +116,12 @@ def main() -> int:
             missing.append(path_text)
 
     if missing:
-        print("Required foundation/handoff paths are missing:")
+        print("Required foundation/runtime paths are missing:")
         for item in missing:
             print(f"  {item}")
         return 1
 
-    print("All required foundation and E1 handoff paths exist.")
+    print("All required foundation and runtime paths exist.")
     return 0
 
 

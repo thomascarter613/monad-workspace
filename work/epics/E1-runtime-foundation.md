@@ -1,8 +1,8 @@
 ---
 title: "E1 — Runtime Foundation"
 document_type: "epic"
-status: "planned"
-version: "0.1.0"
+status: "in-progress"
+version: "0.2.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
@@ -59,11 +59,11 @@ E1 does not include:
 
 | Work Packet | Title | Status |
 |---|---|---|
-| WP-E1-001 | Establish Rust workspace runtime foundation | Planned |
+| WP-E1-001 | Establish Rust workspace runtime foundation | In Progress |
 
 ## Expected Result After Verification
 
-The repository has an E1 runtime plan and a first work packet ready to create or normalize the Rust workspace foundation.
+The repository has an E1 runtime plan and a first working Rust workspace foundation with `monad-cli` depending on `monad-core`.
 
 ## Verification
 
@@ -76,8 +76,8 @@ tools/scripts/verify.sh
 Expected result:
 
 ```text
-All required foundation and E1 handoff paths exist.
-All epic records satisfy the required baseline structure.
+cargo fmt --check
+cargo test
 Verification baseline passed.
 ```
 

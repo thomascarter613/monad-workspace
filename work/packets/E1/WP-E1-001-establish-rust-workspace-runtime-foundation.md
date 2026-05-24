@@ -1,8 +1,8 @@
 ---
 title: "WP-E1-001 — Establish Rust Workspace Runtime Foundation"
 document_type: "work-packet"
-status: "planned"
-version: "0.1.0"
+status: "in-progress"
+version: "0.2.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
@@ -35,7 +35,7 @@ This work packet begins implementation while preserving the project discipline e
 
 ## Scope
 
-This work packet should cover:
+This work packet covers:
 
 * root `Cargo.toml` workspace membership;
 * `crates/monad-cli/` scaffold;
@@ -50,12 +50,12 @@ This work packet should cover:
 
 Expected deliverables include:
 
-* root `Cargo.toml` updated or confirmed;
+* root `Cargo.toml`;
 * `crates/monad-cli/Cargo.toml`;
 * `crates/monad-cli/src/main.rs`;
 * `crates/monad-core/Cargo.toml`;
 * `crates/monad-core/src/lib.rs`;
-* basic tests;
+* initial Rust unit tests;
 * updated verification command guidance.
 
 ## Expected Result After Verification
@@ -64,17 +64,24 @@ The Rust workspace builds and tests successfully, with `monad-cli` depending on 
 
 ## Verification
 
-Expected verification commands for this work packet:
+Run:
 
 ```bash
 cargo fmt --check
 cargo test
+cargo run -p monad-cli
 tools/scripts/verify.sh
+```
+
+Expected output from the CLI includes:
+
+```text
+Monad runtime foundation ready (crate: monad-core, model: local-first)
 ```
 
 ## Status
 
-Planned
+In Progress
 
 ## Priority
 

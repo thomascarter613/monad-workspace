@@ -2,7 +2,7 @@
 title: "Verification Baseline"
 document_type: "verification-standard"
 status: "current"
-version: "1.0.0"
+version: "1.1.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
@@ -13,6 +13,7 @@ tags:
   - quality
   - repository-contract
   - workflow
+  - rust
   - work-packets
   - tasks
   - deliverables
@@ -27,7 +28,7 @@ tags:
 
 This document defines Monad's initial repository verification baseline.
 
-The baseline exists so foundational repository work can be checked from durable repo-resident scripts instead of pasted one-off commands.
+The baseline exists so foundational repository work and early Rust runtime work can be checked from durable repo-resident scripts.
 
 ## 2. Current Baseline Command
 
@@ -42,7 +43,7 @@ tools/scripts/verify.sh
 The baseline currently verifies:
 
 1. Git diff whitespace validity.
-2. Required foundation and E1 handoff paths.
+2. Required foundation and runtime paths.
 3. YAML frontmatter presence for Markdown files under:
 
    * `docs/`
@@ -54,14 +55,16 @@ The baseline currently verifies:
 7. Epic record structure.
 8. ADR record structure.
 9. E0 closure and E1 context handoff records.
-10. Current working tree status.
+10. Rust formatting with `cargo fmt --check`.
+11. Rust tests with `cargo test`.
+12. Current working tree status.
 
 ## 4. Scripts
 
 | Script                                        | Purpose                                          |
 | --------------------------------------------- | ------------------------------------------------ |
 | `tools/scripts/verify.sh`                     | Main verification entrypoint                     |
-| `tools/scripts/check-required-paths.py`       | Checks required foundation and E1 handoff files  |
+| `tools/scripts/check-required-paths.py`       | Checks required foundation and runtime files     |
 | `tools/scripts/check-markdown-frontmatter.py` | Checks Markdown YAML frontmatter presence        |
 | `tools/scripts/check-work-records.py`         | Checks work packet record structure              |
 | `tools/scripts/check-task-records.py`         | Checks task record structure                     |
@@ -75,7 +78,7 @@ The baseline currently verifies:
 A successful run should include:
 
 ```text
-All required foundation and E1 handoff paths exist.
+All required foundation and runtime paths exist.
 All docs/work/.monad Markdown files have YAML frontmatter.
 All work packet records satisfy the required structure.
 All task records satisfy the required baseline structure.
@@ -83,14 +86,37 @@ All deliverable records satisfy the required baseline structure.
 All epic records satisfy the required baseline structure.
 All ADR records satisfy the required baseline structure.
 All context records satisfy the E0 closure and E1 handoff baseline.
+cargo fmt --check
+cargo test
 Verification baseline passed.
 ```
 
 The final `git status --short` output may be empty or may show intentional uncommitted changes before a commit.
 
-## 6. Failure Meaning
+## 6. Rust Verification
 
-A failure means at least one foundational repository expectation is not satisfied.
+The Rust portion of the baseline currently requires:
+
+```bash
+cargo fmt --check
+cargo test
+```
+
+The CLI can also be manually checked with:
+
+```bash
+cargo run -p monad-cli
+```
+
+Expected CLI output:
+
+```text
+Monad runtime foundation ready (crate: monad-core, model: local-first)
+```
+
+## 7. Failure Meaning
+
+A failure means at least one foundational repository or runtime expectation is not satisfied.
 
 Common causes include:
 
@@ -103,25 +129,21 @@ Common causes include:
 * an epic record is missing a required planning section;
 * an ADR record is missing required structure;
 * context files do not identify E0, E1, WP-E1-001, and Runtime Foundation;
+* Rust code is not formatted;
+* Rust tests fail;
 * trailing whitespace or whitespace errors are present in the diff.
 
-## 7. Design Notes
+## 8. Design Notes
 
-This baseline intentionally avoids external dependencies.
+The non-Rust verification scripts intentionally avoid external Python dependencies.
 
-It requires only:
+The Rust verification uses standard Cargo commands.
 
-* Bash;
-* Git;
-* Python 3.
-
-## 8. Future Expansion
+## 9. Future Expansion
 
 Future verification work should add checks for:
 
-* Rust formatting;
-* Rust tests;
-* crate boundaries;
+* crate boundary rules;
 * manifest validation;
 * repository contract validation;
 * generated artifact drift;
@@ -132,7 +154,7 @@ Future verification work should add checks for:
 * epic, work packet, task, and deliverable consistency;
 * deliverable artifact existence checks.
 
-## 9. Maintenance Rules
+## 10. Maintenance Rules
 
 This document must be updated when:
 
@@ -140,4 +162,4 @@ This document must be updated when:
 * new baseline checks are added;
 * existing baseline checks are removed;
 * expected successful output changes;
-* verification requirements move into Rust build or runtime checks.
+* Rust verification requirements change.

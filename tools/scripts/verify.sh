@@ -11,7 +11,7 @@ log() {
 log "Checking git diff whitespace"
 git diff --check
 
-log "Checking required E0 foundation paths"
+log "Checking required foundation and runtime paths"
 python3 tools/scripts/check-required-paths.py
 
 log "Checking Markdown YAML frontmatter"
@@ -34,6 +34,12 @@ python3 tools/scripts/check-adr-records.py
 
 log "Checking context handoff records"
 python3 tools/scripts/check-context-records.py
+
+log "Checking Rust formatting"
+cargo fmt --check
+
+log "Running Rust tests"
+cargo test
 
 log "Reporting working tree status"
 git status --short
