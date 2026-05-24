@@ -2,17 +2,17 @@
 title: "Current State"
 document_type: "ai-context"
 status: "current"
-version: "1.9.0"
+version: "1.10.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-010"
+work_packet: "WP-E1-011"
 tags:
   - current-state
   - handoff
   - e1
-  - output-formatting
+  - output-format-argument
 ---
 
 # Current State
@@ -27,29 +27,30 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-010 — Establish Runtime Output Formatting Foundation
+WP-E1-011 — Establish CLI Output Format Argument Foundation
 
 ## Prior Work
 
 E0 — Project Foundation is complete.
 
-WP-E1-001 through WP-E1-009 are complete.
+WP-E1-001 through WP-E1-010 are complete.
 
 ## Active Runtime Focus
 
-Output Formatting.
+Output Format Argument.
 
 The current slice adds:
 
-- `OutputFormat`;
-- `WorkspaceSummary`;
-- diagnostic report rendering;
-- workspace summary rendering;
-- CLI integration with shared runtime output formatting.
+- `CliInvocation`;
+- `--format text`;
+- `--format=text`;
+- format option parsing before or after the command;
+- invalid format handling;
+- CLI tests for output-format parsing.
 
 ## Next Expected Slice
 
-After WP-E1-010, proceed to repository contract hardening or CLI output-format argument support.
+After WP-E1-011, proceed to JSON output formatting or repository contract hardening.
 
 ## Verification
 
@@ -61,7 +62,7 @@ tools/scripts/verify.sh
 
 Expected result:
 
-```text
+```text id="gjp72v"
 Verification baseline passed.
 ```
 

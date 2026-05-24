@@ -2,7 +2,7 @@
 title: "E1 Task Records"
 document_type: "task-index"
 status: "draft"
-version: "0.10.0"
+version: "0.11.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"

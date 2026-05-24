@@ -23,6 +23,7 @@ REQUIRED_CONTEXT_FILES = [
     Path(".monad/context/work-packet-handoffs/WP-E1-008.md"),
     Path(".monad/context/work-packet-handoffs/WP-E1-009.md"),
     Path(".monad/context/work-packet-handoffs/WP-E1-010.md"),
+    Path(".monad/context/work-packet-handoffs/WP-E1-011.md"),
 ]
 
 GLOBAL_REQUIRED_TERMS = [
@@ -38,6 +39,7 @@ GLOBAL_REQUIRED_TERMS = [
     "WP-E1-008",
     "WP-E1-009",
     "WP-E1-010",
+    "WP-E1-011",
     "Runtime Foundation",
     "Core Diagnostics",
     "Core Error",
@@ -48,6 +50,7 @@ GLOBAL_REQUIRED_TERMS = [
     "CLI Check",
     "Repository Contract",
     "Output Formatting",
+    "Output Format Argument",
 ]
 
 CURRENT_CONTEXT_FILES = [
@@ -90,7 +93,7 @@ def main() -> int:
             continue
 
         text = path.read_text(encoding="utf-8")
-        for term in ["E1", "WP-E1-010", "Runtime Foundation", "Output Formatting"]:
+        for term in ["E1", "WP-E1-011", "Runtime Foundation", "Output Format Argument"]:
             if term not in text:
                 failures.append(f"{path}: missing current-context term {term}")
 

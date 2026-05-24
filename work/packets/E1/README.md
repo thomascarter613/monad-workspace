@@ -2,7 +2,7 @@
 title: "E1 Work Packets"
 document_type: "work-packet-index"
 status: "draft"
-version: "0.11.0"
+version: "0.12.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"

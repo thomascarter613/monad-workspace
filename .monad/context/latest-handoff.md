@@ -2,17 +2,17 @@
 title: "Latest Handoff"
 document_type: "context-handoff"
 status: "current"
-version: "1.9.0"
+version: "1.10.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-010"
+work_packet: "WP-E1-011"
 tags:
 
 * handoff
 * e1
-* output-formatting
+* output-format-argument
 
 ---
 
@@ -22,23 +22,23 @@ tags:
 
 E0 — Project Foundation is complete.
 
-WP-E1-001 through WP-E1-009 are complete.
+WP-E1-001 through WP-E1-010 are complete.
 
 ## Current
 
 E1 — Runtime Foundation
 
-WP-E1-010 — Establish Runtime Output Formatting Foundation
+WP-E1-011 — Establish CLI Output Format Argument Foundation
 
-## Output Formatting
+## Output Format Argument
 
-The current slice moves reusable text output formatting into `monad-core`.
+The current slice adds `--format text` and `--format=text` support to `monad-cli`.
 
 ## Verification
 
 Run:
 
-```bash
+```bash id="c64ajk"
 tools/scripts/verify.sh
 ```
 

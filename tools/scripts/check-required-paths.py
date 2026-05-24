@@ -171,6 +171,14 @@ REQUIRED_PATHS = [
     "work/deliverables/E1/D-WP-E1-010-001-output-formatting-module.md",
     "work/deliverables/E1/D-WP-E1-010-002-cli-output-integration.md",
     "work/deliverables/E1/D-WP-E1-010-003-output-formatting-handoff.md",
+    ".monad/context/work-packet-handoffs/WP-E1-011.md",
+    "work/packets/E1/WP-E1-011-establish-cli-output-format-argument-foundation.md",
+    "work/tasks/E1/T-WP-E1-011-001-add-cli-output-format-parsing.md",
+    "work/tasks/E1/T-WP-E1-011-002-wire-output-format-into-cli-commands.md",
+    "work/tasks/E1/T-WP-E1-011-003-update-e1-records-and-context.md",
+    "work/deliverables/E1/D-WP-E1-011-001-cli-output-format-argument.md",
+    "work/deliverables/E1/D-WP-E1-011-002-cli-output-format-tests.md",
+    "work/deliverables/E1/D-WP-E1-011-003-cli-output-format-handoff.md",
 ]
 
 

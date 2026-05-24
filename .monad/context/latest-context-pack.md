@@ -2,18 +2,18 @@
 title: "Latest Context Pack"
 document_type: "context-pack"
 status: "current"
-version: "1.9.0"
+version: "1.10.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-010"
+work_packet: "WP-E1-011"
 tags:
 
 * context-pack
 * e1
 * runtime-foundation
-* output-formatting
+* output-format-argument
 
 ---
 
@@ -27,7 +27,7 @@ Monad is an AI-native, repo-native, local-first Software Foundry OS.
 
 E0 — Project Foundation is complete.
 
-WP-E1-001 through WP-E1-009 are complete.
+WP-E1-001 through WP-E1-010 are complete.
 
 ## Current Epic
 
@@ -35,7 +35,7 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-010 — Establish Runtime Output Formatting Foundation
+WP-E1-011 — Establish CLI Output Format Argument Foundation
 
 ## Runtime Foundation State
 
@@ -49,25 +49,26 @@ Monad currently has:
 * Manifest Loading;
 * CLI Info;
 * CLI Check;
-* Repository Contract.
+* Repository Contract;
+* Output Formatting.
 
-Output Formatting adds:
+Output Format Argument adds:
 
-* `OutputFormat`;
-* `WorkspaceSummary`;
-* `render_diagnostic_report`;
-* `render_workspace_summary`;
-* CLI integration with shared renderers.
+* `CliInvocation`;
+* `--format text`;
+* `--format=text`;
+* positional option parsing;
+* invalid format handling.
 
 ## Verification
 
 Run:
 
-```bash
+```bash id="69f488"
 cargo fmt --check
 cargo test
-cargo run --quiet -p monad-cli -- info
-cargo run --quiet -p monad-cli -- check
+cargo run --quiet -p monad-cli -- info --format text
+cargo run --quiet -p monad-cli -- check --format=text
 tools/scripts/verify.sh
 ```
 

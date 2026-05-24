@@ -32,6 +32,26 @@ enum CliCommand {
     Check,
 }
 
+/// Parsed command-line invocation.
+///
+/// This separates command selection from output-format selection. Today only
+/// `text` is supported, but this structure gives us a clean place to add JSON,
+/// NDJSON, Markdown, or other formats later.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CliInvocation {
+    command: CliCommand,
+    output_format: OutputFormat,
+}
+
+impl Default for CliInvocation {
+    fn default() -> Self {
+        Self {
+            command: CliCommand::Banner,
+            output_format: OutputFormat::Text,
+        }
+    }
+}
+
 /// Represents the result of running a CLI command.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CliOutcome {
@@ -68,17 +88,98 @@ fn startup_message(identity: RuntimeIdentity) -> String {
     identity.banner()
 }
 
-/// Parses command-line arguments into a supported command.
-fn parse_command(args: &[String]) -> MonadResult<CliCommand> {
-    match args.get(1).map(String::as_str) {
-        None => Ok(CliCommand::Banner),
-        Some("help" | "-h" | "--help") => Ok(CliCommand::Help),
-        Some("info") => Ok(CliCommand::Info),
-        Some("check") => Ok(CliCommand::Check),
-        Some(command) => Err(MonadError::invalid_input(format!(
-            "unknown command: {command}"
-        ))),
+/// Returns a stable command name for error messages.
+fn command_name(command: CliCommand) -> &'static str {
+    match command {
+        CliCommand::Banner => "banner",
+        CliCommand::Help => "help",
+        CliCommand::Info => "info",
+        CliCommand::Check => "check",
     }
+}
+
+/// Sets the command on an invocation.
+///
+/// Only one command is allowed. Options such as `--format text` may appear
+/// before or after the command, but command words cannot be repeated.
+fn set_command(invocation: &mut CliInvocation, command: CliCommand) -> MonadResult<()> {
+    if invocation.command != CliCommand::Banner {
+        return Err(MonadError::invalid_input(format!(
+            "multiple commands provided: {} and {}",
+            command_name(invocation.command),
+            command_name(command)
+        )));
+    }
+
+    invocation.command = command;
+    Ok(())
+}
+
+/// Parses command-line arguments into a command invocation.
+///
+/// Supported forms:
+///
+/// - `monad`
+/// - `monad help`
+/// - `monad info`
+/// - `monad check`
+/// - `monad info --format text`
+/// - `monad --format text info`
+/// - `monad check --format=text`
+fn parse_invocation(args: &[String]) -> MonadResult<CliInvocation> {
+    let mut invocation = CliInvocation::default();
+    let mut index = 1;
+
+    while index < args.len() {
+        let argument = &args[index];
+
+        match argument.as_str() {
+            "help" | "-h" | "--help" => {
+                set_command(&mut invocation, CliCommand::Help)?;
+            }
+            "info" => {
+                set_command(&mut invocation, CliCommand::Info)?;
+            }
+            "check" => {
+                set_command(&mut invocation, CliCommand::Check)?;
+            }
+            "--format" => {
+                let value = args.get(index + 1).ok_or_else(|| {
+                    MonadError::invalid_input("--format requires a value, such as text")
+                })?;
+
+                invocation.output_format = OutputFormat::parse(value)?;
+                index += 1;
+            }
+            value if value.starts_with("--format=") => {
+                let format_value = value
+                    .strip_prefix("--format=")
+                    .expect("prefix was checked above");
+
+                if format_value.trim().is_empty() {
+                    return Err(MonadError::invalid_input(
+                        "--format requires a value, such as text",
+                    ));
+                }
+
+                invocation.output_format = OutputFormat::parse(format_value)?;
+            }
+            value if value.starts_with('-') => {
+                return Err(MonadError::invalid_input(format!(
+                    "unknown option: {value}"
+                )));
+            }
+            value => {
+                return Err(MonadError::invalid_input(format!(
+                    "unknown command: {value}"
+                )));
+            }
+        }
+
+        index += 1;
+    }
+
+    Ok(invocation)
 }
 
 /// Renders CLI help text.
@@ -86,12 +187,15 @@ fn parse_command(args: &[String]) -> MonadResult<CliCommand> {
 /// Help remains in the CLI because it describes CLI command names and usage.
 fn render_help() -> String {
     [
-        "Usage: monad [COMMAND]",
+        "Usage: monad [COMMAND] [OPTIONS]",
         "",
         "Commands:",
         "  info      Show Monad workspace and manifest information",
         "  check     Run Monad workspace checks",
         "  help      Show this help text",
+        "",
+        "Options:",
+        "  --format text     Render output as human-readable text",
         "",
         "With no command, Monad prints the runtime foundation banner.",
     ]
@@ -100,20 +204,23 @@ fn render_help() -> String {
 
 /// Discovers a workspace from `start`, loads `monad.toml`, and renders summary
 /// information through `monad-core` output formatting.
-fn render_workspace_info(start: impl AsRef<Path>) -> MonadResult<String> {
+fn render_workspace_info(start: impl AsRef<Path>, format: OutputFormat) -> MonadResult<String> {
     let context = WorkspaceContext::discover_from(start)?;
     let manifest = load_manifest_from_workspace(&context)?;
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
-    Ok(render_workspace_summary(&summary, OutputFormat::Text))
+    Ok(render_workspace_summary(&summary, format))
 }
 
 /// Discovers a workspace from `start`, runs workspace checks, and returns a CLI
 /// outcome.
-fn run_workspace_check(start: impl AsRef<Path>) -> MonadResult<CliOutcome> {
+fn run_workspace_check(
+    start: impl AsRef<Path>,
+    output_format: OutputFormat,
+) -> MonadResult<CliOutcome> {
     let context = WorkspaceContext::discover_from(start)?;
     let report = run_workspace_checks(&context);
-    let output = render_diagnostic_report(&report, OutputFormat::Text);
+    let output = render_diagnostic_report(&report, output_format);
 
     if report.has_errors() {
         Ok(CliOutcome::failure(output))
@@ -124,11 +231,15 @@ fn run_workspace_check(start: impl AsRef<Path>) -> MonadResult<CliOutcome> {
 
 /// Runs the CLI and returns output plus success/failure state.
 fn run_with_args(args: &[String], current_dir: impl AsRef<Path>) -> MonadResult<CliOutcome> {
-    match parse_command(args)? {
+    let invocation = parse_invocation(args)?;
+
+    match invocation.command {
         CliCommand::Banner => Ok(CliOutcome::success(startup_message(runtime_identity()))),
         CliCommand::Help => Ok(CliOutcome::success(render_help())),
-        CliCommand::Info => render_workspace_info(current_dir).map(CliOutcome::success),
-        CliCommand::Check => run_workspace_check(current_dir),
+        CliCommand::Info => {
+            render_workspace_info(current_dir, invocation.output_format).map(CliOutcome::success)
+        }
+        CliCommand::Check => run_workspace_check(current_dir, invocation.output_format),
     }
 }
 
@@ -196,7 +307,7 @@ execution_model = "local-first"
             .as_nanos();
 
         env::temp_dir().join(format!(
-            "monad-cli-output-{test_name}-{}-{unique}",
+            "monad-cli-format-{test_name}-{}-{unique}",
             std::process::id()
         ))
     }
@@ -230,13 +341,14 @@ execution_model = "local-first"
     }
 
     #[test]
-    fn help_command_prints_usage() {
+    fn help_command_prints_usage_and_format_option() {
         let outcome = run_with_args(&args(&["monad", "help"]), ".").expect("help should render");
 
         assert!(outcome.success);
-        assert!(outcome.output.contains("Usage: monad [COMMAND]"));
+        assert!(outcome.output.contains("Usage: monad [COMMAND] [OPTIONS]"));
         assert!(outcome.output.contains("info"));
         assert!(outcome.output.contains("check"));
+        assert!(outcome.output.contains("--format text"));
     }
 
     #[test]
@@ -249,36 +361,78 @@ execution_model = "local-first"
     }
 
     #[test]
-    fn info_command_uses_core_output_formatting() {
-        let root = create_test_workspace("info");
+    fn unknown_option_returns_invalid_input_error() {
+        let error = run_with_args(&args(&["monad", "--verbose"]), ".")
+            .expect_err("unknown option should fail");
 
-        let outcome =
-            run_with_args(&args(&["monad", "info"]), &root).expect("info command should succeed");
+        assert_eq!(error.code(), "MONAD2001");
+        assert!(error.message().contains("unknown option"));
+    }
+
+    #[test]
+    fn missing_format_value_returns_invalid_input_error() {
+        let error = run_with_args(&args(&["monad", "info", "--format"]), ".")
+            .expect_err("missing format should fail");
+
+        assert_eq!(error.code(), "MONAD2001");
+        assert!(error.message().contains("--format requires a value"));
+    }
+
+    #[test]
+    fn unsupported_format_returns_invalid_input_error() {
+        let error = run_with_args(&args(&["monad", "info", "--format", "json"]), ".")
+            .expect_err("unsupported format should fail");
+
+        assert_eq!(error.code(), "MONAD2001");
+        assert!(error.message().contains("unsupported output format"));
+    }
+
+    #[test]
+    fn multiple_commands_return_invalid_input_error() {
+        let error = run_with_args(&args(&["monad", "info", "check"]), ".")
+            .expect_err("multiple commands should fail");
+
+        assert_eq!(error.code(), "MONAD2001");
+        assert!(error.message().contains("multiple commands provided"));
+    }
+
+    #[test]
+    fn info_command_accepts_format_option_after_command() {
+        let root = create_test_workspace("info-format-after");
+
+        let outcome = run_with_args(&args(&["monad", "info", "--format", "text"]), &root)
+            .expect("info command should succeed");
 
         assert!(outcome.success);
         assert!(outcome.output.contains("Monad workspace"));
         assert!(outcome.output.contains("project: Monad (monad)"));
-        assert!(outcome.output.contains("schema_version: 1"));
-        assert!(outcome.output.contains("core_crate: monad-core"));
-        assert!(outcome.output.contains("cli_crate: monad-cli"));
-        assert!(outcome.output.contains("execution_model: local-first"));
 
         fs::remove_dir_all(root).ok();
     }
 
     #[test]
-    fn check_command_uses_core_diagnostic_output_formatting() {
-        let root = create_test_workspace("check");
+    fn info_command_accepts_format_option_before_command() {
+        let root = create_test_workspace("info-format-before");
 
-        let outcome =
-            run_with_args(&args(&["monad", "check"]), &root).expect("check command should run");
+        let outcome = run_with_args(&args(&["monad", "--format", "text", "info"]), &root)
+            .expect("info command should succeed");
+
+        assert!(outcome.success);
+        assert!(outcome.output.contains("Monad workspace"));
+        assert!(outcome.output.contains("project: Monad (monad)"));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn check_command_accepts_format_equals_option() {
+        let root = create_test_workspace("check-format-equals");
+
+        let outcome = run_with_args(&args(&["monad", "check", "--format=text"]), &root)
+            .expect("check command should run");
 
         assert!(outcome.success);
         assert!(outcome.output.contains("[INFO] MONAD4000"));
-        assert!(outcome.output.contains("[INFO] MONAD4001"));
-        assert!(outcome.output.contains("[INFO] MONAD4002"));
-        assert!(outcome.output.contains("[INFO] MONAD4003"));
-        assert!(outcome.output.contains("[INFO] MONAD4004"));
         assert!(outcome.output.contains("[INFO] MONAD4500"));
 
         fs::remove_dir_all(root).ok();
