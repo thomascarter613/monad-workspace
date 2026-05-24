@@ -2,17 +2,18 @@
 title: "Verification Baseline"
 document_type: "verification-standard"
 status: "draft"
-version: "0.1.0"
+version: "0.2.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
 epic: "E0"
-work_packet: "WP-E0-005"
+work_packet: "WP-E0-006"
 tags:
   - verification
   - quality
   - repository-contract
   - workflow
+  - work-packets
 ---
 
 # Verification Baseline
@@ -42,7 +43,8 @@ The baseline currently verifies:
    * `docs/`
    * `work/`
    * `.monad/`
-4. Current working tree status.
+4. Work packet record structure.
+5. Current working tree status.
 
 ## 4. Scripts
 
@@ -51,6 +53,7 @@ The baseline currently verifies:
 | `tools/scripts/verify.sh`                     | Main verification entrypoint                        |
 | `tools/scripts/check-required-paths.py`       | Checks required E0 foundation files and directories |
 | `tools/scripts/check-markdown-frontmatter.py` | Checks Markdown YAML frontmatter presence           |
+| `tools/scripts/check-work-records.py`         | Checks work packet record structure                 |
 
 ## 5. Expected Successful Result
 
@@ -59,6 +62,7 @@ A successful run should include:
 ```text
 All required E0 foundation paths exist.
 All docs/work/.monad Markdown files have YAML frontmatter.
+All work packet records satisfy the required structure.
 Verification baseline passed.
 ```
 
@@ -73,6 +77,10 @@ Common causes include:
 * a required file was not created;
 * a file was created at the wrong path;
 * a Markdown file is missing YAML frontmatter;
+* a work packet record is missing a required section;
+* a work packet record has Product Area and Objective in the wrong order;
+* a work packet record does not include Expected Result After Verification;
+* a work packet record does not place Priority and Size at the end of the required planning fields;
 * trailing whitespace or whitespace errors are present in the diff;
 * the script is being run from an unexpected repository state.
 
@@ -93,7 +101,8 @@ The baseline should remain small, readable, and portable during the E0 foundatio
 Future verification work should add checks for:
 
 * ADR structure;
-* work packet records;
+* epic records;
+* task records;
 * Rust formatting;
 * Rust tests;
 * crate boundaries;

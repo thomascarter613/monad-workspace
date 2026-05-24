@@ -4,7 +4,8 @@ Check that the required E0 foundation paths exist.
 
 This script is intentionally conservative. It verifies the files and directories
 that should exist after the repository foundation, documentation architecture,
-context bridge foundation, and workflow standards slices.
+context bridge foundation, workflow standards, verification baseline, and work
+packet records slices.
 """
 
 from pathlib import Path
@@ -54,6 +55,23 @@ REQUIRED_PATHS = [
     "docs/07-workflow/BRANCHING-STANDARD.md",
     "docs/07-workflow/REVIEW-STANDARD.md",
     "docs/07-workflow/CONTEXT-UPDATE-STANDARD.md",
+
+    # WP-E0-005 — Verification baseline
+    "tools/scripts/verify.sh",
+    "tools/scripts/check-required-paths.py",
+    "tools/scripts/check-markdown-frontmatter.py",
+    "docs/12-verification/VERIFICATION-BASELINE.md",
+
+    # WP-E0-006 — Work packet records
+    "work/epics/E0-project-foundation.md",
+    "work/packets/E0/README.md",
+    "work/packets/E0/WP-E0-001-establish-repository-foundation.md",
+    "work/packets/E0/WP-E0-002-establish-documentation-architecture.md",
+    "work/packets/E0/WP-E0-003-establish-context-bridge-foundation.md",
+    "work/packets/E0/WP-E0-004-establish-workflow-standards.md",
+    "work/packets/E0/WP-E0-005-establish-verification-baseline.md",
+    "work/packets/E0/WP-E0-006-establish-work-packet-records.md",
+    "tools/scripts/check-work-records.py",
 ]
 
 

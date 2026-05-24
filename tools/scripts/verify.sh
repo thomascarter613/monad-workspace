@@ -17,6 +17,9 @@ python3 tools/scripts/check-required-paths.py
 log "Checking Markdown YAML frontmatter"
 python3 tools/scripts/check-markdown-frontmatter.py
 
+log "Checking work packet record structure"
+python3 tools/scripts/check-work-records.py
+
 log "Reporting working tree status"
 git status --short
 
