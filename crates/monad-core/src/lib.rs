@@ -10,6 +10,7 @@ pub mod checks;
 pub mod diagnostics;
 pub mod error;
 pub mod manifest;
+pub mod output;
 pub mod repo_contract;
 pub mod workspace;
 
@@ -19,6 +20,9 @@ pub use error::{MonadError, MonadResult};
 pub use manifest::{
     CURRENT_MANIFEST_SCHEMA_VERSION, ManifestProject, ManifestRuntime, ManifestSchemaVersion,
     ManifestWorkspace, MonadManifest,
+};
+pub use output::{
+    OutputFormat, WorkspaceSummary, render_diagnostic_report, render_workspace_summary,
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
@@ -102,6 +106,15 @@ pub fn load_manifest_from_workspace(context: &WorkspaceContext) -> MonadResult<M
     MonadManifest::load_from_workspace(context)
 }
 
+/// Builds a renderable workspace summary from a context and loaded manifest.
+#[must_use]
+pub fn workspace_summary_from_manifest(
+    context: &WorkspaceContext,
+    manifest: &MonadManifest,
+) -> WorkspaceSummary {
+    WorkspaceSummary::from_manifest(context, manifest)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,5 +188,10 @@ mod tests {
         let contract = RepositoryContract::initial_monad();
 
         assert!(!contract.required_paths().is_empty());
+    }
+
+    #[test]
+    fn output_format_is_exported_from_core_root() {
+        assert_eq!(OutputFormat::parse("text"), Ok(OutputFormat::Text));
     }
 }

@@ -11,14 +11,12 @@ use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use monad_core::{
-    DiagnosticReport, MonadError, MonadResult, RuntimeIdentity, WorkspaceContext,
-    load_manifest_from_workspace, run_workspace_checks, runtime_identity,
+    MonadError, MonadResult, OutputFormat, RuntimeIdentity, WorkspaceContext,
+    load_manifest_from_workspace, render_diagnostic_report, render_workspace_summary,
+    run_workspace_checks, runtime_identity, workspace_summary_from_manifest,
 };
 
 /// Supported CLI commands for this early runtime foundation.
-///
-/// This enum stays intentionally small. Later slices can replace this manual
-/// parser with a richer command framework if the project chooses one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CliCommand {
     /// Print the original startup banner.
@@ -35,10 +33,6 @@ enum CliCommand {
 }
 
 /// Represents the result of running a CLI command.
-///
-/// Some commands can produce output but still need a non-zero exit code when
-/// diagnostics contain errors. Keeping output and success separate gives us
-/// that control.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CliOutcome {
     output: String,
@@ -70,17 +64,11 @@ impl CliOutcome {
 }
 
 /// Formats the startup message shown by the CLI.
-///
-/// Keeping this as a small function makes it easy to test without spawning a
-/// separate process.
 fn startup_message(identity: RuntimeIdentity) -> String {
     identity.banner()
 }
 
 /// Parses command-line arguments into a supported command.
-///
-/// `args[0]` is conventionally the executable name. The first real command is
-/// therefore `args[1]`.
 fn parse_command(args: &[String]) -> MonadResult<CliCommand> {
     match args.get(1).map(String::as_str) {
         None => Ok(CliCommand::Banner),
@@ -94,6 +82,8 @@ fn parse_command(args: &[String]) -> MonadResult<CliCommand> {
 }
 
 /// Renders CLI help text.
+///
+/// Help remains in the CLI because it describes CLI command names and usage.
 fn render_help() -> String {
     [
         "Usage: monad [COMMAND]",
@@ -109,36 +99,21 @@ fn render_help() -> String {
 }
 
 /// Discovers a workspace from `start`, loads `monad.toml`, and renders summary
-/// information.
+/// information through `monad-core` output formatting.
 fn render_workspace_info(start: impl AsRef<Path>) -> MonadResult<String> {
     let context = WorkspaceContext::discover_from(start)?;
     let manifest = load_manifest_from_workspace(&context)?;
+    let summary = workspace_summary_from_manifest(&context, &manifest);
 
-    Ok(format!(
-        "Monad workspace\n  root: {}\n  project: {} ({})\n  schema_version: {}\n  core_crate: {}\n  cli_crate: {}\n  execution_model: {}",
-        context.root().display(),
-        manifest.project.display_name,
-        manifest.project.name,
-        manifest.schema_version,
-        manifest.runtime.core_crate,
-        manifest.runtime.cli_crate,
-        manifest.runtime.execution_model,
-    ))
-}
-
-/// Renders diagnostics from a diagnostic report.
-fn render_diagnostic_report(report: &DiagnosticReport) -> String {
-    report.render_lines().join("\n")
+    Ok(render_workspace_summary(&summary, OutputFormat::Text))
 }
 
 /// Discovers a workspace from `start`, runs workspace checks, and returns a CLI
 /// outcome.
-///
-/// The command succeeds when the report has no error diagnostics.
 fn run_workspace_check(start: impl AsRef<Path>) -> MonadResult<CliOutcome> {
     let context = WorkspaceContext::discover_from(start)?;
     let report = run_workspace_checks(&context);
-    let output = render_diagnostic_report(&report);
+    let output = render_diagnostic_report(&report, OutputFormat::Text);
 
     if report.has_errors() {
         Ok(CliOutcome::failure(output))
@@ -148,9 +123,6 @@ fn run_workspace_check(start: impl AsRef<Path>) -> MonadResult<CliOutcome> {
 }
 
 /// Runs the CLI and returns output plus success/failure state.
-///
-/// Returning a value instead of printing directly keeps command behavior easy
-/// to test.
 fn run_with_args(args: &[String], current_dir: impl AsRef<Path>) -> MonadResult<CliOutcome> {
     match parse_command(args)? {
         CliCommand::Banner => Ok(CliOutcome::success(startup_message(runtime_identity()))),
@@ -161,9 +133,6 @@ fn run_with_args(args: &[String], current_dir: impl AsRef<Path>) -> MonadResult<
 }
 
 /// Program entrypoint.
-///
-/// Rust binaries start in `main`. Returning `ExitCode` lets us clearly signal
-/// success or failure to the operating system.
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
 
@@ -227,7 +196,7 @@ execution_model = "local-first"
             .as_nanos();
 
         env::temp_dir().join(format!(
-            "monad-cli-check-{test_name}-{}-{unique}",
+            "monad-cli-output-{test_name}-{}-{unique}",
             std::process::id()
         ))
     }
@@ -242,6 +211,7 @@ execution_model = "local-first"
             .expect("monad-cli directory should be created");
         fs::create_dir_all(root.join("crates/monad-core"))
             .expect("monad-core directory should be created");
+
         fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("Cargo.toml should be written");
         fs::write(root.join("monad.toml"), VALID_MANIFEST_TOML)
             .expect("monad.toml should be written");
@@ -279,7 +249,7 @@ execution_model = "local-first"
     }
 
     #[test]
-    fn info_command_loads_workspace_manifest() {
+    fn info_command_uses_core_output_formatting() {
         let root = create_test_workspace("info");
 
         let outcome =
@@ -297,7 +267,7 @@ execution_model = "local-first"
     }
 
     #[test]
-    fn check_command_reports_successful_workspace_diagnostics() {
+    fn check_command_uses_core_diagnostic_output_formatting() {
         let root = create_test_workspace("check");
 
         let outcome =
@@ -309,6 +279,7 @@ execution_model = "local-first"
         assert!(outcome.output.contains("[INFO] MONAD4002"));
         assert!(outcome.output.contains("[INFO] MONAD4003"));
         assert!(outcome.output.contains("[INFO] MONAD4004"));
+        assert!(outcome.output.contains("[INFO] MONAD4500"));
 
         fs::remove_dir_all(root).ok();
     }

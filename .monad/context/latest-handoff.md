@@ -2,17 +2,17 @@
 title: "Latest Handoff"
 document_type: "context-handoff"
 status: "current"
-version: "1.8.0"
+version: "1.9.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-009"
+work_packet: "WP-E1-010"
 tags:
 
 * handoff
 * e1
-* repository-contract
+* output-formatting
 
 ---
 
@@ -22,17 +22,17 @@ tags:
 
 E0 — Project Foundation is complete.
 
-WP-E1-001 through WP-E1-008 are complete.
+WP-E1-001 through WP-E1-009 are complete.
 
 ## Current
 
 E1 — Runtime Foundation
 
-WP-E1-009 — Establish Repository Contract Check Foundation
+WP-E1-010 — Establish Runtime Output Formatting Foundation
 
-## Repository Contract
+## Output Formatting
 
-The current slice adds repository-contract checks to `monad-core` and `monad check`.
+The current slice moves reusable text output formatting into `monad-core`.
 
 ## Verification
 

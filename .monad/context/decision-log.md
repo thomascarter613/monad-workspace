@@ -2,17 +2,17 @@
 title: "Decision Log"
 document_type: "context-decision-log"
 status: "current"
-version: "1.8.0"
+version: "1.9.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-009"
+work_packet: "WP-E1-010"
 tags:
 
 * decisions
 * e1
-* repository-contract
+* output-formatting
 
 ---
 
@@ -32,8 +32,8 @@ tags:
 10. Agent workflows are supervised and human-in-command.
 11. Bazel, Pants, Buck2, and Nx are not default Monad dependencies.
 12. E0 — Project Foundation is complete.
-13. WP-E1-001 through WP-E1-008 are complete.
-14. WP-E1-009 establishes Repository Contract checks in `monad-core`.
+13. WP-E1-001 through WP-E1-009 are complete.
+14. WP-E1-010 establishes shared Output Formatting in `monad-core`.
 
 ## Current Epic
 
@@ -41,4 +41,4 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-009 — Establish Repository Contract Check Foundation
+WP-E1-010 — Establish Runtime Output Formatting Foundation

@@ -2,17 +2,17 @@
 title: "Current State"
 document_type: "ai-context"
 status: "current"
-version: "1.8.0"
+version: "1.9.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-009"
+work_packet: "WP-E1-010"
 tags:
   - current-state
   - handoff
   - e1
-  - repository-contract
+  - output-formatting
 ---
 
 # Current State
@@ -27,29 +27,29 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-009 — Establish Repository Contract Check Foundation
+WP-E1-010 — Establish Runtime Output Formatting Foundation
 
 ## Prior Work
 
 E0 — Project Foundation is complete.
 
-WP-E1-001 through WP-E1-008 are complete.
+WP-E1-001 through WP-E1-009 are complete.
 
 ## Active Runtime Focus
 
-Repository Contract.
+Output Formatting.
 
 The current slice adds:
 
-- `RequiredPathKind`;
-- `RequiredPath`;
-- `RepositoryContract`;
-- `check_repository_contract`;
-- repository-contract diagnostics in `monad check`.
+- `OutputFormat`;
+- `WorkspaceSummary`;
+- diagnostic report rendering;
+- workspace summary rendering;
+- CLI integration with shared runtime output formatting.
 
 ## Next Expected Slice
 
-After WP-E1-009, proceed to runtime output formatting or repository contract hardening.
+After WP-E1-010, proceed to repository contract hardening or CLI output-format argument support.
 
 ## Verification
 

@@ -162,6 +162,15 @@ REQUIRED_PATHS = [
     "work/deliverables/E1/D-WP-E1-009-001-repository-contract-module.md",
     "work/deliverables/E1/D-WP-E1-009-002-checks-integration.md",
     "work/deliverables/E1/D-WP-E1-009-003-repository-contract-handoff.md",
+    "crates/monad-core/src/output.rs",
+    ".monad/context/work-packet-handoffs/WP-E1-010.md",
+    "work/packets/E1/WP-E1-010-establish-runtime-output-formatting-foundation.md",
+    "work/tasks/E1/T-WP-E1-010-001-add-output-formatting-module.md",
+    "work/tasks/E1/T-WP-E1-010-002-use-output-formatting-in-cli.md",
+    "work/tasks/E1/T-WP-E1-010-003-update-e1-records-and-context.md",
+    "work/deliverables/E1/D-WP-E1-010-001-output-formatting-module.md",
+    "work/deliverables/E1/D-WP-E1-010-002-cli-output-integration.md",
+    "work/deliverables/E1/D-WP-E1-010-003-output-formatting-handoff.md",
 ]
 
 

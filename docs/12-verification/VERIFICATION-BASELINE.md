@@ -2,12 +2,12 @@
 title: "Verification Baseline"
 document_type: "verification-standard"
 status: "current"
-version: "1.9.0"
+version: "1.10.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-009"
+work_packet: "WP-E1-010"
 tags:
   - verification
   - quality
@@ -15,7 +15,8 @@ tags:
   - workflow
   - rust
   - cli
-  - checks
+  - output
+  - formatting
   - diagnostics
   - work-packets
   - tasks
@@ -63,7 +64,8 @@ The baseline currently verifies:
 12. CLI info smoke test with `cargo run --quiet -p monad-cli -- info`.
 13. CLI check smoke test with `cargo run --quiet -p monad-cli -- check`.
 14. Repository-contract diagnostics through `monad check`.
-15. Current working tree status.
+15. Shared output formatting tests.
+16. Current working tree status.
 
 ## 4. Rust Runtime Checks
 
@@ -80,6 +82,7 @@ The Rust portion of the baseline verifies:
 * CLI Info tests pass;
 * CLI Check tests pass;
 * Repository Contract tests pass;
+* Output Formatting tests pass;
 * formatting is stable.
 
 ## 5. Expected Successful Result
@@ -111,12 +114,13 @@ Common causes include:
 * a file was created at the wrong path;
 * root `monad.toml` is missing;
 * manifest loading tests fail;
+* output formatting tests fail;
 * `monad info` cannot discover the workspace;
 * `monad check` reports error diagnostics;
 * repository-contract checks report missing canonical paths;
 * a Markdown file is missing YAML frontmatter;
 * a work packet, task, deliverable, epic, or ADR record is missing required structure;
-* context files do not identify E1, WP-E1-009, Runtime Foundation, and Repository Contract;
+* context files do not identify E1, WP-E1-010, Runtime Foundation, and Output Formatting;
 * Rust code is not formatted;
 * Rust tests fail;
 * trailing whitespace or whitespace errors are present in the diff.
