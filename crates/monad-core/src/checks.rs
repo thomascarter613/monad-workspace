@@ -1,13 +1,15 @@
 //! Workspace check primitives for Monad.
 //!
-//! This module composes E1 runtime primitives:
+//! This module composes runtime primitives:
 //!
 //! - diagnostics;
 //! - core errors;
 //! - workspace context;
 //! - manifest loading;
-//! - repository contract checks.
+//! - repository contract checks;
+//! - repository inspection.
 
+use crate::repository_inspection::inspect_workspace;
 use crate::{Diagnostic, DiagnosticReport, MonadManifest, RepositoryContract, WorkspaceContext};
 
 /// Runs the initial workspace checks for a Monad workspace.
@@ -28,6 +30,7 @@ pub fn run_workspace_checks(context: &WorkspaceContext) -> DiagnosticReport {
     check_cargo_manifest_path(context, &mut report);
     check_manifest_loading(context, &mut report);
     check_repository_contract(context, &mut report);
+    check_repository_inspection(context, &mut report);
 
     report
 }
@@ -112,6 +115,27 @@ fn check_repository_contract(context: &WorkspaceContext, report: &mut Diagnostic
     }
 }
 
+/// Runs the first shallow repository inspection and appends a summary
+/// diagnostic.
+fn check_repository_inspection(context: &WorkspaceContext, report: &mut DiagnosticReport) {
+    match inspect_workspace(context) {
+        Ok(inspection) => {
+            report.push(Diagnostic::info(
+                "MONAD4600",
+                format!(
+                    "repository inspection completed: {} top-level entries ({} files, {} directories)",
+                    inspection.entry_count(),
+                    inspection.file_count(),
+                    inspection.directory_count()
+                ),
+            ));
+        }
+        Err(error) => {
+            report.push(error.to_diagnostic());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,6 +206,7 @@ execution_model = "local-first"
         assert!(rendered.contains("MONAD4003"));
         assert!(rendered.contains("MONAD4004"));
         assert!(rendered.contains("MONAD4500"));
+        assert!(rendered.contains("MONAD4600"));
 
         fs::remove_dir_all(root).ok();
     }
@@ -207,6 +232,7 @@ execution_model = "local-first"
         assert!(report.has_errors());
         assert!(rendered.contains("MONAD4401"));
         assert!(rendered.contains("MONAD4501"));
+        assert!(rendered.contains("MONAD4600"));
 
         fs::remove_dir_all(root).ok();
     }

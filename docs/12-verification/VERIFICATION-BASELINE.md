@@ -2,7 +2,7 @@
 title: "Verification Baseline"
 document_type: "verification-standard"
 status: "current"
-version: "2.0.0"
+version: "2.1.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -12,6 +12,7 @@ tags:
   - verification
   - quality
   - repository-contract
+  - repository-inspection
   - workflow
   - rust
   - cli
@@ -32,7 +33,7 @@ tags:
 
 This document defines Monad's repository verification baseline.
 
-The baseline exists so foundational repository work and Rust runtime work can be checked from durable repo-resident scripts.
+The baseline exists so foundational repository work, Rust runtime work, and repository intelligence work can be checked from durable repo-resident scripts.
 
 ## 2. Current Baseline Command
 
@@ -58,14 +59,15 @@ The baseline currently verifies:
 6. Deliverable record structure.
 7. Epic record structure.
 8. ADR record structure.
-9. E1 closure and E2 handoff context records.
+9. E2 repository intelligence context records.
 10. Rust formatting with `cargo fmt --check`.
 11. Rust tests with `cargo test`.
 12. CLI info smoke test with `cargo run --quiet -p monad-cli -- info`.
 13. CLI check smoke test with `cargo run --quiet -p monad-cli -- check`.
 14. CLI info JSON smoke test.
 15. CLI check JSON smoke test.
-16. Current working tree status.
+16. Repository Inspection tests.
+17. Current working tree status.
 
 ## 4. Runtime Checks
 
@@ -78,6 +80,7 @@ The runtime baseline verifies:
 * `monad check` works;
 * text output works;
 * JSON Output works;
+* Repository Inspection works;
 * formatting is stable.
 
 ## 5. Expected Successful Result
@@ -92,16 +95,17 @@ All task records satisfy the required baseline structure.
 All deliverable records satisfy the required baseline structure.
 All epic records satisfy the required baseline structure.
 All ADR records satisfy the required baseline structure.
-All context records satisfy the E1 closure and E2 handoff baseline.
+All context records satisfy the E2 repository intelligence baseline.
 Monad workspace
 [INFO] MONAD4000
 [INFO] MONAD4500
+[INFO] MONAD4600
 Verification baseline passed.
 ```
 
 ## 6. Failure Meaning
 
-A failure means at least one foundational repository, runtime, or context-handoff expectation is not satisfied.
+A failure means at least one foundational repository, runtime, repository intelligence, or context-handoff expectation is not satisfied.
 
 Common causes include:
 
@@ -109,12 +113,13 @@ Common causes include:
 * a file was created at the wrong path;
 * a Markdown file is missing YAML frontmatter;
 * a work packet, task, deliverable, epic, or ADR record is missing required structure;
-* context files do not identify E2, WP-E2-001, and Repository Intelligence;
+* context files do not identify E2, WP-E2-001, Repository Intelligence, and Repository Inspection;
 * Rust code is not formatted;
 * Rust tests fail;
 * `monad info` fails;
 * `monad check` fails;
-* JSON output fails.
+* JSON output fails;
+* Repository Inspection tests fail.
 
 ## 7. Maintenance Rules
 

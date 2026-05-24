@@ -2,7 +2,7 @@
 title: "Fresh Chat Handoff"
 document_type: "ai-handoff"
 status: "current"
-version: "2.0.0"
+version: "2.1.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -13,6 +13,7 @@ tags:
 * handoff
 * e2
 * repository-intelligence
+* repository-inspection
 
 ---
 
@@ -46,14 +47,26 @@ WP-E2-001 — Establish Repository Inspection Foundation
 4. `.monad/context/work-packet-handoffs/WP-E2-001.md`
 5. `work/epics/E2-repository-intelligence-foundation.md`
 6. `work/packets/E2/WP-E2-001-establish-repository-inspection-foundation.md`
-7. `work/epics/E1-runtime-foundation.md`
-8. `crates/monad-core/src/workspace.rs`
-9. `crates/monad-core/src/checks.rs`
-10. `crates/monad-core/src/output.rs`
+7. `crates/monad-core/src/repository_inspection.rs`
+8. `crates/monad-core/src/checks.rs`
+9. `crates/monad-core/src/lib.rs`
+10. `tools/scripts/verify.sh`
 
-## Runtime Foundation Progress
+## Runtime Foundation Available
 
-E1 is complete and provides the runtime primitives needed for E2 repository intelligence work.
+E1 provides:
+
+* Workspace Context;
+* Core Diagnostics;
+* Core Error;
+* Manifest Loading;
+* Repository Contract;
+* Output Formatting;
+* JSON Output.
+
+## Repository Inspection
+
+WP-E2-001 adds the first typed repository inspection foundation.
 
 ## Verification
 

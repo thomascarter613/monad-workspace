@@ -1,8 +1,8 @@
 ---
 title: "WP-E2-001 — Establish Repository Inspection Foundation"
 document_type: "work-packet"
-status: "ready"
-version: "0.1.0"
+status: "in-progress"
+version: "0.2.0"
 created: "2026-05-24"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -33,30 +33,33 @@ E1 established runtime primitives and initial checks. E2 begins the repository i
 
 ## Scope
 
-This work packet should cover:
+This work packet covers:
 
-* a `repository` or `inspection` module in `monad-core`;
+* a new `repository_inspection` module in `monad-core`;
 * typed repository inspection results;
 * top-level file and directory inventory;
-* ignored/generated-directory safeguards;
+* important entry role classification;
+* generated/external traversal safeguards;
+* deterministic sorting;
 * tests using temporary repositories;
-* integration path for future `monad inspect`;
+* integration with `monad check` through a summary diagnostic;
 * context and verification updates.
 
 ## Deliverables
 
 Expected deliverables include:
 
-* a new `monad-core` repository inspection module;
-* exported inspection types;
-* tests;
+* `crates/monad-core/src/repository_inspection.rs`;
+* updated `crates/monad-core/src/lib.rs`;
+* updated `crates/monad-core/src/checks.rs`;
+* E2 task records;
+* E2 deliverable records;
 * updated runtime context;
-* updated E2 task and deliverable records;
-* verification baseline updates if needed.
+* updated verification baseline.
 
 ## Expected Result After Verification
 
-Monad has a typed repository inspection foundation that can list and classify initial workspace structure, and the verification baseline passes.
+Monad has a typed repository inspection foundation that can list and classify initial workspace structure, `monad check` emits a repository-inspection diagnostic, and the verification baseline passes.
 
 ## Verification
 
@@ -65,18 +68,20 @@ Run:
 ```bash
 cargo fmt --check
 cargo test
+cargo run --quiet -p monad-cli -- check
 tools/scripts/verify.sh
 ```
 
 Expected output includes:
 
 ```text
+[INFO] MONAD4600
 Verification baseline passed.
 ```
 
 ## Status
 
-Ready
+In Progress
 
 ## Priority
 

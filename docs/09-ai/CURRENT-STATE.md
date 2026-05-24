@@ -2,7 +2,7 @@
 title: "Current State"
 document_type: "ai-context"
 status: "current"
-version: "2.0.0"
+version: "2.1.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -13,6 +13,7 @@ tags:
   - handoff
   - e2
   - repository-intelligence
+  - repository-inspection
 ---
 
 # Current State
@@ -35,30 +36,19 @@ E2 — Repository Intelligence Foundation
 
 WP-E2-001 — Establish Repository Inspection Foundation
 
-## Completed Runtime Foundation
-
-E1 established:
-
-- Rust workspace foundation;
-- `monad-cli`;
-- `monad-core`;
-- Core Diagnostics;
-- Core Error;
-- Workspace Context;
-- Manifest Model;
-- Manifest Loading;
-- CLI Info;
-- CLI Check;
-- Repository Contract;
-- Output Formatting;
-- Output Format Argument;
-- JSON Output.
-
 ## Active Focus
 
-Repository Intelligence.
+Repository Inspection.
 
-The next slice should add the first repository inspection foundation in `monad-core`.
+This slice adds:
+
+- `RepositoryEntryKind`;
+- `RepositoryEntryRole`;
+- `RepositoryEntryTraversalPolicy`;
+- `RepositoryEntry`;
+- `RepositoryInspection`;
+- `inspect_workspace`;
+- `MONAD4600` repository inspection diagnostics.
 
 ## Verification
 

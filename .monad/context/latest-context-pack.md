@@ -2,7 +2,7 @@
 title: "Latest Context Pack"
 document_type: "context-pack"
 status: "current"
-version: "2.0.0"
+version: "2.1.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -13,6 +13,7 @@ tags:
 * context-pack
 * e2
 * repository-intelligence
+* repository-inspection
 
 ---
 
@@ -53,9 +54,17 @@ Monad currently has:
 * Output Format Argument;
 * JSON Output.
 
-## E2 Starting Point
+## E2 Repository Inspection
 
-E2 begins by adding typed repository inspection.
+WP-E2-001 adds:
+
+* `RepositoryEntryKind`;
+* `RepositoryEntryRole`;
+* `RepositoryEntryTraversalPolicy`;
+* `RepositoryEntry`;
+* `RepositoryInspection`;
+* `inspect_workspace`;
+* `MONAD4600`.
 
 ## Verification
 
@@ -64,6 +73,7 @@ Run:
 ```bash
 cargo fmt --check
 cargo test
+cargo run --quiet -p monad-cli -- check
 tools/scripts/verify.sh
 ```
 

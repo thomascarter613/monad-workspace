@@ -1,8 +1,8 @@
 ---
 title: "E2 — Repository Intelligence Foundation"
 document_type: "epic"
-status: "planned"
-version: "0.1.0"
+status: "in-progress"
+version: "0.2.0"
 created: "2026-05-24"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -27,7 +27,7 @@ Establish Monad's repository intelligence foundation so the runtime can inspect 
 
 ## Rationale
 
-E1 gave Monad a working runtime, manifest loading, CLI commands, diagnostics, repository-contract checks, and text/JSON output. E2 should now make Monad more useful by moving from static foundation checks into repository inspection.
+E1 gave Monad a working runtime, manifest loading, CLI commands, diagnostics, repository-contract checks, and text/JSON output. E2 now makes Monad more useful by moving from static foundation checks into repository inspection.
 
 Repository intelligence is the bridge between a basic CLI and Monad's larger goal: understanding, verifying, and safely evolving software repositories.
 
@@ -59,7 +59,7 @@ E2 does not include:
 
 | Work Packet | Title | Status |
 |---|---|---|
-| WP-E2-001 | Establish repository inspection foundation | Ready |
+| WP-E2-001 | Establish repository inspection foundation | In Progress |
 
 ## Expected Result After Verification
 

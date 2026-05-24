@@ -1,8 +1,8 @@
 ---
 title: "E2 Work Packets"
 document_type: "work-packet-index"
-status: "planned"
-version: "0.1.0"
+status: "in-progress"
+version: "0.2.0"
 created: "2026-05-24"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -21,9 +21,9 @@ This directory contains durable work packet records for E2 — Repository Intell
 
 ## Work Packets
 
-| Work Packet | Title                                      | Status |
-| ----------- | ------------------------------------------ | ------ |
-| WP-E2-001   | Establish repository inspection foundation | Ready  |
+| Work Packet | Title                                      | Status      |
+| ----------- | ------------------------------------------ | ----------- |
+| WP-E2-001   | Establish repository inspection foundation | In Progress |
 
 ## Maintenance Rules
 

@@ -191,6 +191,17 @@ REQUIRED_PATHS = [
     "work/deliverables/E1/D-WP-E1-013-001-e1-closure-record.md",
     "work/deliverables/E1/D-WP-E1-013-002-e2-starting-point.md",
     "work/deliverables/E1/D-WP-E1-013-003-e2-context-handoff.md",
+    "crates/monad-core/src/repository_inspection.rs",
+    "work/tasks/E2/README.md",
+    "work/tasks/E2/T-WP-E2-001-001-add-repository-inspection-module.md",
+    "work/tasks/E2/T-WP-E2-001-002-export-repository-inspection-types.md",
+    "work/tasks/E2/T-WP-E2-001-003-integrate-inspection-with-workspace-checks.md",
+    "work/tasks/E2/T-WP-E2-001-004-update-e2-records-and-context.md",
+    "work/deliverables/E2/README.md",
+    "work/deliverables/E2/D-WP-E2-001-001-repository-inspection-module.md",
+    "work/deliverables/E2/D-WP-E2-001-002-repository-inspection-exports.md",
+    "work/deliverables/E2/D-WP-E2-001-003-workspace-check-integration.md",
+    "work/deliverables/E2/D-WP-E2-001-004-repository-inspection-handoff.md",
 ]
 
 

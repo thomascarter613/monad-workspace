@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Check Monad context records for E1 closure and E2 handoff readiness.
+Check Monad context records for E2 repository intelligence readiness.
 """
 
 from pathlib import Path
@@ -23,6 +23,7 @@ GLOBAL_REQUIRED_TERMS = [
     "E2",
     "Runtime Foundation",
     "Repository Intelligence",
+    "Repository Inspection",
     "WP-E1-013",
     "WP-E2-001",
     "JSON Output",
@@ -68,7 +69,7 @@ def main() -> int:
             continue
 
         text = path.read_text(encoding="utf-8")
-        for term in ["E2", "WP-E2-001", "Repository Intelligence"]:
+        for term in ["E2", "WP-E2-001", "Repository Intelligence", "Repository Inspection"]:
             if term not in text:
                 failures.append(f"{path}: missing current-context term {term}")
 
@@ -78,7 +79,7 @@ def main() -> int:
             print(f"  {failure}")
         return 1
 
-    print("All context records satisfy the E1 closure and E2 handoff baseline.")
+    print("All context records satisfy the E2 repository intelligence baseline.")
     return 0
 
 

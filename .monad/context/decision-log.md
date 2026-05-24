@@ -2,7 +2,7 @@
 title: "Decision Log"
 document_type: "context-decision-log"
 status: "current"
-version: "2.0.0"
+version: "2.1.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -13,6 +13,7 @@ tags:
 * decisions
 * e2
 * repository-intelligence
+* repository-inspection
 
 ---
 
@@ -34,6 +35,7 @@ tags:
 12. E0 — Project Foundation is complete.
 13. E1 — Runtime Foundation is complete.
 14. E2 — Repository Intelligence Foundation begins with WP-E2-001.
+15. WP-E2-001 establishes Repository Inspection in `monad-core`.
 
 ## Current Epic
 

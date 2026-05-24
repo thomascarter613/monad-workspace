@@ -12,6 +12,7 @@ pub mod error;
 pub mod manifest;
 pub mod output;
 pub mod repo_contract;
+pub mod repository_inspection;
 pub mod workspace;
 
 pub use checks::run_workspace_checks;
@@ -26,6 +27,10 @@ pub use output::{
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
+};
+pub use repository_inspection::{
+    RepositoryEntry, RepositoryEntryKind, RepositoryEntryRole, RepositoryEntryTraversalPolicy,
+    RepositoryInspection, inspect_workspace,
 };
 pub use workspace::{WorkspaceContext, discover_workspace_root, is_workspace_root};
 
@@ -193,5 +198,18 @@ mod tests {
     #[test]
     fn output_format_is_exported_from_core_root() {
         assert_eq!(OutputFormat::parse("text"), Ok(OutputFormat::Text));
+    }
+
+    #[test]
+    fn repository_inspection_types_are_exported_from_core_root() {
+        assert_eq!(RepositoryEntryKind::File.as_str(), "file");
+        assert_eq!(
+            RepositoryEntryRole::MonadManifest.as_str(),
+            "monad_manifest"
+        );
+        assert_eq!(
+            RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal.as_str(),
+            "skip_generated_or_external"
+        );
     }
 }

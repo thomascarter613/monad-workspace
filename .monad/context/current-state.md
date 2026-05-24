@@ -2,7 +2,7 @@
 title: "Monad Context Current State"
 document_type: "context-current-state"
 status: "current"
-version: "2.0.0"
+version: "2.1.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -14,6 +14,7 @@ tags:
 * current-state
 * e2
 * repository-intelligence
+* repository-inspection
 
 ---
 
@@ -29,7 +30,7 @@ The current work packet is WP-E2-001 — Establish Repository Inspection Foundat
 
 ## Active Focus
 
-Repository Intelligence.
+Repository Inspection.
 
 ## Runtime Foundation Available
 
@@ -44,6 +45,12 @@ E1 produced:
 * `monad info`;
 * `monad check`;
 * JSON Output.
+
+## Current E2 Runtime Files
+
+* `crates/monad-core/src/repository_inspection.rs`
+* `crates/monad-core/src/checks.rs`
+* `crates/monad-core/src/lib.rs`
 
 ## Verification
 

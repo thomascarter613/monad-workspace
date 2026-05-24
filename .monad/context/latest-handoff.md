@@ -2,7 +2,7 @@
 title: "Latest Handoff"
 document_type: "context-handoff"
 status: "current"
-version: "2.0.0"
+version: "2.1.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -13,6 +13,7 @@ tags:
 * handoff
 * e2
 * repository-intelligence
+* repository-inspection
 
 ---
 
@@ -30,9 +31,9 @@ E2 — Repository Intelligence Foundation
 
 WP-E2-001 — Establish Repository Inspection Foundation
 
-## Next Implementation Direction
+## Repository Inspection
 
-Create the first repository inspection module in `monad-core`.
+The current slice adds the first typed repository inspection module in `monad-core`.
 
 ## Verification
 
