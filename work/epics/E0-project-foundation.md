@@ -1,8 +1,8 @@
----
+
 title: "E0 — Project Foundation"
 document_type: "epic"
 status: "in-progress"
-version: "0.4.0"
+version: "0.3.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
@@ -25,7 +25,7 @@ Project Foundation
 
 ## Objective
 
-Establish the durable repository, documentation, workflow, verification, ADR, epic, task, and context foundations required before Monad moves into core runtime implementation.
+Establish the durable repository, documentation, workflow, verification, ADR, epic, and context foundations required before Monad moves into core runtime implementation.
 
 ## Rationale
 
@@ -45,7 +45,6 @@ E0 includes:
 * work packet records;
 * ADR verification;
 * epic record verification;
-* task record foundation;
 * initial project operating discipline.
 
 ## Out of Scope
@@ -71,12 +70,11 @@ E0 does not include:
 | WP-E0-005   | Establish verification baseline      | Complete    |
 | WP-E0-006   | Establish work packet records        | Complete    |
 | WP-E0-007   | Establish ADR verification           | Complete    |
-| WP-E0-008   | Establish epic record verification   | Complete    |
-| WP-E0-009   | Establish task record foundation     | In Progress |
+| WP-E0-008   | Establish epic record verification   | In Progress |
 
 ## Expected Result After Verification
 
-The repository contains durable E0 epic, work packet, task, workflow, context, and ADR records, plus verification scripts that check the foundation. The verification baseline passes.
+The repository contains durable E0 epic and work packet records, workflow standards, context bridge files, ADR records, epic verification, and verification scripts. The verification baseline passes.
 
 ## Verification
 
@@ -92,7 +90,6 @@ Expected result:
 All required E0 foundation paths exist.
 All docs/work/.monad Markdown files have YAML frontmatter.
 All work packet records satisfy the required structure.
-All task records satisfy the required baseline structure.
 All epic records satisfy the required baseline structure.
 All ADR records satisfy the required baseline structure.
 Verification baseline passed.

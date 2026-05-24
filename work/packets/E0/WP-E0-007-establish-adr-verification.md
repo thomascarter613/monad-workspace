@@ -1,7 +1,7 @@
 ---
 title: "WP-E0-007 — Establish ADR Verification"
 document_type: "work-packet"
-status: "in-progress"
+status: "complete"
 version: "0.1.0"
 created: "2026-05-23"
 updated: "2026-05-23"
@@ -72,7 +72,7 @@ Verification baseline passed.
 
 ## Status
 
-In Progress
+Complete
 
 ## Priority
 
