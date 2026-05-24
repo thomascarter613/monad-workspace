@@ -6,6 +6,10 @@
 //! Monad's architecture keeps durable product logic here, while the CLI crate
 //! stays thin and delegates to this library.
 
+pub mod diagnostics;
+
+pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
+
 /// Describes the currently compiled Monad runtime identity.
 ///
 /// A `struct` groups related values into one named type.
@@ -28,6 +32,7 @@ impl RuntimeIdentity {
     ///
     /// `const fn` means this function can be evaluated at compile time because
     /// it only returns fixed values and does not allocate memory.
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             product_name: "Monad",
@@ -39,11 +44,21 @@ impl RuntimeIdentity {
     /// Builds a human-readable startup banner.
     ///
     /// This returns a `String` because `format!` creates owned text at runtime.
+    #[must_use]
     pub fn banner(self) -> String {
         format!(
             "{} runtime foundation ready (crate: {}, model: {})",
             self.product_name, self.runtime_crate, self.execution_model
         )
+    }
+
+    /// Builds a structured startup diagnostic.
+    ///
+    /// Future CLI commands can use diagnostics when they need stable structured
+    /// output instead of plain strings.
+    #[must_use]
+    pub fn startup_diagnostic(self) -> Diagnostic {
+        Diagnostic::info("MONAD0001", self.banner())
     }
 }
 
@@ -62,6 +77,7 @@ impl Default for RuntimeIdentity {
 ///
 /// Free functions like this are useful API entrypoints for other crates.
 /// The CLI crate will call this rather than duplicating core runtime facts.
+#[must_use]
 pub fn runtime_identity() -> RuntimeIdentity {
     RuntimeIdentity::new()
 }
@@ -86,5 +102,15 @@ mod tests {
         assert!(banner.contains("Monad"));
         assert!(banner.contains("monad-core"));
         assert!(banner.contains("local-first"));
+    }
+
+    #[test]
+    fn runtime_identity_can_produce_startup_diagnostic() {
+        let diagnostic = runtime_identity().startup_diagnostic();
+
+        assert_eq!(diagnostic.severity, Severity::Info);
+        assert_eq!(diagnostic.code, "MONAD0001");
+        assert!(diagnostic.message.contains("Monad"));
+        assert!(diagnostic.render().contains("[INFO] MONAD0001"));
     }
 }

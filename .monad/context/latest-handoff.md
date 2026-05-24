@@ -2,17 +2,17 @@
 title: "Latest Handoff"
 document_type: "context-handoff"
 status: "current"
-version: "1.0.0"
+version: "1.1.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-001"
+work_packet: "WP-E1-002"
 tags:
 
 * handoff
-* e0-complete
 * e1
+* core-diagnostics
 
 ---
 
@@ -22,24 +22,17 @@ tags:
 
 E0 — Project Foundation is complete.
 
-The repo now has:
-
-* workflow standards;
-* verification baseline;
-* work packet records;
-* task records;
-* deliverable records;
-* epic record verification;
-* ADR verification;
-* context handoff records.
+WP-E1-001 — Establish Rust Workspace Runtime Foundation is complete.
 
 ## Current
 
 E1 — Runtime Foundation
 
-## Next
+WP-E1-002 — Establish Core Diagnostics Foundation
 
-WP-E1-001 — Establish Rust Workspace Runtime Foundation
+## Core Diagnostics
+
+The current slice adds structured diagnostics to `monad-core`.
 
 ## Verification
 

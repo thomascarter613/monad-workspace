@@ -2,7 +2,7 @@
 title: "E1 — Runtime Foundation"
 document_type: "epic"
 status: "in-progress"
-version: "0.2.0"
+version: "0.3.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
@@ -41,6 +41,7 @@ E1 includes:
 - beginner-readable Rust comments;
 - initial tests;
 - initial CLI command wiring;
+- diagnostics foundation;
 - manifest/runtime foundation slices as later E1 work packets.
 
 ## Out of Scope
@@ -59,11 +60,12 @@ E1 does not include:
 
 | Work Packet | Title | Status |
 |---|---|---|
-| WP-E1-001 | Establish Rust workspace runtime foundation | In Progress |
+| WP-E1-001 | Establish Rust workspace runtime foundation | Complete |
+| WP-E1-002 | Establish core diagnostics foundation | In Progress |
 
 ## Expected Result After Verification
 
-The repository has an E1 runtime plan and a first working Rust workspace foundation with `monad-cli` depending on `monad-core`.
+The repository has a working Rust workspace foundation and a reusable `monad-core` diagnostics model.
 
 ## Verification
 
@@ -76,6 +78,7 @@ tools/scripts/verify.sh
 Expected result:
 
 ```text
+All required foundation and runtime paths exist.
 cargo fmt --check
 cargo test
 Verification baseline passed.

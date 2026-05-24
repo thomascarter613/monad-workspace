@@ -1,7 +1,7 @@
 ---
 title: "T-WP-E1-001-004 — Add Rust Verification to Baseline"
 document_type: "task"
-status: "in-progress"
+status: "complete"
 version: "0.1.0"
 created: "2026-05-23"
 updated: "2026-05-23"
@@ -45,7 +45,7 @@ tools/scripts/verify.sh
 
 ## Status
 
-In Progress
+Complete
 
 ## Priority
 

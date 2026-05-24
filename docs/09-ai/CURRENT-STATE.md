@@ -2,17 +2,18 @@
 title: "Current State"
 document_type: "ai-context"
 status: "current"
-version: "1.0.0"
+version: "1.1.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-001"
+work_packet: "WP-E1-002"
 tags:
   - current-state
   - handoff
   - e0-complete
   - e1
+  - core-diagnostics
 ---
 
 # Current State
@@ -21,47 +22,35 @@ tags:
 
 Monad is an AI-native, repo-native, local-first Software Foundry OS for understanding, verifying, and safely evolving software repositories.
 
-Monad has absorbed the prior AionX, Foundry, Charon, Context Bridge, repo-native memory, supervised execution, and related concepts into one unified product identity.
-
 ## Current Epic
 
 E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-001 — Establish Rust Workspace Runtime Foundation
+WP-E1-002 — Establish Core Diagnostics Foundation
 
-## E0 Status
+## Prior Work
 
 E0 — Project Foundation is complete.
 
-E0 established:
+WP-E1-001 — Establish Rust Workspace Runtime Foundation is complete.
 
-- repository foundation;
-- documentation architecture;
-- context bridge foundation;
-- workflow standards;
-- verification baseline;
-- work packet records;
-- ADR verification;
-- epic verification;
-- task verification;
-- deliverable verification;
-- E1 Runtime Foundation handoff.
+## Active Runtime Focus
 
-## E1 Starting Point
+Core Diagnostics.
 
-Begin with WP-E1-001.
+The current slice adds:
 
-The next implementation slice should create or normalize:
+- `Severity`;
+- `Diagnostic`;
+- `DiagnosticReport`;
+- diagnostic rendering;
+- startup diagnostic support from `RuntimeIdentity`.
 
-- root `Cargo.toml` workspace membership;
-- `crates/monad-cli/`;
-- `crates/monad-core/`;
-- minimal CLI entrypoint;
-- minimal core library;
-- initial Rust tests;
-- Rust formatting and test verification.
+## Next Expected Slice
+
+After WP-E1-002, proceed to the next E1 runtime foundation slice, likely the core error model or workspace context foundation.
 
 ## Verification
 

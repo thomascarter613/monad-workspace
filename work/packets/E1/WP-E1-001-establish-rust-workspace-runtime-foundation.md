@@ -1,7 +1,7 @@
 ---
 title: "WP-E1-001 — Establish Rust Workspace Runtime Foundation"
 document_type: "work-packet"
-status: "in-progress"
+status: "complete"
 version: "0.2.0"
 created: "2026-05-23"
 updated: "2026-05-23"
@@ -81,7 +81,7 @@ Monad runtime foundation ready (crate: monad-core, model: local-first)
 
 ## Status
 
-In Progress
+Complete
 
 ## Priority
 

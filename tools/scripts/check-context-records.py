@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """
-Check Monad context records for E0 closure and E1 handoff readiness.
-
-This checker verifies that the repo-native context bridge has enough durable
-state for a future human or AI session to resume from the repository.
+Check Monad context records for E1 runtime handoff readiness.
 """
 
 from pathlib import Path
@@ -17,13 +14,16 @@ REQUIRED_CONTEXT_FILES = [
     Path(".monad/context/latest-context-pack.md"),
     Path(".monad/context/decision-log.md"),
     Path(".monad/context/work-packet-handoffs/WP-E1-001.md"),
+    Path(".monad/context/work-packet-handoffs/WP-E1-002.md"),
 ]
 
 REQUIRED_TERMS = [
     "E0",
     "E1",
     "WP-E1-001",
+    "WP-E1-002",
     "Runtime Foundation",
+    "Core Diagnostics",
 ]
 
 
@@ -54,7 +54,7 @@ def main() -> int:
             print(f"  {failure}")
         return 1
 
-    print("All context records satisfy the E0 closure and E1 handoff baseline.")
+    print("All context records satisfy the E1 runtime handoff baseline.")
     return 0
 
 

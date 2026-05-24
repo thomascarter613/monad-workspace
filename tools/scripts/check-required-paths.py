@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Check that the required foundation, E1 handoff, and initial Rust runtime paths exist.
+Check that the required foundation, E1 handoff, and Rust runtime paths exist.
 """
 
 from pathlib import Path
@@ -18,6 +18,7 @@ REQUIRED_PATHS = [
     "crates/monad-cli/src/main.rs",
     "crates/monad-core/Cargo.toml",
     "crates/monad-core/src/lib.rs",
+    "crates/monad-core/src/diagnostics.rs",
 
     # Documentation and work roots
     "docs/README.md",
@@ -40,6 +41,7 @@ REQUIRED_PATHS = [
     ".monad/context/session-chronicles/README.md",
     ".monad/context/work-packet-handoffs/README.md",
     ".monad/context/work-packet-handoffs/WP-E1-001.md",
+    ".monad/context/work-packet-handoffs/WP-E1-002.md",
     ".monad/context/decision-records/README.md",
 
     # Workflow standards
@@ -95,15 +97,22 @@ REQUIRED_PATHS = [
     "work/epics/E1-runtime-foundation.md",
     "work/packets/E1/README.md",
     "work/packets/E1/WP-E1-001-establish-rust-workspace-runtime-foundation.md",
+    "work/packets/E1/WP-E1-002-establish-core-diagnostics-foundation.md",
     "work/tasks/E1/README.md",
     "work/tasks/E1/T-WP-E1-001-001-create-rust-workspace-crates.md",
     "work/tasks/E1/T-WP-E1-001-002-add-minimal-core-runtime-identity.md",
     "work/tasks/E1/T-WP-E1-001-003-add-thin-cli-entrypoint.md",
     "work/tasks/E1/T-WP-E1-001-004-add-rust-verification-to-baseline.md",
+    "work/tasks/E1/T-WP-E1-002-001-add-diagnostics-module.md",
+    "work/tasks/E1/T-WP-E1-002-002-export-diagnostics-from-core-runtime.md",
+    "work/tasks/E1/T-WP-E1-002-003-update-e1-records-and-context.md",
     "work/deliverables/E1/README.md",
     "work/deliverables/E1/D-WP-E1-001-001-rust-workspace-manifest.md",
     "work/deliverables/E1/D-WP-E1-001-002-core-runtime-library.md",
     "work/deliverables/E1/D-WP-E1-001-003-thin-cli-entrypoint.md",
+    "work/deliverables/E1/D-WP-E1-002-001-diagnostics-module.md",
+    "work/deliverables/E1/D-WP-E1-002-002-core-runtime-exports.md",
+    "work/deliverables/E1/D-WP-E1-002-003-diagnostics-context-handoff.md",
 ]
 
 
