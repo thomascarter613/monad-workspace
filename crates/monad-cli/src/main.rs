@@ -12,8 +12,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use monad_core::{
     MonadError, MonadResult, OutputFormat, RuntimeIdentity, WorkspaceContext,
-    load_manifest_from_workspace, render_diagnostic_report, render_workspace_summary,
-    run_workspace_checks, runtime_identity, workspace_summary_from_manifest,
+    load_manifest_from_workspace, render_diagnostic_report, render_repository_inspection_summary,
+    render_workspace_summary, repository_inspection_summary_from_workspace, run_workspace_checks,
+    runtime_identity, workspace_summary_from_manifest,
 };
 
 /// Supported CLI commands for this early runtime foundation.
@@ -30,13 +31,15 @@ enum CliCommand {
 
     /// Run the initial workspace checks and print diagnostics.
     Check,
+
+    /// Inspect the repository and print a top-level repository summary.
+    Inspect,
 }
 
 /// Parsed command-line invocation.
 ///
-/// This separates command selection from output-format selection. Today only
-/// `text` is supported, but this structure gives us a clean place to add JSON,
-/// NDJSON, Markdown, or other formats later.
+/// This separates command selection from output-format selection. Options such
+/// as `--format text` may appear before or after the command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct CliInvocation {
     command: CliCommand,
@@ -95,6 +98,7 @@ fn command_name(command: CliCommand) -> &'static str {
         CliCommand::Help => "help",
         CliCommand::Info => "info",
         CliCommand::Check => "check",
+        CliCommand::Inspect => "inspect",
     }
 }
 
@@ -123,9 +127,11 @@ fn set_command(invocation: &mut CliInvocation, command: CliCommand) -> MonadResu
 /// - `monad help`
 /// - `monad info`
 /// - `monad check`
+/// - `monad inspect`
 /// - `monad info --format text`
-/// - `monad --format text info`
-/// - `monad check --format=text`
+/// - `monad inspect --format json`
+/// - `monad --format text inspect`
+/// - `monad check --format=json`
 fn parse_invocation(args: &[String]) -> MonadResult<CliInvocation> {
     let mut invocation = CliInvocation::default();
     let mut index = 1;
@@ -143,9 +149,12 @@ fn parse_invocation(args: &[String]) -> MonadResult<CliInvocation> {
             "check" => {
                 set_command(&mut invocation, CliCommand::Check)?;
             }
+            "inspect" => {
+                set_command(&mut invocation, CliCommand::Inspect)?;
+            }
             "--format" => {
                 let value = args.get(index + 1).ok_or_else(|| {
-                    MonadError::invalid_input("--format requires a value, such as text")
+                    MonadError::invalid_input("`--format` requires a value, such as text or json")
                 })?;
 
                 invocation.output_format = OutputFormat::parse(value)?;
@@ -158,7 +167,7 @@ fn parse_invocation(args: &[String]) -> MonadResult<CliInvocation> {
 
                 if format_value.trim().is_empty() {
                     return Err(MonadError::invalid_input(
-                        "--format requires a value, such as text",
+                        "`--format` requires a value, such as text or json",
                     ));
                 }
 
@@ -192,6 +201,7 @@ fn render_help() -> String {
         "Commands:",
         "  info      Show Monad workspace and manifest information",
         "  check     Run Monad workspace checks",
+        "  inspect   Inspect the repository and show a top-level summary",
         "  help      Show this help text",
         "",
         "Options:",
@@ -230,6 +240,21 @@ fn run_workspace_check(
     }
 }
 
+/// Discovers a workspace from `start`, asks `monad-core` for a repository
+/// inspection summary, and renders it through shared output formatting.
+///
+/// The CLI stays thin here: it does not classify repository entries, count
+/// roles, or build JSON by hand.
+fn render_repository_inspection(
+    start: impl AsRef<Path>,
+    output_format: OutputFormat,
+) -> MonadResult<String> {
+    let context = WorkspaceContext::discover_from(start)?;
+    let summary = repository_inspection_summary_from_workspace(&context);
+
+    summary.map(|summary| render_repository_inspection_summary(&summary, output_format))
+}
+
 /// Runs the CLI and returns output plus success/failure state.
 fn run_with_args(args: &[String], current_dir: impl AsRef<Path>) -> MonadResult<CliOutcome> {
     let invocation = parse_invocation(args)?;
@@ -241,6 +266,8 @@ fn run_with_args(args: &[String], current_dir: impl AsRef<Path>) -> MonadResult<
             render_workspace_info(current_dir, invocation.output_format).map(CliOutcome::success)
         }
         CliCommand::Check => run_workspace_check(current_dir, invocation.output_format),
+        CliCommand::Inspect => render_repository_inspection(current_dir, invocation.output_format)
+            .map(CliOutcome::success),
     }
 }
 
@@ -308,7 +335,7 @@ execution_model = "local-first"
             .as_nanos();
 
         env::temp_dir().join(format!(
-            "monad-cli-format-{test_name}-{}-{unique}",
+            "monad-cli-{test_name}-{}-{unique}",
             std::process::id()
         ))
     }
@@ -323,7 +350,9 @@ execution_model = "local-first"
             .expect("monad-cli directory should be created");
         fs::create_dir_all(root.join("crates/monad-core"))
             .expect("monad-core directory should be created");
+        fs::create_dir_all(root.join("target")).expect("target directory should be created");
 
+        fs::write(root.join("README.md"), "# Monad Test\n").expect("README should be written");
         fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("Cargo.toml should be written");
         fs::write(root.join("monad.toml"), VALID_MANIFEST_TOML)
             .expect("monad.toml should be written");
@@ -349,7 +378,9 @@ execution_model = "local-first"
         assert!(outcome.output.contains("Usage: monad [COMMAND] [OPTIONS]"));
         assert!(outcome.output.contains("info"));
         assert!(outcome.output.contains("check"));
+        assert!(outcome.output.contains("inspect"));
         assert!(outcome.output.contains("--format text"));
+        assert!(outcome.output.contains("--format json"));
     }
 
     #[test]
@@ -376,7 +407,7 @@ execution_model = "local-first"
             .expect_err("missing format should fail");
 
         assert_eq!(error.code(), "MONAD2001");
-        assert!(error.message().contains("--format requires a value"));
+        assert!(error.message().contains("requires a value"));
     }
 
     #[test]
@@ -441,6 +472,7 @@ execution_model = "local-first"
         assert!(outcome.success);
         assert!(outcome.output.contains("[INFO] MONAD4000"));
         assert!(outcome.output.contains("[INFO] MONAD4500"));
+        assert!(outcome.output.contains("[INFO] MONAD4600"));
 
         fs::remove_dir_all(root).ok();
     }
@@ -458,6 +490,76 @@ execution_model = "local-first"
         assert!(outcome.output.contains(r#""has_errors": false"#));
         assert!(outcome.output.contains(r#""code": "MONAD4000""#));
         assert!(outcome.output.contains(r#""code": "MONAD4500""#));
+        assert!(outcome.output.contains(r#""code": "MONAD4600""#));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn inspect_command_accepts_default_text_format() {
+        let root = create_test_workspace("inspect-default-text");
+
+        let outcome =
+            run_with_args(&args(&["monad", "inspect"]), &root).expect("inspect command should run");
+
+        assert!(outcome.success);
+        assert!(outcome.output.contains("Monad repository inspection"));
+        assert!(outcome.output.contains("monad.toml"));
+        assert!(outcome.output.contains("monad_manifest"));
+        assert!(outcome.output.contains("top_level_entries"));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn inspect_command_accepts_explicit_text_format() {
+        let root = create_test_workspace("inspect-explicit-text");
+
+        let outcome = run_with_args(&args(&["monad", "inspect", "--format", "text"]), &root)
+            .expect("inspect command should run");
+
+        assert!(outcome.success);
+        assert!(outcome.output.contains("Monad repository inspection"));
+        assert!(outcome.output.contains("roles:"));
+        assert!(outcome.output.contains("traversal_policies:"));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn inspect_command_accepts_json_format() {
+        let root = create_test_workspace("inspect-json");
+
+        let outcome = run_with_args(&args(&["monad", "inspect", "--format=json"]), &root)
+            .expect("inspect command should run with JSON output");
+
+        assert!(outcome.success);
+        assert!(outcome.output.contains(r#""format": "json""#));
+        assert!(
+            outcome
+                .output
+                .contains(r#""kind": "repository_inspection_summary""#)
+        );
+        assert!(outcome.output.contains(r#""entry_count""#));
+        assert!(outcome.output.contains(r#""path": "monad.toml""#));
+        assert!(outcome.output.contains(r#""role": "monad_manifest""#));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn inspect_command_accepts_format_option_before_command() {
+        let root = create_test_workspace("inspect-format-before");
+
+        let outcome = run_with_args(&args(&["monad", "--format", "json", "inspect"]), &root)
+            .expect("inspect command should run with format before command");
+
+        assert!(outcome.success);
+        assert!(
+            outcome
+                .output
+                .contains(r#""kind": "repository_inspection_summary""#)
+        );
 
         fs::remove_dir_all(root).ok();
     }

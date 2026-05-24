@@ -23,7 +23,8 @@ pub use manifest::{
     ManifestWorkspace, MonadManifest,
 };
 pub use output::{
-    OutputFormat, WorkspaceSummary, render_diagnostic_report, render_workspace_summary,
+    OutputFormat, RepositoryInspectionSummary, RepositoryInspectionSummaryEntry, WorkspaceSummary,
+    render_diagnostic_report, render_repository_inspection_summary, render_workspace_summary,
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
@@ -120,6 +121,20 @@ pub fn workspace_summary_from_manifest(
     WorkspaceSummary::from_manifest(context, manifest)
 }
 
+/// Inspects a workspace and builds the reusable renderable summary used by
+/// `monad inspect`.
+///
+/// The CLI remains thin because it does not classify entries or build output
+/// structures itself. It asks `monad-core` for the summary and then renders it
+/// through the shared output formatter.
+pub fn repository_inspection_summary_from_workspace(
+    context: &WorkspaceContext,
+) -> MonadResult<RepositoryInspectionSummary> {
+    let inspection = inspect_workspace(context)?;
+
+    Ok(RepositoryInspectionSummary::from_inspection(&inspection))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -211,5 +226,14 @@ mod tests {
             RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal.as_str(),
             "skip_generated_or_external"
         );
+    }
+
+    #[test]
+    fn repository_inspection_summary_type_is_exported_from_core_root() {
+        let inspection = RepositoryInspection::new(".", Vec::new());
+        let summary = RepositoryInspectionSummary::from_inspection(&inspection);
+
+        assert_eq!(summary.root, ".");
+        assert_eq!(summary.entry_count, 0);
     }
 }
