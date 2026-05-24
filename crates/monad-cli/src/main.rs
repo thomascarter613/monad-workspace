@@ -1,566 +1,418 @@
-//! Command-line entrypoint for Monad.
+//! Thin command-line interface for Monad.
 //!
-//! This crate should stay thin. Its job is to parse command-line concerns,
-//! call `monad-core`, and present results to the user.
+//! The CLI should parse user intent, delegate durable behavior to
+//! `monad-core`, and print the result.
 //!
-//! Durable product behavior belongs in `monad-core`.
+//! Durable repository intelligence, inspection, graph construction, and
+//! rendering belong in `monad-core`.
 
 use std::env;
-use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use monad_core::{
-    MonadError, MonadResult, OutputFormat, RuntimeIdentity, WorkspaceContext,
-    load_manifest_from_workspace, render_diagnostic_report, render_repository_inspection_summary,
+    OutputFormat, RepositoryGraphRenderFormat, WorkspaceContext, build_repository_graph,
+    checked_runtime_identity, inspect_workspace, load_manifest_from_workspace,
+    render_diagnostic_report, render_repository_graph, render_repository_inspection_summary,
     render_workspace_summary, repository_inspection_summary_from_workspace, run_workspace_checks,
-    runtime_identity, workspace_summary_from_manifest,
+    traverse_workspace_bounded, workspace_summary_from_manifest,
 };
 
-/// Supported CLI commands for this early runtime foundation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Parsed CLI command.
+///
+/// This enum intentionally stays small. It represents command intent only.
+/// The implementation still delegates product behavior to `monad-core`.
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum CliCommand {
-    /// Print the original startup banner.
-    Banner,
-
-    /// Print usage information.
+    /// Print help text.
     Help,
 
-    /// Discover the workspace and print project/runtime information.
-    Info,
+    /// Print runtime identity.
+    Version,
 
-    /// Run the initial workspace checks and print diagnostics.
-    Check,
+    /// Print workspace summary.
+    Info {
+        /// Requested output format.
+        output_format: OutputFormat,
+    },
 
-    /// Inspect the repository and print a top-level repository summary.
-    Inspect,
+    /// Run workspace checks.
+    Check {
+        /// Requested output format.
+        output_format: OutputFormat,
+    },
+
+    /// Inspect repository structure.
+    Inspect {
+        /// Requested output format.
+        output_format: OutputFormat,
+    },
+
+    /// Render repository graph.
+    Graph {
+        /// Requested graph render format.
+        graph_format: RepositoryGraphRenderFormat,
+    },
 }
 
-/// Parsed command-line invocation.
-///
-/// This separates command selection from output-format selection. Options such
-/// as `--format text` may appear before or after the command.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CliInvocation {
-    command: CliCommand,
-    output_format: OutputFormat,
-}
+impl CliCommand {
+    /// Parses CLI arguments into a command.
+    fn parse(args: impl IntoIterator<Item = String>) -> Result<Self, String> {
+        let mut requested_format: Option<String> = None;
+        let mut command: Option<String> = None;
 
-impl Default for CliInvocation {
-    fn default() -> Self {
-        Self {
-            command: CliCommand::Banner,
-            output_format: OutputFormat::Text,
+        for argument in args.into_iter().skip(1) {
+            if argument == "--help" || argument == "-h" {
+                return Ok(Self::Help);
+            }
+
+            if argument == "--version" || argument == "-V" {
+                return Ok(Self::Version);
+            }
+
+            if let Some(value) = argument.strip_prefix("--format=") {
+                requested_format = Some(value.to_string());
+                continue;
+            }
+
+            if argument == "--format" {
+                return Err("expected a value after --format, such as --format=json".to_string());
+            }
+
+            if argument.starts_with('-') {
+                return Err(format!("unsupported argument: {argument}"));
+            }
+
+            if command.is_some() {
+                return Err(format!("unexpected extra command argument: {argument}"));
+            }
+
+            command = Some(argument);
+        }
+
+        match command.as_deref() {
+            None => {
+                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Info { output_format })
+            }
+            Some("help") => Ok(Self::Help),
+            Some("version") => Ok(Self::Version),
+            Some("info") => {
+                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Info { output_format })
+            }
+            Some("check") => {
+                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Check { output_format })
+            }
+            Some("inspect") => {
+                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Inspect { output_format })
+            }
+            Some("graph") => {
+                let graph_format = parse_graph_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Graph { graph_format })
+            }
+            Some(other) => Err(format!("unknown command: {other}")),
         }
     }
 }
 
-/// Represents the result of running a CLI command.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CliOutcome {
-    output: String,
-    success: bool,
-}
-
-impl CliOutcome {
-    fn success(output: impl Into<String>) -> Self {
-        Self {
-            output: output.into(),
-            success: true,
-        }
-    }
-
-    fn failure(output: impl Into<String>) -> Self {
-        Self {
-            output: output.into(),
-            success: false,
-        }
-    }
-
-    fn exit_code(&self) -> ExitCode {
-        if self.success {
+/// CLI entrypoint.
+fn main() -> ExitCode {
+    match run(env::args()) {
+        Ok(output) => {
+            println!("{output}");
             ExitCode::SUCCESS
-        } else {
+        }
+        Err(message) => {
+            eprintln!("{message}");
             ExitCode::FAILURE
         }
     }
 }
 
-/// Formats the startup message shown by the CLI.
-fn startup_message(identity: RuntimeIdentity) -> String {
-    identity.banner()
-}
+/// Runs a parsed command and returns printable output.
+fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
+    let command = CliCommand::parse(args)?;
 
-/// Returns a stable command name for error messages.
-fn command_name(command: CliCommand) -> &'static str {
     match command {
-        CliCommand::Banner => "banner",
-        CliCommand::Help => "help",
-        CliCommand::Info => "info",
-        CliCommand::Check => "check",
-        CliCommand::Inspect => "inspect",
+        CliCommand::Help => Ok(help_text()),
+        CliCommand::Version => render_version(),
+        CliCommand::Info { output_format } => render_info(output_format),
+        CliCommand::Check { output_format } => render_check(output_format),
+        CliCommand::Inspect { output_format } => render_inspect(output_format),
+        CliCommand::Graph { graph_format } => render_graph(graph_format),
     }
 }
 
-/// Sets the command on an invocation.
+/// Parses the normal command output format.
 ///
-/// Only one command is allowed. Options such as `--format text` may appear
-/// before or after the command, but command words cannot be repeated.
-fn set_command(invocation: &mut CliInvocation, command: CliCommand) -> MonadResult<()> {
-    if invocation.command != CliCommand::Banner {
-        return Err(MonadError::invalid_input(format!(
-            "multiple commands provided: {} and {}",
-            command_name(invocation.command),
-            command_name(command)
-        )));
+/// Normal commands currently support only text and JSON.
+fn parse_output_format_or_default(value: Option<&str>) -> Result<OutputFormat, String> {
+    match value {
+        Some(value) => OutputFormat::parse(value).map_err(|error| error.to_string()),
+        None => Ok(OutputFormat::Text),
     }
-
-    invocation.command = command;
-    Ok(())
 }
 
-/// Parses command-line arguments into a command invocation.
+/// Parses the graph command render format.
 ///
-/// Supported forms:
-///
-/// - `monad`
-/// - `monad help`
-/// - `monad info`
-/// - `monad check`
-/// - `monad inspect`
-/// - `monad info --format text`
-/// - `monad inspect --format json`
-/// - `monad --format text inspect`
-/// - `monad check --format=json`
-fn parse_invocation(args: &[String]) -> MonadResult<CliInvocation> {
-    let mut invocation = CliInvocation::default();
-    let mut index = 1;
-
-    while index < args.len() {
-        let argument = &args[index];
-
-        match argument.as_str() {
-            "help" | "-h" | "--help" => {
-                set_command(&mut invocation, CliCommand::Help)?;
-            }
-            "info" => {
-                set_command(&mut invocation, CliCommand::Info)?;
-            }
-            "check" => {
-                set_command(&mut invocation, CliCommand::Check)?;
-            }
-            "inspect" => {
-                set_command(&mut invocation, CliCommand::Inspect)?;
-            }
-            "--format" => {
-                let value = args.get(index + 1).ok_or_else(|| {
-                    MonadError::invalid_input("`--format` requires a value, such as text or json")
-                })?;
-
-                invocation.output_format = OutputFormat::parse(value)?;
-                index += 1;
-            }
-            value if value.starts_with("--format=") => {
-                let format_value = value
-                    .strip_prefix("--format=")
-                    .expect("prefix was checked above");
-
-                if format_value.trim().is_empty() {
-                    return Err(MonadError::invalid_input(
-                        "`--format` requires a value, such as text or json",
-                    ));
-                }
-
-                invocation.output_format = OutputFormat::parse(format_value)?;
-            }
-            value if value.starts_with('-') => {
-                return Err(MonadError::invalid_input(format!(
-                    "unknown option: {value}"
-                )));
-            }
-            value => {
-                return Err(MonadError::invalid_input(format!(
-                    "unknown command: {value}"
-                )));
-            }
-        }
-
-        index += 1;
+/// Graph output supports text, JSON, Mermaid, and DOT.
+fn parse_graph_format_or_default(
+    value: Option<&str>,
+) -> Result<RepositoryGraphRenderFormat, String> {
+    match value {
+        Some(value) => RepositoryGraphRenderFormat::parse(value).map_err(|error| error.to_string()),
+        None => Ok(RepositoryGraphRenderFormat::Text),
     }
-
-    Ok(invocation)
 }
 
-/// Renders CLI help text.
+/// Builds help text.
 ///
-/// Help remains in the CLI because it describes CLI command names and usage.
-fn render_help() -> String {
+/// Keep this text boring and stable. It is user-facing contract documentation.
+fn help_text() -> String {
     [
-        "Usage: monad [COMMAND] [OPTIONS]",
+        "Monad",
+        "",
+        "Usage:",
+        "  monad [command] [--format=<format>]",
         "",
         "Commands:",
-        "  info      Show Monad workspace and manifest information",
-        "  check     Run Monad workspace checks",
-        "  inspect   Inspect the repository and show a top-level summary",
-        "  help      Show this help text",
+        "  info      Show workspace summary",
+        "  check     Run workspace checks",
+        "  inspect   Inspect repository structure",
+        "  graph     Render repository graph",
+        "  version   Show runtime version",
+        "  help      Show this help",
         "",
-        "Options:",
-        "  --format text     Render output as human-readable text",
-        "  --format json     Render output as machine-readable JSON",
+        "General formats:",
+        "  text",
+        "  json",
         "",
-        "With no command, Monad prints the runtime foundation banner.",
+        "Graph formats:",
+        "  text",
+        "  json",
+        "  mermaid",
+        "  dot",
     ]
     .join("\n")
 }
 
-/// Discovers a workspace from `start`, loads `monad.toml`, and renders summary
-/// information through `monad-core` output formatting.
-fn render_workspace_info(start: impl AsRef<Path>, format: OutputFormat) -> MonadResult<String> {
-    let context = WorkspaceContext::discover_from(start)?;
-    let manifest = load_manifest_from_workspace(&context)?;
+/// Renders runtime identity.
+fn render_version() -> Result<String, String> {
+    let identity = checked_runtime_identity().map_err(|error| error.to_string())?;
+
+    Ok(identity.banner())
+}
+
+/// Renders workspace info.
+fn render_info(output_format: OutputFormat) -> Result<String, String> {
+    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let manifest = load_manifest_from_workspace(&context).map_err(|error| error.to_string())?;
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
-    Ok(render_workspace_summary(&summary, format))
+    Ok(render_workspace_summary(&summary, output_format))
 }
 
-/// Discovers a workspace from `start`, runs workspace checks, and returns a CLI
-/// outcome.
-fn run_workspace_check(
-    start: impl AsRef<Path>,
-    output_format: OutputFormat,
-) -> MonadResult<CliOutcome> {
-    let context = WorkspaceContext::discover_from(start)?;
+/// Renders workspace checks.
+fn render_check(output_format: OutputFormat) -> Result<String, String> {
+    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
     let report = run_workspace_checks(&context);
-    let output = render_diagnostic_report(&report, output_format);
 
-    if report.has_errors() {
-        Ok(CliOutcome::failure(output))
-    } else {
-        Ok(CliOutcome::success(output))
-    }
+    Ok(render_diagnostic_report(&report, output_format))
 }
 
-/// Discovers a workspace from `start`, asks `monad-core` for a repository
-/// inspection summary, and renders it through shared output formatting.
-///
-/// The CLI stays thin here: it does not classify repository entries, count
-/// roles, or build JSON by hand.
-fn render_repository_inspection(
-    start: impl AsRef<Path>,
-    output_format: OutputFormat,
-) -> MonadResult<String> {
-    let context = WorkspaceContext::discover_from(start)?;
-    let summary = repository_inspection_summary_from_workspace(&context);
+/// Renders repository inspection.
+fn render_inspect(output_format: OutputFormat) -> Result<String, String> {
+    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let summary = repository_inspection_summary_from_workspace(&context)
+        .map_err(|error| error.to_string())?;
 
-    summary.map(|summary| render_repository_inspection_summary(&summary, output_format))
+    Ok(render_repository_inspection_summary(
+        &summary,
+        output_format,
+    ))
 }
 
-/// Runs the CLI and returns output plus success/failure state.
-fn run_with_args(args: &[String], current_dir: impl AsRef<Path>) -> MonadResult<CliOutcome> {
-    let invocation = parse_invocation(args)?;
+/// Renders repository graph.
+fn render_graph(graph_format: RepositoryGraphRenderFormat) -> Result<String, String> {
+    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let inspection = inspect_workspace(&context).map_err(|error| error.to_string())?;
+    let bounded_traversal =
+        traverse_workspace_bounded(&inspection).map_err(|error| error.to_string())?;
+    let graph = build_repository_graph(&bounded_traversal);
 
-    match invocation.command {
-        CliCommand::Banner => Ok(CliOutcome::success(startup_message(runtime_identity()))),
-        CliCommand::Help => Ok(CliOutcome::success(render_help())),
-        CliCommand::Info => {
-            render_workspace_info(current_dir, invocation.output_format).map(CliOutcome::success)
-        }
-        CliCommand::Check => run_workspace_check(current_dir, invocation.output_format),
-        CliCommand::Inspect => render_repository_inspection(current_dir, invocation.output_format)
-            .map(CliOutcome::success),
-    }
-}
-
-/// Program entrypoint.
-fn main() -> ExitCode {
-    let args: Vec<String> = env::args().collect();
-
-    let current_dir = match env::current_dir() {
-        Ok(path) => path,
-        Err(error) => {
-            let error = MonadError::internal(format!("failed to read current directory: {error}"));
-            eprintln!("{}", error.to_diagnostic().render());
-            return ExitCode::FAILURE;
-        }
-    };
-
-    match run_with_args(&args, current_dir) {
-        Ok(outcome) => {
-            if outcome.success {
-                println!("{}", outcome.output);
-            } else {
-                eprintln!("{}", outcome.output);
-            }
-
-            outcome.exit_code()
-        }
-        Err(error) => {
-            eprintln!("{}", error.to_diagnostic().render());
-            ExitCode::FAILURE
-        }
-    }
+    Ok(render_repository_graph(&graph, graph_format))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use std::fs;
-
-    const VALID_MANIFEST_TOML: &str = r#"
-schema_version = 1
-
-[project]
-name = "monad"
-display_name = "Monad"
-description = "AI-native, repo-native, local-first Software Foundry OS."
-
-[workspace]
-root_markers = ["monad.toml", "Cargo.toml", ".monad", "work"]
-
-[runtime]
-core_crate = "monad-core"
-cli_crate = "monad-cli"
-execution_model = "local-first"
-"#;
-
-    fn args(values: &[&str]) -> Vec<String> {
-        values.iter().map(|value| (*value).to_string()).collect()
-    }
-
-    fn unique_temp_dir(test_name: &str) -> PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock should be after Unix epoch")
-            .as_nanos();
-
-        env::temp_dir().join(format!(
-            "monad-cli-{test_name}-{}-{unique}",
-            std::process::id()
-        ))
-    }
-
-    fn create_test_workspace(test_name: &str) -> PathBuf {
-        let root = unique_temp_dir(test_name);
-
-        fs::create_dir_all(root.join("docs")).expect("docs directory should be created");
-        fs::create_dir_all(root.join("work")).expect("work directory should be created");
-        fs::create_dir_all(root.join(".monad")).expect(".monad directory should be created");
-        fs::create_dir_all(root.join("crates/monad-cli"))
-            .expect("monad-cli directory should be created");
-        fs::create_dir_all(root.join("crates/monad-core"))
-            .expect("monad-core directory should be created");
-        fs::create_dir_all(root.join("target")).expect("target directory should be created");
-
-        fs::write(root.join("README.md"), "# Monad Test\n").expect("README should be written");
-        fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("Cargo.toml should be written");
-        fs::write(root.join("monad.toml"), VALID_MANIFEST_TOML)
-            .expect("monad.toml should be written");
-
-        root
+    fn parse_arguments(arguments: &[&str]) -> Result<CliCommand, String> {
+        CliCommand::parse(arguments.iter().map(|argument| argument.to_string()))
     }
 
     #[test]
-    fn no_command_prints_runtime_banner() {
-        let outcome = run_with_args(&args(&["monad"]), ".").expect("banner should render");
+    fn no_command_defaults_to_info() {
+        let command = parse_arguments(&["monad"]).expect("command should parse");
 
-        assert!(outcome.success);
-        assert!(outcome.output.contains("Monad"));
-        assert!(outcome.output.contains("monad-core"));
-        assert!(outcome.output.contains("local-first"));
-    }
-
-    #[test]
-    fn help_command_prints_usage_and_format_option() {
-        let outcome = run_with_args(&args(&["monad", "help"]), ".").expect("help should render");
-
-        assert!(outcome.success);
-        assert!(outcome.output.contains("Usage: monad [COMMAND] [OPTIONS]"));
-        assert!(outcome.output.contains("info"));
-        assert!(outcome.output.contains("check"));
-        assert!(outcome.output.contains("inspect"));
-        assert!(outcome.output.contains("--format text"));
-        assert!(outcome.output.contains("--format json"));
-    }
-
-    #[test]
-    fn unknown_command_returns_invalid_input_error() {
-        let error = run_with_args(&args(&["monad", "unknown"]), ".")
-            .expect_err("unknown command should fail");
-
-        assert_eq!(error.code(), "MONAD2001");
-        assert!(error.message().contains("unknown command"));
-    }
-
-    #[test]
-    fn unknown_option_returns_invalid_input_error() {
-        let error = run_with_args(&args(&["monad", "--verbose"]), ".")
-            .expect_err("unknown option should fail");
-
-        assert_eq!(error.code(), "MONAD2001");
-        assert!(error.message().contains("unknown option"));
-    }
-
-    #[test]
-    fn missing_format_value_returns_invalid_input_error() {
-        let error = run_with_args(&args(&["monad", "info", "--format"]), ".")
-            .expect_err("missing format should fail");
-
-        assert_eq!(error.code(), "MONAD2001");
-        assert!(error.message().contains("requires a value"));
-    }
-
-    #[test]
-    fn json_format_is_supported_for_info_command() {
-        let root = create_test_workspace("info-json");
-
-        let outcome = run_with_args(&args(&["monad", "info", "--format", "json"]), &root)
-            .expect("json format should now be supported");
-
-        assert!(outcome.success);
-        assert!(outcome.output.contains(r#""format": "json""#));
-        assert!(outcome.output.contains(r#""kind": "workspace_summary""#));
-        assert!(outcome.output.contains(r#""display_name": "Monad""#));
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn multiple_commands_return_invalid_input_error() {
-        let error = run_with_args(&args(&["monad", "info", "check"]), ".")
-            .expect_err("multiple commands should fail");
-
-        assert_eq!(error.code(), "MONAD2001");
-        assert!(error.message().contains("multiple commands provided"));
-    }
-
-    #[test]
-    fn info_command_accepts_format_option_after_command() {
-        let root = create_test_workspace("info-format-after");
-
-        let outcome = run_with_args(&args(&["monad", "info", "--format", "text"]), &root)
-            .expect("info command should succeed");
-
-        assert!(outcome.success);
-        assert!(outcome.output.contains("Monad workspace"));
-        assert!(outcome.output.contains("project: Monad (monad)"));
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn info_command_accepts_format_option_before_command() {
-        let root = create_test_workspace("info-format-before");
-
-        let outcome = run_with_args(&args(&["monad", "--format", "text", "info"]), &root)
-            .expect("info command should succeed");
-
-        assert!(outcome.success);
-        assert!(outcome.output.contains("Monad workspace"));
-        assert!(outcome.output.contains("project: Monad (monad)"));
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn check_command_accepts_format_equals_option() {
-        let root = create_test_workspace("check-format-equals");
-
-        let outcome = run_with_args(&args(&["monad", "check", "--format=text"]), &root)
-            .expect("check command should run");
-
-        assert!(outcome.success);
-        assert!(outcome.output.contains("[INFO] MONAD4000"));
-        assert!(outcome.output.contains("[INFO] MONAD4500"));
-        assert!(outcome.output.contains("[INFO] MONAD4600"));
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn check_command_accepts_json_format() {
-        let root = create_test_workspace("check-json");
-
-        let outcome = run_with_args(&args(&["monad", "check", "--format=json"]), &root)
-            .expect("check command should run with JSON output");
-
-        assert!(outcome.success);
-        assert!(outcome.output.contains(r#""format": "json""#));
-        assert!(outcome.output.contains(r#""kind": "diagnostic_report""#));
-        assert!(outcome.output.contains(r#""has_errors": false"#));
-        assert!(outcome.output.contains(r#""code": "MONAD4000""#));
-        assert!(outcome.output.contains(r#""code": "MONAD4500""#));
-        assert!(outcome.output.contains(r#""code": "MONAD4600""#));
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn inspect_command_accepts_default_text_format() {
-        let root = create_test_workspace("inspect-default-text");
-
-        let outcome =
-            run_with_args(&args(&["monad", "inspect"]), &root).expect("inspect command should run");
-
-        assert!(outcome.success);
-        assert!(outcome.output.contains("Monad repository inspection"));
-        assert!(outcome.output.contains("monad.toml"));
-        assert!(outcome.output.contains("monad_manifest"));
-        assert!(outcome.output.contains("top_level_entries"));
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn inspect_command_accepts_explicit_text_format() {
-        let root = create_test_workspace("inspect-explicit-text");
-
-        let outcome = run_with_args(&args(&["monad", "inspect", "--format", "text"]), &root)
-            .expect("inspect command should run");
-
-        assert!(outcome.success);
-        assert!(outcome.output.contains("Monad repository inspection"));
-        assert!(outcome.output.contains("roles:"));
-        assert!(outcome.output.contains("traversal_policies:"));
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn inspect_command_accepts_json_format() {
-        let root = create_test_workspace("inspect-json");
-
-        let outcome = run_with_args(&args(&["monad", "inspect", "--format=json"]), &root)
-            .expect("inspect command should run with JSON output");
-
-        assert!(outcome.success);
-        assert!(outcome.output.contains(r#""format": "json""#));
-        assert!(
-            outcome
-                .output
-                .contains(r#""kind": "repository_inspection_summary""#)
+        assert_eq!(
+            command,
+            CliCommand::Info {
+                output_format: OutputFormat::Text
+            }
         );
-        assert!(outcome.output.contains(r#""entry_count""#));
-        assert!(outcome.output.contains(r#""path": "monad.toml""#));
-        assert!(outcome.output.contains(r#""role": "monad_manifest""#));
-
-        fs::remove_dir_all(root).ok();
     }
 
     #[test]
-    fn inspect_command_accepts_format_option_before_command() {
-        let root = create_test_workspace("inspect-format-before");
-
-        let outcome = run_with_args(&args(&["monad", "--format", "json", "inspect"]), &root)
-            .expect("inspect command should run with format before command");
-
-        assert!(outcome.success);
-        assert!(
-            outcome
-                .output
-                .contains(r#""kind": "repository_inspection_summary""#)
+    fn help_command_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "help"]).expect("help should parse"),
+            CliCommand::Help
         );
 
-        fs::remove_dir_all(root).ok();
+        assert_eq!(
+            parse_arguments(&["monad", "--help"]).expect("--help should parse"),
+            CliCommand::Help
+        );
+    }
+
+    #[test]
+    fn version_command_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "version"]).expect("version should parse"),
+            CliCommand::Version
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "--version"]).expect("--version should parse"),
+            CliCommand::Version
+        );
+    }
+
+    #[test]
+    fn info_command_parses_text_and_json_formats() {
+        assert_eq!(
+            parse_arguments(&["monad", "info"]).expect("info should parse"),
+            CliCommand::Info {
+                output_format: OutputFormat::Text
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "info", "--format=json"]).expect("info json should parse"),
+            CliCommand::Info {
+                output_format: OutputFormat::Json
+            }
+        );
+    }
+
+    #[test]
+    fn check_command_parses_text_and_json_formats() {
+        assert_eq!(
+            parse_arguments(&["monad", "check"]).expect("check should parse"),
+            CliCommand::Check {
+                output_format: OutputFormat::Text
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "check", "--format=json"]).expect("check json should parse"),
+            CliCommand::Check {
+                output_format: OutputFormat::Json
+            }
+        );
+    }
+
+    #[test]
+    fn inspect_command_parses_text_and_json_formats() {
+        assert_eq!(
+            parse_arguments(&["monad", "inspect"]).expect("inspect should parse"),
+            CliCommand::Inspect {
+                output_format: OutputFormat::Text
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "inspect", "--format=json"])
+                .expect("inspect json should parse"),
+            CliCommand::Inspect {
+                output_format: OutputFormat::Json
+            }
+        );
+    }
+
+    #[test]
+    fn graph_command_parses_supported_formats() {
+        assert_eq!(
+            parse_arguments(&["monad", "graph"]).expect("graph should parse"),
+            CliCommand::Graph {
+                graph_format: RepositoryGraphRenderFormat::Text
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "graph", "--format=json"]).expect("graph json should parse"),
+            CliCommand::Graph {
+                graph_format: RepositoryGraphRenderFormat::Json
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "graph", "--format=mermaid"])
+                .expect("graph mermaid should parse"),
+            CliCommand::Graph {
+                graph_format: RepositoryGraphRenderFormat::Mermaid
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "graph", "--format=dot"]).expect("graph dot should parse"),
+            CliCommand::Graph {
+                graph_format: RepositoryGraphRenderFormat::Dot
+            }
+        );
+    }
+
+    #[test]
+    fn non_graph_commands_reject_graph_only_formats() {
+        let error = parse_arguments(&["monad", "inspect", "--format=mermaid"])
+            .expect_err("inspect should reject mermaid format");
+
+        assert!(error.contains("unsupported output format"));
+    }
+
+    #[test]
+    fn graph_command_rejects_unknown_formats() {
+        let error = parse_arguments(&["monad", "graph", "--format=svg"])
+            .expect_err("svg should not be supported yet");
+
+        assert!(error.contains("unsupported output format"));
+    }
+
+    #[test]
+    fn unknown_command_returns_error() {
+        let error =
+            parse_arguments(&["monad", "unknown"]).expect_err("unknown command should fail");
+
+        assert_eq!(error, "unknown command: unknown");
+    }
+
+    #[test]
+    fn unexpected_extra_command_argument_returns_error() {
+        let error = parse_arguments(&["monad", "info", "extra"])
+            .expect_err("extra command argument should fail");
+
+        assert_eq!(error, "unexpected extra command argument: extra");
+    }
+
+    #[test]
+    fn help_text_mentions_graph_command_and_formats() {
+        let text = help_text();
+
+        assert!(text.contains("graph"));
+        assert!(text.contains("mermaid"));
+        assert!(text.contains("dot"));
     }
 }

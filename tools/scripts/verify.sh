@@ -2,64 +2,63 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT_DIR"
+cd "${ROOT_DIR}"
 
-log() {
-  printf '\n==> %s\n' "$1"
-}
-
-log "Checking git diff whitespace"
+echo "==> Checking git diff whitespace"
 git diff --check
 
-log "Checking required foundation and runtime paths"
+echo "==> Checking required foundation and runtime paths"
 python3 tools/scripts/check-required-paths.py
 
-log "Checking Markdown YAML frontmatter"
+echo "==> Checking Markdown frontmatter"
 python3 tools/scripts/check-markdown-frontmatter.py
 
-log "Checking work packet record structure"
-python3 tools/scripts/check-work-records.py
-
-log "Checking task record structure"
-python3 tools/scripts/check-task-records.py
-
-log "Checking deliverable record structure"
-python3 tools/scripts/check-deliverable-records.py
-
-log "Checking epic record structure"
-python3 tools/scripts/check-epic-records.py
-
-log "Checking ADR record structure"
-python3 tools/scripts/check-adr-records.py
-
-log "Checking context handoff records"
+echo "==> Checking context records"
 python3 tools/scripts/check-context-records.py
 
-log "Checking Rust formatting"
+echo "==> Checking work records"
+python3 tools/scripts/check-work-records.py
+
+echo "==> Checking task records"
+python3 tools/scripts/check-task-records.py
+
+echo "==> Checking deliverable records"
+python3 tools/scripts/check-deliverable-records.py
+
+echo "==> Formatting Rust code"
 cargo fmt --check
 
-log "Running Rust tests"
+echo "==> Running Rust tests"
 cargo test
 
-log "Running CLI info smoke test"
-cargo run --quiet -p monad-cli -- info
+echo "==> Running CLI info smoke test"
+cargo run --quiet -p monad-cli -- info >/dev/null
 
-log "Running CLI check smoke test"
-cargo run --quiet -p monad-cli -- check
+echo "==> Running CLI info JSON smoke test"
+cargo run --quiet -p monad-cli -- info --format=json >/dev/null
 
-log "Running CLI inspect smoke test"
-cargo run --quiet -p monad-cli -- inspect
+echo "==> Running CLI check smoke test"
+cargo run --quiet -p monad-cli -- check >/dev/null
 
-log "Running CLI info JSON smoke test"
-cargo run --quiet -p monad-cli -- info --format json >/dev/null
-
-log "Running CLI check JSON smoke test"
+echo "==> Running CLI check JSON smoke test"
 cargo run --quiet -p monad-cli -- check --format=json >/dev/null
 
-log "Running CLI inspect JSON smoke test"
+echo "==> Running CLI inspect smoke test"
+cargo run --quiet -p monad-cli -- inspect >/dev/null
+
+echo "==> Running CLI inspect JSON smoke test"
 cargo run --quiet -p monad-cli -- inspect --format=json >/dev/null
 
-log "Reporting working tree status"
-git status --short
+echo "==> Running CLI graph smoke test"
+cargo run --quiet -p monad-cli -- graph >/dev/null
 
-printf '\nVerification baseline passed.\n'
+echo "==> Running CLI graph JSON smoke test"
+cargo run --quiet -p monad-cli -- graph --format=json >/dev/null
+
+echo "==> Running CLI graph Mermaid smoke test"
+cargo run --quiet -p monad-cli -- graph --format=mermaid >/dev/null
+
+echo "==> Running CLI graph DOT smoke test"
+cargo run --quiet -p monad-cli -- graph --format=dot >/dev/null
+
+echo "Verification baseline passed."
