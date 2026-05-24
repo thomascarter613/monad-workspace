@@ -1,8 +1,8 @@
-
+---
 title: "E0 Work Packets"
 document_type: "work-packet-index"
 status: "draft"
-version: "0.2.0"
+version: "0.4.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
@@ -29,7 +29,9 @@ This directory contains durable work packet records for E0 — Project Foundatio
 | WP-E0-004   | Establish workflow standards         | Complete    |
 | WP-E0-005   | Establish verification baseline      | Complete    |
 | WP-E0-006   | Establish work packet records        | Complete    |
-| WP-E0-007   | Establish ADR verification           | In Progress |
+| WP-E0-007   | Establish ADR verification           | Complete    |
+| WP-E0-008   | Establish epic record verification   | Complete    |
+| WP-E0-009   | Establish task record foundation     | In Progress |
 
 ## Maintenance Rules
 

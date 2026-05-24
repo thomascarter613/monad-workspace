@@ -20,6 +20,12 @@ python3 tools/scripts/check-markdown-frontmatter.py
 log "Checking work packet record structure"
 python3 tools/scripts/check-work-records.py
 
+log "Checking task record structure"
+python3 tools/scripts/check-task-records.py
+
+log "Checking epic record structure"
+python3 tools/scripts/check-epic-records.py
+
 log "Checking ADR record structure"
 python3 tools/scripts/check-adr-records.py
 

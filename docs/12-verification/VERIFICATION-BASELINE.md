@@ -2,18 +2,20 @@
 title: "Verification Baseline"
 document_type: "verification-standard"
 status: "draft"
-version: "0.3.0"
+version: "0.5.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
 epic: "E0"
-work_packet: "WP-E0-007"
+work_packet: "WP-E0-009"
 tags:
   - verification
   - quality
   - repository-contract
   - workflow
   - work-packets
+  - tasks
+  - epics
   - adrs
 ---
 
@@ -45,8 +47,10 @@ The baseline currently verifies:
    * `work/`
    * `.monad/`
 4. Work packet record structure.
-5. ADR record structure.
-6. Current working tree status.
+5. Task record structure.
+6. Epic record structure.
+7. ADR record structure.
+8. Current working tree status.
 
 ## 4. Scripts
 
@@ -56,6 +60,8 @@ The baseline currently verifies:
 | `tools/scripts/check-required-paths.py`       | Checks required E0 foundation files and directories |
 | `tools/scripts/check-markdown-frontmatter.py` | Checks Markdown YAML frontmatter presence           |
 | `tools/scripts/check-work-records.py`         | Checks work packet record structure                 |
+| `tools/scripts/check-task-records.py`         | Checks task record structure                        |
+| `tools/scripts/check-epic-records.py`         | Checks epic record structure                        |
 | `tools/scripts/check-adr-records.py`          | Checks ADR record structure                         |
 
 ## 5. Expected Successful Result
@@ -66,6 +72,8 @@ A successful run should include:
 All required E0 foundation paths exist.
 All docs/work/.monad Markdown files have YAML frontmatter.
 All work packet records satisfy the required structure.
+All task records satisfy the required baseline structure.
+All epic records satisfy the required baseline structure.
 All ADR records satisfy the required baseline structure.
 Verification baseline passed.
 ```
@@ -84,7 +92,11 @@ Common causes include:
 * a work packet record is missing a required section;
 * a work packet record has Product Area and Objective in the wrong order;
 * a work packet record does not include Expected Result After Verification;
-* a work packet record does not place Priority and Size at the end of the required planning fields;
+* a task record is missing required frontmatter;
+* a task filename does not follow the expected convention;
+* a task record is missing Product Area, Objective, Parent Work Packet, Expected Result, Verification, Status, Priority, or Size;
+* an epic record is missing required planning sections;
+* an epic record is missing a work packet summary table;
 * an ADR file is missing;
 * an ADR filename does not follow the expected convention;
 * an ADR is missing required frontmatter;
@@ -108,8 +120,7 @@ The baseline should remain small, readable, and portable during the E0 foundatio
 
 Future verification work should add checks for:
 
-* epic record structure;
-* task records;
+* deliverable records;
 * Rust formatting;
 * Rust tests;
 * crate boundaries;
@@ -119,7 +130,8 @@ Future verification work should add checks for:
 * CI parity;
 * security checks;
 * ADR index consistency;
-* ADR status transition rules.
+* ADR status transition rules;
+* epic, work packet, and task consistency.
 
 ## 9. Maintenance Rules
 

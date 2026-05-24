@@ -4,8 +4,8 @@ Check that the required E0 foundation paths exist.
 
 This script verifies the files and directories that should exist after the
 repository foundation, documentation architecture, context bridge foundation,
-workflow standards, verification baseline, work packet records, and ADR
-verification slices.
+workflow standards, verification baseline, work packet records, ADR
+verification, epic record verification, and task record foundation slices.
 """
 
 from pathlib import Path
@@ -80,6 +80,18 @@ REQUIRED_PATHS = [
     "docs/06-adrs/ADR-0002-use-monad-as-unified-product-name.md",
     "work/packets/E0/WP-E0-007-establish-adr-verification.md",
     "tools/scripts/check-adr-records.py",
+
+    # WP-E0-008 — Epic record verification
+    "work/packets/E0/WP-E0-008-establish-epic-record-verification.md",
+    "tools/scripts/check-epic-records.py",
+
+    # WP-E0-009 — Task record foundation
+    "work/packets/E0/WP-E0-009-establish-task-record-foundation.md",
+    "work/tasks/E0/README.md",
+    "work/tasks/E0/T-WP-E0-009-001-create-task-record-directory-and-index.md",
+    "work/tasks/E0/T-WP-E0-009-002-add-task-record-verification.md",
+    "work/tasks/E0/T-WP-E0-009-003-update-e0-planning-and-verification-records.md",
+    "tools/scripts/check-task-records.py",
 ]
 
 
