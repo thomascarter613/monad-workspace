@@ -15,6 +15,7 @@ pub mod output;
 pub mod repo_contract;
 pub mod repository_graph;
 pub mod repository_inspection;
+pub mod repository_policy;
 pub mod toolchain_detection;
 pub mod workspace;
 
@@ -31,8 +32,9 @@ pub use manifest::{
 };
 pub use output::{
     OutputFormat, RepositoryDependencySummaryEntry, RepositoryInspectionSummary,
-    RepositoryInspectionSummaryEntry, RepositoryToolchainSummaryEntry, WorkspaceSummary,
-    render_diagnostic_report, render_repository_inspection_summary, render_workspace_summary,
+    RepositoryInspectionSummaryEntry, RepositoryPolicySummaryDiagnostic,
+    RepositoryToolchainSummaryEntry, WorkspaceSummary, render_diagnostic_report,
+    render_repository_inspection_summary, render_workspace_summary,
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
@@ -48,6 +50,10 @@ pub use repository_inspection::{
     RepositoryTraversalDecision, RepositoryTraversalEntry, RepositoryTraversalGuardrails,
     RepositoryTraversalMode, RepositoryTraversalPlan, RepositoryTraversalPlanEntry,
     build_traversal_plan, inspect_workspace, traverse_workspace_bounded,
+};
+pub use repository_policy::{
+    RepositoryPolicyDiagnostic, RepositoryPolicyReport, RepositoryPolicySeverity,
+    evaluate_repository_intelligence_policy,
 };
 pub use toolchain_detection::{
     RepositoryToolchainDetection, RepositoryToolchainKind, RepositoryToolchainSignal,
@@ -135,14 +141,17 @@ pub fn repository_inspection_summary_from_workspace(
     let graph = build_repository_graph(&bounded_traversal);
     let toolchains = detect_repository_toolchains(&bounded_traversal);
     let dependencies = detect_repository_dependency_signals(&bounded_traversal);
+    let policy =
+        evaluate_repository_intelligence_policy(&inspection, &bounded_traversal, &dependencies);
 
     Ok(
-        RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_toolchains_and_dependencies(
+        RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_toolchains_dependencies_and_policy(
             &inspection,
             &bounded_traversal,
             &graph,
             &toolchains,
             &dependencies,
+            &policy,
         ),
     )
 }
@@ -289,6 +298,18 @@ mod tests {
     }
 
     #[test]
+    fn repository_policy_types_are_exported_from_core_root() {
+        assert_eq!(RepositoryPolicySeverity::Info.as_str(), "info");
+        assert_eq!(RepositoryPolicySeverity::Advisory.as_str(), "advisory");
+        assert_eq!(RepositoryPolicySeverity::Warning.as_str(), "warning");
+
+        let report = RepositoryPolicyReport::new(Vec::new());
+
+        assert_eq!(report.diagnostic_count(), 0);
+        assert!(!report.has_warnings());
+    }
+
+    #[test]
     fn repository_entry_category_is_exported_from_core_root() {
         assert_eq!(RepositoryEntryCategory::Source.as_str(), "source");
         assert_eq!(
@@ -336,5 +357,6 @@ mod tests {
         assert_eq!(summary.toolchain_signal_count, 0);
         assert_eq!(summary.dependency_toolchain_count, 0);
         assert_eq!(summary.dependency_signal_count, 0);
+        assert_eq!(summary.policy_diagnostic_count, 0);
     }
 }
