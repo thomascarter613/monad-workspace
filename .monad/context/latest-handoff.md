@@ -2,17 +2,17 @@
 title: "Latest Handoff"
 document_type: "context-handoff"
 status: "current"
-version: "1.10.0"
+version: "2.0.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
-epic: "E1"
-work_packet: "WP-E1-011"
+epic: "E2"
+work_packet: "WP-E2-001"
 tags:
 
 * handoff
-* e1
-* output-format-argument
+* e2
+* repository-intelligence
 
 ---
 
@@ -22,23 +22,23 @@ tags:
 
 E0 — Project Foundation is complete.
 
-WP-E1-001 through WP-E1-010 are complete.
+E1 — Runtime Foundation is complete.
 
 ## Current
 
-E1 — Runtime Foundation
+E2 — Repository Intelligence Foundation
 
-WP-E1-011 — Establish CLI Output Format Argument Foundation
+WP-E2-001 — Establish Repository Inspection Foundation
 
-## Output Format Argument
+## Next Implementation Direction
 
-The current slice adds `--format text` and `--format=text` support to `monad-cli`.
+Create the first repository inspection module in `monad-core`.
 
 ## Verification
 
 Run:
 
-```bash id="c64ajk"
+```bash
 tools/scripts/verify.sh
 ```
 

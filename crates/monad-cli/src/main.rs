@@ -196,6 +196,7 @@ fn render_help() -> String {
         "",
         "Options:",
         "  --format text     Render output as human-readable text",
+        "  --format json     Render output as machine-readable JSON",
         "",
         "With no command, Monad prints the runtime foundation banner.",
     ]
@@ -379,12 +380,18 @@ execution_model = "local-first"
     }
 
     #[test]
-    fn unsupported_format_returns_invalid_input_error() {
-        let error = run_with_args(&args(&["monad", "info", "--format", "json"]), ".")
-            .expect_err("unsupported format should fail");
+    fn json_format_is_supported_for_info_command() {
+        let root = create_test_workspace("info-json");
 
-        assert_eq!(error.code(), "MONAD2001");
-        assert!(error.message().contains("unsupported output format"));
+        let outcome = run_with_args(&args(&["monad", "info", "--format", "json"]), &root)
+            .expect("json format should now be supported");
+
+        assert!(outcome.success);
+        assert!(outcome.output.contains(r#""format": "json""#));
+        assert!(outcome.output.contains(r#""kind": "workspace_summary""#));
+        assert!(outcome.output.contains(r#""display_name": "Monad""#));
+
+        fs::remove_dir_all(root).ok();
     }
 
     #[test]
@@ -434,6 +441,23 @@ execution_model = "local-first"
         assert!(outcome.success);
         assert!(outcome.output.contains("[INFO] MONAD4000"));
         assert!(outcome.output.contains("[INFO] MONAD4500"));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn check_command_accepts_json_format() {
+        let root = create_test_workspace("check-json");
+
+        let outcome = run_with_args(&args(&["monad", "check", "--format=json"]), &root)
+            .expect("check command should run with JSON output");
+
+        assert!(outcome.success);
+        assert!(outcome.output.contains(r#""format": "json""#));
+        assert!(outcome.output.contains(r#""kind": "diagnostic_report""#));
+        assert!(outcome.output.contains(r#""has_errors": false"#));
+        assert!(outcome.output.contains(r#""code": "MONAD4000""#));
+        assert!(outcome.output.contains(r#""code": "MONAD4500""#));
 
         fs::remove_dir_all(root).ok();
     }

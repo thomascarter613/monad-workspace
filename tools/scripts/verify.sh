@@ -47,6 +47,12 @@ cargo run --quiet -p monad-cli -- info
 log "Running CLI check smoke test"
 cargo run --quiet -p monad-cli -- check
 
+log "Running CLI info JSON smoke test"
+cargo run --quiet -p monad-cli -- info --format json >/dev/null
+
+log "Running CLI check JSON smoke test"
+cargo run --quiet -p monad-cli -- check --format=json >/dev/null
+
 log "Reporting working tree status"
 git status --short
 

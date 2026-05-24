@@ -179,6 +179,18 @@ REQUIRED_PATHS = [
     "work/deliverables/E1/D-WP-E1-011-001-cli-output-format-argument.md",
     "work/deliverables/E1/D-WP-E1-011-002-cli-output-format-tests.md",
     "work/deliverables/E1/D-WP-E1-011-003-cli-output-format-handoff.md",
+    ".monad/context/work-packet-handoffs/WP-E1-013.md",
+    ".monad/context/work-packet-handoffs/WP-E2-001.md",
+    "work/epics/E2-repository-intelligence-foundation.md",
+    "work/packets/E2/README.md",
+    "work/packets/E2/WP-E2-001-establish-repository-inspection-foundation.md",
+    "work/packets/E1/WP-E1-013-close-e1-and-prepare-e2-handoff.md",
+    "work/tasks/E1/T-WP-E1-013-001-close-e1-records.md",
+    "work/tasks/E1/T-WP-E1-013-002-update-runtime-context-handoff.md",
+    "work/tasks/E1/T-WP-E1-013-003-create-e2-starting-point.md",
+    "work/deliverables/E1/D-WP-E1-013-001-e1-closure-record.md",
+    "work/deliverables/E1/D-WP-E1-013-002-e2-starting-point.md",
+    "work/deliverables/E1/D-WP-E1-013-003-e2-context-handoff.md",
 ]
 
 

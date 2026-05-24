@@ -2,17 +2,17 @@
 title: "Current State"
 document_type: "ai-context"
 status: "current"
-version: "1.10.0"
+version: "2.0.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
-epic: "E1"
-work_packet: "WP-E1-011"
+epic: "E2"
+work_packet: "WP-E2-001"
 tags:
   - current-state
   - handoff
-  - e1
-  - output-format-argument
+  - e2
+  - repository-intelligence
 ---
 
 # Current State
@@ -21,36 +21,44 @@ tags:
 
 Monad is an AI-native, repo-native, local-first Software Foundry OS for understanding, verifying, and safely evolving software repositories.
 
-## Current Epic
-
-E1 — Runtime Foundation
-
-## Current Work Packet
-
-WP-E1-011 — Establish CLI Output Format Argument Foundation
-
-## Prior Work
+## Completed Epics
 
 E0 — Project Foundation is complete.
 
-WP-E1-001 through WP-E1-010 are complete.
+E1 — Runtime Foundation is complete.
 
-## Active Runtime Focus
+## Current Epic
 
-Output Format Argument.
+E2 — Repository Intelligence Foundation
 
-The current slice adds:
+## Current Work Packet
 
-- `CliInvocation`;
-- `--format text`;
-- `--format=text`;
-- format option parsing before or after the command;
-- invalid format handling;
-- CLI tests for output-format parsing.
+WP-E2-001 — Establish Repository Inspection Foundation
 
-## Next Expected Slice
+## Completed Runtime Foundation
 
-After WP-E1-011, proceed to JSON output formatting or repository contract hardening.
+E1 established:
+
+- Rust workspace foundation;
+- `monad-cli`;
+- `monad-core`;
+- Core Diagnostics;
+- Core Error;
+- Workspace Context;
+- Manifest Model;
+- Manifest Loading;
+- CLI Info;
+- CLI Check;
+- Repository Contract;
+- Output Formatting;
+- Output Format Argument;
+- JSON Output.
+
+## Active Focus
+
+Repository Intelligence.
+
+The next slice should add the first repository inspection foundation in `monad-core`.
 
 ## Verification
 
@@ -62,7 +70,7 @@ tools/scripts/verify.sh
 
 Expected result:
 
-```text id="gjp72v"
+```text
 Verification baseline passed.
 ```
 

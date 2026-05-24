@@ -2,12 +2,12 @@
 title: "Verification Baseline"
 document_type: "verification-standard"
 status: "current"
-version: "1.11.0"
+version: "2.0.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
-epic: "E1"
-work_packet: "WP-E1-011"
+epic: "E2"
+work_packet: "WP-E2-001"
 tags:
   - verification
   - quality
@@ -16,7 +16,7 @@ tags:
   - rust
   - cli
   - output
-  - formatting
+  - json
   - diagnostics
   - work-packets
   - tasks
@@ -32,7 +32,7 @@ tags:
 
 This document defines Monad's repository verification baseline.
 
-The baseline exists so foundational repository work and early Rust runtime work can be checked from durable repo-resident scripts.
+The baseline exists so foundational repository work and Rust runtime work can be checked from durable repo-resident scripts.
 
 ## 2. Current Baseline Command
 
@@ -58,40 +58,33 @@ The baseline currently verifies:
 6. Deliverable record structure.
 7. Epic record structure.
 8. ADR record structure.
-9. E1 runtime context handoff records.
+9. E1 closure and E2 handoff context records.
 10. Rust formatting with `cargo fmt --check`.
 11. Rust tests with `cargo test`.
 12. CLI info smoke test with `cargo run --quiet -p monad-cli -- info`.
 13. CLI check smoke test with `cargo run --quiet -p monad-cli -- check`.
-14. Repository-contract diagnostics through `monad check`.
-15. Shared output formatting tests.
-16. CLI output-format argument tests.
-17. Current working tree status.
+14. CLI info JSON smoke test.
+15. CLI check JSON smoke test.
+16. Current working tree status.
 
-## 4. Rust Runtime Checks
+## 4. Runtime Checks
 
-The Rust portion of the baseline verifies:
+The runtime baseline verifies:
 
 * `monad-cli` compiles;
 * `monad-core` compiles;
 * unit tests pass;
-* Core Diagnostics tests pass;
-* Core Error tests pass;
-* Workspace Context tests pass;
-* Manifest Model tests pass;
-* Manifest Loading tests pass;
-* CLI Info tests pass;
-* CLI Check tests pass;
-* Repository Contract tests pass;
-* Output Formatting tests pass;
-* CLI Output Format Argument tests pass;
+* `monad info` works;
+* `monad check` works;
+* text output works;
+* JSON Output works;
 * formatting is stable.
 
 ## 5. Expected Successful Result
 
 A successful run should include:
 
-```text id="2rdbxv"
+```text
 All required foundation and runtime paths exist.
 All docs/work/.monad Markdown files have YAML frontmatter.
 All work packet records satisfy the required structure.
@@ -99,7 +92,7 @@ All task records satisfy the required baseline structure.
 All deliverable records satisfy the required baseline structure.
 All epic records satisfy the required baseline structure.
 All ADR records satisfy the required baseline structure.
-All context records satisfy the E1 runtime handoff baseline.
+All context records satisfy the E1 closure and E2 handoff baseline.
 Monad workspace
 [INFO] MONAD4000
 [INFO] MONAD4500
@@ -108,32 +101,21 @@ Verification baseline passed.
 
 ## 6. Failure Meaning
 
-A failure means at least one foundational repository or runtime expectation is not satisfied.
+A failure means at least one foundational repository, runtime, or context-handoff expectation is not satisfied.
 
 Common causes include:
 
 * a required file was not created;
 * a file was created at the wrong path;
-* root `monad.toml` is missing;
-* manifest loading tests fail;
-* output formatting tests fail;
-* CLI output-format argument tests fail;
-* `monad info` cannot discover the workspace;
-* `monad check` reports error diagnostics;
-* repository-contract checks report missing canonical paths;
 * a Markdown file is missing YAML frontmatter;
 * a work packet, task, deliverable, epic, or ADR record is missing required structure;
-* context files do not identify E1, WP-E1-011, Runtime Foundation, and Output Format Argument;
+* context files do not identify E2, WP-E2-001, and Repository Intelligence;
 * Rust code is not formatted;
 * Rust tests fail;
-* trailing whitespace or whitespace errors are present in the diff.
+* `monad info` fails;
+* `monad check` fails;
+* JSON output fails.
 
 ## 7. Maintenance Rules
 
-This document must be updated when:
-
-* `tools/scripts/verify.sh` changes materially;
-* new baseline checks are added;
-* existing baseline checks are removed;
-* expected successful output changes;
-* Rust verification requirements change.
+This document must be updated when verification behavior changes.

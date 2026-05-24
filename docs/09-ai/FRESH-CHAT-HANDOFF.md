@@ -2,18 +2,17 @@
 title: "Fresh Chat Handoff"
 document_type: "ai-handoff"
 status: "current"
-version: "1.10.0"
+version: "2.0.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
-epic: "E1"
-work_packet: "WP-E1-011"
+epic: "E2"
+work_packet: "WP-E2-001"
 tags:
 
 * handoff
-* e1
-* runtime-foundation
-* output-format-argument
+* e2
+* repository-intelligence
 
 ---
 
@@ -29,40 +28,38 @@ Operate as a principal-level software engineering partner, architecture council,
 
 E0 — Project Foundation is complete.
 
-WP-E1-001 through WP-E1-010 are complete.
+E1 — Runtime Foundation is complete.
 
 Current epic:
 
-E1 — Runtime Foundation
+E2 — Repository Intelligence Foundation
 
 Current work packet:
 
-WP-E1-011 — Establish CLI Output Format Argument Foundation
+WP-E2-001 — Establish Repository Inspection Foundation
 
 ## Read First
 
 1. `docs/09-ai/CURRENT-STATE.md`
 2. `.monad/context/latest-context-pack.md`
 3. `.monad/context/latest-handoff.md`
-4. `.monad/context/work-packet-handoffs/WP-E1-011.md`
-5. `work/epics/E1-runtime-foundation.md`
-6. `work/packets/E1/WP-E1-011-establish-cli-output-format-argument-foundation.md`
-7. `crates/monad-cli/src/main.rs`
-8. `crates/monad-core/src/output.rs`
+4. `.monad/context/work-packet-handoffs/WP-E2-001.md`
+5. `work/epics/E2-repository-intelligence-foundation.md`
+6. `work/packets/E2/WP-E2-001-establish-repository-inspection-foundation.md`
+7. `work/epics/E1-runtime-foundation.md`
+8. `crates/monad-core/src/workspace.rs`
 9. `crates/monad-core/src/checks.rs`
-10. `tools/scripts/verify.sh`
+10. `crates/monad-core/src/output.rs`
 
 ## Runtime Foundation Progress
 
-WP-E1-001 through WP-E1-010 are complete.
-
-WP-E1-011 adds Output Format Argument support in the CLI.
+E1 is complete and provides the runtime primitives needed for E2 repository intelligence work.
 
 ## Verification
 
 Run:
 
-```bash id="sh1z1f"
+```bash
 tools/scripts/verify.sh
 ```
 

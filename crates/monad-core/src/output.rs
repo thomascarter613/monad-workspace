@@ -4,19 +4,26 @@
 //! formatting rules should live in `monad-core` so future commands produce
 //! consistent output.
 //!
-//! This first output module supports text output only. JSON and other machine
-//! formats can be added later without changing every command.
+//! This module now supports:
+//!
+//! - `text` for human-readable output;
+//! - `json` for machine-readable output.
 
-use crate::{DiagnosticReport, MonadError, MonadManifest, MonadResult, WorkspaceContext};
+use serde_json::json;
+
+use crate::{DiagnosticReport, MonadError, MonadManifest, MonadResult, Severity, WorkspaceContext};
 
 /// Output formats supported by the runtime.
 ///
-/// The first format is plain text because that is what the current CLI prints.
-/// Later slices can add JSON, NDJSON, Markdown, or other formats.
+/// `Text` remains the default. `Json` gives scripts, CI, and future tools a
+/// stable machine-readable representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputFormat {
     /// Human-readable plain text.
     Text,
+
+    /// Machine-readable JSON.
+    Json,
 }
 
 impl OutputFormat {
@@ -25,16 +32,15 @@ impl OutputFormat {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Text => "text",
+            Self::Json => "json",
         }
     }
 
     /// Parses an output format name.
-    ///
-    /// This gives future CLI argument parsing one stable runtime function to
-    /// call instead of scattering string comparisons across the CLI.
     pub fn parse(value: &str) -> MonadResult<Self> {
         match value.trim().to_ascii_lowercase().as_str() {
             "text" => Ok(Self::Text),
+            "json" => Ok(Self::Json),
             other => Err(MonadError::invalid_input(format!(
                 "unsupported output format: {other}"
             ))),
@@ -49,9 +55,6 @@ impl Default for OutputFormat {
 }
 
 /// Renderable workspace summary for `monad info`.
-///
-/// This type keeps the information to print separate from how it is printed.
-/// The CLI can ask `monad-core` to build this summary and then render it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceSummary {
     /// Workspace root path rendered as text.
@@ -92,11 +95,42 @@ impl WorkspaceSummary {
     }
 }
 
+/// Converts a diagnostic severity into a stable JSON string.
+fn severity_name(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Info => "info",
+        Severity::Warning => "warning",
+        Severity::Error => "error",
+    }
+}
+
 /// Renders a diagnostic report.
 #[must_use]
 pub fn render_diagnostic_report(report: &DiagnosticReport, format: OutputFormat) -> String {
     match format {
         OutputFormat::Text => report.render_lines().join("\n"),
+        OutputFormat::Json => {
+            let diagnostics = report
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| {
+                    json!({
+                        "severity": severity_name(diagnostic.severity),
+                        "code": diagnostic.code,
+                        "message": diagnostic.message,
+                        "rendered": diagnostic.render(),
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            serde_json::to_string_pretty(&json!({
+                "format": OutputFormat::Json.as_str(),
+                "kind": "diagnostic_report",
+                "has_errors": report.has_errors(),
+                "diagnostics": diagnostics,
+            }))
+            .expect("serializing diagnostic report JSON should not fail")
+        }
     }
 }
 
@@ -114,6 +148,26 @@ pub fn render_workspace_summary(summary: &WorkspaceSummary, format: OutputFormat
             summary.cli_crate,
             summary.execution_model,
         ),
+        OutputFormat::Json => serde_json::to_string_pretty(&json!({
+            "format": OutputFormat::Json.as_str(),
+            "kind": "workspace_summary",
+            "workspace": {
+                "root": summary.root,
+            },
+            "project": {
+                "display_name": summary.project_display_name,
+                "name": summary.project_name,
+            },
+            "manifest": {
+                "schema_version": summary.schema_version,
+            },
+            "runtime": {
+                "core_crate": summary.core_crate,
+                "cli_crate": summary.cli_crate,
+                "execution_model": summary.execution_model,
+            },
+        }))
+        .expect("serializing workspace summary JSON should not fail"),
     }
 }
 
@@ -126,14 +180,16 @@ mod tests {
     };
 
     #[test]
-    fn output_format_parses_text() {
+    fn output_format_parses_text_and_json() {
         assert_eq!(OutputFormat::parse("text"), Ok(OutputFormat::Text));
         assert_eq!(OutputFormat::parse("TEXT"), Ok(OutputFormat::Text));
+        assert_eq!(OutputFormat::parse("json"), Ok(OutputFormat::Json));
+        assert_eq!(OutputFormat::parse("JSON"), Ok(OutputFormat::Json));
     }
 
     #[test]
     fn unsupported_output_format_returns_error() {
-        let error = OutputFormat::parse("json").expect_err("json is not supported yet");
+        let error = OutputFormat::parse("xml").expect_err("xml is not supported yet");
 
         assert_eq!(error.code(), "MONAD2001");
         assert!(error.message().contains("unsupported output format"));
@@ -150,6 +206,22 @@ mod tests {
 
         assert!(rendered.contains("[INFO] MONAD0001: runtime ready"));
         assert!(rendered.contains("[WARNING] MONAD1000: review later"));
+    }
+
+    #[test]
+    fn diagnostic_report_renders_as_json() {
+        let mut report = DiagnosticReport::new();
+
+        report.push(Diagnostic::info("MONAD0001", "runtime ready"));
+
+        let rendered = render_diagnostic_report(&report, OutputFormat::Json);
+
+        assert!(rendered.contains(r#""format": "json""#));
+        assert!(rendered.contains(r#""kind": "diagnostic_report""#));
+        assert!(rendered.contains(r#""has_errors": false"#));
+        assert!(rendered.contains(r#""severity": "info""#));
+        assert!(rendered.contains(r#""code": "MONAD0001""#));
+        assert!(rendered.contains(r#""message": "runtime ready""#));
     }
 
     #[test]
@@ -172,5 +244,28 @@ mod tests {
         assert!(rendered.contains("core_crate: monad-core"));
         assert!(rendered.contains("cli_crate: monad-cli"));
         assert!(rendered.contains("execution_model: local-first"));
+    }
+
+    #[test]
+    fn workspace_summary_renders_as_json() {
+        let context = WorkspaceContext::new("/tmp/monad").expect("context should be created");
+        let manifest = MonadManifest::new(
+            ManifestSchemaVersion::current(),
+            ManifestProject::new("monad", "Monad", "test"),
+            ManifestWorkspace::default(),
+            ManifestRuntime::new("monad-core", "monad-cli", "local-first"),
+        );
+
+        let summary = WorkspaceSummary::from_manifest(&context, &manifest);
+        let rendered = render_workspace_summary(&summary, OutputFormat::Json);
+
+        assert!(rendered.contains(r#""format": "json""#));
+        assert!(rendered.contains(r#""kind": "workspace_summary""#));
+        assert!(rendered.contains(r#""root": "/tmp/monad""#));
+        assert!(rendered.contains(r#""display_name": "Monad""#));
+        assert!(rendered.contains(r#""name": "monad""#));
+        assert!(rendered.contains(r#""core_crate": "monad-core""#));
+        assert!(rendered.contains(r#""cli_crate": "monad-cli""#));
+        assert!(rendered.contains(r#""execution_model": "local-first""#));
     }
 }

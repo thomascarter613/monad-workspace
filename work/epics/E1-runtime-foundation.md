@@ -1,8 +1,8 @@
 ---
 title: "E1 — Runtime Foundation"
 document_type: "epic"
-status: "in-progress"
-version: "0.12.0"
+status: "complete"
+version: "1.0.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -12,6 +12,7 @@ tags:
   - runtime
   - rust
   - foundation
+  - complete
 ---
 
 # E1 — Runtime Foundation
@@ -26,13 +27,13 @@ Establish Monad's Rust runtime foundation by creating the initial multi-crate wo
 
 ## Rationale
 
-E0 established Monad's repository, workflow, verification, ADR, and context foundations. E1 begins implementation by turning those foundations into a working Rust runtime structure.
+E0 established Monad's repository, workflow, verification, ADR, and context foundations. E1 turned those foundations into a working Rust runtime structure.
 
 Monad's accepted architecture requires Rust as the durable local core runtime, a thin CLI, and durable product logic in `monad-core`.
 
 ## Scope
 
-E1 includes:
+E1 completed:
 
 - initial Rust workspace structure;
 - `monad-cli` crate foundation;
@@ -40,7 +41,6 @@ E1 includes:
 - workspace-level Rust verification;
 - beginner-readable Rust comments;
 - initial tests;
-- initial CLI command wiring;
 - diagnostics foundation;
 - core error foundation;
 - workspace context foundation;
@@ -50,12 +50,13 @@ E1 includes:
 - CLI check command foundation;
 - repository contract check foundation;
 - runtime output formatting foundation;
-- CLI output format argument foundation;
-- additional runtime foundation slices as later E1 work packets.
+- CLI output-format argument foundation;
+- JSON output formatting foundation;
+- E1 closure and E2 handoff.
 
 ## Out of Scope
 
-E1 does not include:
+E1 did not include:
 
 - full production CLI behavior;
 - provider integrations;
@@ -79,11 +80,13 @@ E1 does not include:
 | WP-E1-008 | Establish CLI check command foundation | Complete |
 | WP-E1-009 | Establish repository contract check foundation | Complete |
 | WP-E1-010 | Establish runtime output formatting foundation | Complete |
-| WP-E1-011 | Establish CLI output format argument foundation | In Progress |
+| WP-E1-011 | Establish CLI output format argument foundation | Complete |
+| WP-E1-012 | Establish JSON output formatting foundation | Complete |
+| WP-E1-013 | Close E1 and prepare E2 handoff | Complete |
 
 ## Expected Result After Verification
 
-The repository has a working Rust workspace foundation, reusable diagnostics, a shared core error model, workspace context, manifest loading, `monad info`, `monad check`, and repository contract checks, and shared runtime output formatting, and CLI output-format argument parsing.
+The repository has a working Rust runtime foundation, reusable diagnostics, a shared error model, workspace context, manifest loading, `monad info`, `monad check`, repository contract checks, shared output formatting, text output, and JSON output.
 
 ## Verification
 
@@ -96,11 +99,6 @@ tools/scripts/verify.sh
 Expected result:
 
 ```text
-All required foundation and runtime paths exist.
-cargo fmt --check
-cargo test
-Monad workspace
-[INFO] MONAD4000
 Verification baseline passed.
 ```
 

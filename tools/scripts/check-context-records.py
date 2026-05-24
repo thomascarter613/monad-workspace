@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Check Monad context records for E1 runtime handoff readiness.
+Check Monad context records for E1 closure and E2 handoff readiness.
 """
 
 from pathlib import Path
@@ -13,44 +13,19 @@ REQUIRED_CONTEXT_FILES = [
     Path(".monad/context/latest-handoff.md"),
     Path(".monad/context/latest-context-pack.md"),
     Path(".monad/context/decision-log.md"),
-    Path(".monad/context/work-packet-handoffs/WP-E1-001.md"),
-    Path(".monad/context/work-packet-handoffs/WP-E1-002.md"),
-    Path(".monad/context/work-packet-handoffs/WP-E1-003.md"),
-    Path(".monad/context/work-packet-handoffs/WP-E1-004.md"),
-    Path(".monad/context/work-packet-handoffs/WP-E1-005.md"),
-    Path(".monad/context/work-packet-handoffs/WP-E1-006.md"),
-    Path(".monad/context/work-packet-handoffs/WP-E1-007.md"),
-    Path(".monad/context/work-packet-handoffs/WP-E1-008.md"),
-    Path(".monad/context/work-packet-handoffs/WP-E1-009.md"),
-    Path(".monad/context/work-packet-handoffs/WP-E1-010.md"),
-    Path(".monad/context/work-packet-handoffs/WP-E1-011.md"),
+    Path(".monad/context/work-packet-handoffs/WP-E1-013.md"),
+    Path(".monad/context/work-packet-handoffs/WP-E2-001.md"),
 ]
 
 GLOBAL_REQUIRED_TERMS = [
     "E0",
     "E1",
-    "WP-E1-001",
-    "WP-E1-002",
-    "WP-E1-003",
-    "WP-E1-004",
-    "WP-E1-005",
-    "WP-E1-006",
-    "WP-E1-007",
-    "WP-E1-008",
-    "WP-E1-009",
-    "WP-E1-010",
-    "WP-E1-011",
+    "E2",
     "Runtime Foundation",
-    "Core Diagnostics",
-    "Core Error",
-    "Workspace Context",
-    "Manifest Model",
-    "Manifest Loading",
-    "CLI Info",
-    "CLI Check",
-    "Repository Contract",
-    "Output Formatting",
-    "Output Format Argument",
+    "Repository Intelligence",
+    "WP-E1-013",
+    "WP-E2-001",
+    "JSON Output",
 ]
 
 CURRENT_CONTEXT_FILES = [
@@ -93,7 +68,7 @@ def main() -> int:
             continue
 
         text = path.read_text(encoding="utf-8")
-        for term in ["E1", "WP-E1-011", "Runtime Foundation", "Output Format Argument"]:
+        for term in ["E2", "WP-E2-001", "Repository Intelligence"]:
             if term not in text:
                 failures.append(f"{path}: missing current-context term {term}")
 
@@ -103,7 +78,7 @@ def main() -> int:
             print(f"  {failure}")
         return 1
 
-    print("All context records satisfy the E1 runtime handoff baseline.")
+    print("All context records satisfy the E1 closure and E2 handoff baseline.")
     return 0
 
 
