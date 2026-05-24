@@ -12,10 +12,11 @@ tags:
   - current-state
 related:
   - docs/09-ai/BOOTSTRAP-PROMPT.md
+  - docs/09-ai/CURRENT-STATE.md
   - docs/08-context/CONTEXT-BRIDGE.md
   - docs/08-context/HANDOFF-STANDARD.md
   - docs/07-workflow/OPERATING-MODEL.md
-  - docs/01-project/01-charter/PRODUCT-CHARTER.md
+  - .monad/context/latest-handoff.md
 ---
 
 # Fresh Chat Handoff
@@ -30,9 +31,9 @@ Monad is an AI-native, repo-native, local-first Software Foundry OS for understa
 
 Monad is in the E0 project foundation phase.
 
-Before starting implementation work, the repository documentation foundation is being created. The docs tree has been scaffolded, and key foundation documents are being filled in a deliberate order.
+The project is currently establishing its repo-native context bridge foundation. The critical pre-code documentation foundation exists, the repository foundation has been prepared, and the documentation architecture has been prepared.
 
-The immediate goal is to create enough canonical documentation for the project to be self-describing before beginning WP-E0-001 repository foundation work and later E1 Rust implementation.
+The current goal is to make future sessions resumable from repository files rather than relying on long chat history.
 
 ## Active Epic
 
@@ -40,51 +41,44 @@ The immediate goal is to create enough canonical documentation for the project t
 E0 — Project Foundation
 ```
 
-## Active Work
-
-Current active slice:
+## Active Work Packet
 
 ```text
-Documentation foundation before WP-E0-001
+WP-E0-003 — Establish context bridge foundation
 ```
 
-This slice is establishing:
+## Current Context Baseline
 
-- documentation standards;
-- product vision;
-- product charter;
-- product problem/value/scope;
-- architecture overview;
-- ADR foundation;
-- workflow standards;
-- context bridge and AI handoff standards.
-
-## Recently Completed Documentation Areas
-
-The following documentation areas have been created or meaningfully drafted:
+The context baseline includes:
 
 ```text
-docs/00-meta/
-docs/01-project/
-docs/02-product/
-docs/05-architecture/
-docs/06-adrs/
-docs/07-workflow/
+docs/09-ai/BOOTSTRAP-PROMPT.md
+docs/09-ai/FRESH-CHAT-HANDOFF.md
+docs/09-ai/CURRENT-STATE.md
+.monad/context/current-state.md
+.monad/context/latest-handoff.md
+.monad/context/latest-context-pack.md
+.monad/context/decision-log.md
+.monad/context/session-chronicles/
+.monad/context/work-packet-handoffs/
+.monad/context/decision-records/
 ```
 
-This current handoff adds initial substance to:
+## Recently Completed or Prepared
 
 ```text
-docs/08-context/
-docs/09-ai/
+Critical documentation foundation drafted
+WP-E0-001 — Establish repository foundation
+WP-E0-002 — Establish documentation architecture
+WP-E0-003 — Establish context bridge foundation
 ```
 
 ## Important Decisions Already Made
 
 The following decisions should not be reopened casually:
 
-1. The unified product name is **Monad**.
-2. Monad absorbs prior AionX, Foundry, Charon, and related concepts into one product.
+1. The unified product name is Monad.
+2. Monad absorbs prior AionX, Foundry, Charon, and related concepts.
 3. Monad is repo-native and treats the repository as the canonical source of truth.
 4. Monad will use Rust for the durable local core runtime.
 5. The initial Rust structure should separate `monad-cli` and `monad-core`.
@@ -97,6 +91,7 @@ The following decisions should not be reopened casually:
 12. Monad should remain local-first and AI-provider-agnostic.
 13. Agent workflows must be supervised and human-in-command.
 14. Bazel, Pants, Buck2, and Nx are not default dependencies for Monad.
+15. Commands and walkthroughs should use `python3`, not `python`.
 
 ## Accepted ADRs
 
@@ -108,8 +103,6 @@ docs/06-adrs/ADR-0001-use-rust-for-core-runtime.md
 docs/06-adrs/ADR-0002-use-monad-as-unified-product-name.md
 ```
 
-Planned ADR stubs exist for future decisions.
-
 ## Files to Read First
 
 A future assistant should read these first:
@@ -117,9 +110,14 @@ A future assistant should read these first:
 ```text
 docs/09-ai/BOOTSTRAP-PROMPT.md
 docs/09-ai/FRESH-CHAT-HANDOFF.md
+docs/09-ai/CURRENT-STATE.md
+.monad/context/latest-context-pack.md
 docs/01-project/01-charter/PRODUCT-CHARTER.md
 docs/01-project/00-vision/PRODUCT-VISION.md
 docs/02-product/MVP-SCOPE.md
+docs/01-project/03-roadmap/MVP-ROADMAP.md
+docs/03-requirements/MVP-REQUIREMENTS.md
+docs/04-domain/DOMAIN-MODEL.md
 docs/05-architecture/SYSTEM-OVERVIEW.md
 docs/05-architecture/ARCHITECTURE-PRINCIPLES.md
 docs/05-architecture/MODULE-BOUNDARIES.md
@@ -131,38 +129,38 @@ docs/08-context/CONTEXT-BRIDGE.md
 
 ## Current Verification Status
 
-For the documentation foundation, the expected verification is:
-
-```bash
-find docs -type f | sort
-```
-
-and:
+For the current documentation and context foundation, run:
 
 ```bash
 python3 - <<'PY'
 from pathlib import Path
 
 missing = []
-for path in sorted(Path("docs").rglob("*.md")):
-    text = path.read_text(encoding="utf-8")
-    if not text.startswith("---\n"):
-        missing.append(str(path))
+
+for root in ["docs", "work", ".monad"]:
+    root_path = Path(root)
+    if not root_path.exists():
+        continue
+
+    for path in sorted(root_path.rglob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        if not text.startswith("---\n"):
+            missing.append(str(path))
 
 if missing:
-    print("Files missing frontmatter:")
+    print("Markdown files missing frontmatter:")
     for item in missing:
         print(f"  {item}")
     raise SystemExit(1)
 
-print("All docs Markdown files have YAML frontmatter.")
+print("All docs/work/.monad Markdown files have YAML frontmatter.")
 PY
 ```
 
 Expected result:
 
 ```text
-All docs Markdown files have YAML frontmatter.
+All docs/work/.monad Markdown files have YAML frontmatter.
 ```
 
 ## Known Blockers
@@ -171,32 +169,31 @@ No known blockers.
 
 ## Next Recommended Action
 
-Continue filling the remaining critical E0 foundation docs before WP-E0-001.
+Complete and commit WP-E0-003:
 
-Recommended next slice:
-
-```text
-docs/09-ai/AI-COLLABORATION-RULES.md
-docs/10-engineering/RUST-CODING-STANDARD.md
-docs/10-engineering/RUST-LEARNING-NOTES.md
-docs/10-engineering/RUST-VERIFICATION.md
-docs/11-security/COMMAND-EXECUTION-SAFETY.md
-docs/11-security/FILE-OPERATION-SAFETY.md
+```bash
+git commit -m "docs(context): establish context bridge foundation"
 ```
 
-After those are drafted, begin WP-E0-001 repository foundation.
+Then proceed to:
+
+```text
+WP-E0-004 — Establish workflow standards
+```
 
 ## Do Not Redo
 
-Do not redo the docs tree scaffold unless the tree is missing.
+Do not redo the docs tree scaffold unless files are missing.
 
 Do not rename Monad back to AionX, Foundry, or Charon.
 
-Do not start Rust implementation until the current documentation foundation slice is committed and the remaining critical E0 pre-code docs are either drafted or intentionally deferred.
+Do not start Rust implementation until the current E0 foundation work is committed.
 
 Do not introduce Bazel, Pants, Buck2, or Nx as default dependencies.
 
 Do not make AI-agent workflows autonomous or unsupervised.
+
+Do not treat generated context as accepted truth unless it is reviewed and committed.
 
 ## Instructions for Next Assistant
 
