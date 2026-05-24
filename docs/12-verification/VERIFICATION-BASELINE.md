@@ -1,13 +1,13 @@
 ---
 title: "Verification Baseline"
 document_type: "verification-standard"
-status: "draft"
-version: "0.6.0"
+status: "current"
+version: "1.0.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
-epic: "E0"
-work_packet: "WP-E0-010"
+epic: "E1"
+work_packet: "WP-E1-001"
 tags:
   - verification
   - quality
@@ -18,6 +18,7 @@ tags:
   - deliverables
   - epics
   - adrs
+  - context
 ---
 
 # Verification Baseline
@@ -41,7 +42,7 @@ tools/scripts/verify.sh
 The baseline currently verifies:
 
 1. Git diff whitespace validity.
-2. Required E0 foundation paths.
+2. Required foundation and E1 handoff paths.
 3. YAML frontmatter presence for Markdown files under:
 
    * `docs/`
@@ -52,33 +53,36 @@ The baseline currently verifies:
 6. Deliverable record structure.
 7. Epic record structure.
 8. ADR record structure.
-9. Current working tree status.
+9. E0 closure and E1 context handoff records.
+10. Current working tree status.
 
 ## 4. Scripts
 
-| Script                                        | Purpose                                             |
-| --------------------------------------------- | --------------------------------------------------- |
-| `tools/scripts/verify.sh`                     | Main verification entrypoint                        |
-| `tools/scripts/check-required-paths.py`       | Checks required E0 foundation files and directories |
-| `tools/scripts/check-markdown-frontmatter.py` | Checks Markdown YAML frontmatter presence           |
-| `tools/scripts/check-work-records.py`         | Checks work packet record structure                 |
-| `tools/scripts/check-task-records.py`         | Checks task record structure                        |
-| `tools/scripts/check-deliverable-records.py`  | Checks deliverable record structure                 |
-| `tools/scripts/check-epic-records.py`         | Checks epic record structure                        |
-| `tools/scripts/check-adr-records.py`          | Checks ADR record structure                         |
+| Script                                        | Purpose                                          |
+| --------------------------------------------- | ------------------------------------------------ |
+| `tools/scripts/verify.sh`                     | Main verification entrypoint                     |
+| `tools/scripts/check-required-paths.py`       | Checks required foundation and E1 handoff files  |
+| `tools/scripts/check-markdown-frontmatter.py` | Checks Markdown YAML frontmatter presence        |
+| `tools/scripts/check-work-records.py`         | Checks work packet record structure              |
+| `tools/scripts/check-task-records.py`         | Checks task record structure                     |
+| `tools/scripts/check-deliverable-records.py`  | Checks deliverable record structure              |
+| `tools/scripts/check-epic-records.py`         | Checks epic record structure                     |
+| `tools/scripts/check-adr-records.py`          | Checks ADR record structure                      |
+| `tools/scripts/check-context-records.py`      | Checks E0 closure and E1 handoff context records |
 
 ## 5. Expected Successful Result
 
 A successful run should include:
 
 ```text
-All required E0 foundation paths exist.
+All required foundation and E1 handoff paths exist.
 All docs/work/.monad Markdown files have YAML frontmatter.
 All work packet records satisfy the required structure.
 All task records satisfy the required baseline structure.
 All deliverable records satisfy the required baseline structure.
 All epic records satisfy the required baseline structure.
 All ADR records satisfy the required baseline structure.
+All context records satisfy the E0 closure and E1 handoff baseline.
 Verification baseline passed.
 ```
 
@@ -94,22 +98,12 @@ Common causes include:
 * a file was created at the wrong path;
 * a Markdown file is missing YAML frontmatter;
 * a work packet record is missing a required section;
-* a work packet record has Product Area and Objective in the wrong order;
-* a work packet record does not include Expected Result After Verification;
-* a task record is missing required frontmatter;
-* a task filename does not follow the expected convention;
-* a task record is missing Product Area, Objective, Parent Work Packet, Expected Result, Verification, Status, Priority, or Size;
-* a deliverable record is missing required frontmatter;
-* a deliverable filename does not follow the expected convention;
-* a deliverable record is missing Product Area, Objective, Source Work Packet, Deliverable Type, Artifact Path, Expected Result After Verification, Verification, or Status;
-* an epic record is missing required planning sections;
-* an epic record is missing a work packet summary table;
-* an ADR file is missing;
-* an ADR filename does not follow the expected convention;
-* an ADR is missing required frontmatter;
-* a non-template ADR is missing Status, Context, Decision, or Consequences sections;
-* trailing whitespace or whitespace errors are present in the diff;
-* the script is being run from an unexpected repository state.
+* a task record is missing a required section;
+* a deliverable record is missing a required section;
+* an epic record is missing a required planning section;
+* an ADR record is missing required structure;
+* context files do not identify E0, E1, WP-E1-001, and Runtime Foundation;
+* trailing whitespace or whitespace errors are present in the diff.
 
 ## 7. Design Notes
 
@@ -120,8 +114,6 @@ It requires only:
 * Bash;
 * Git;
 * Python 3.
-
-The baseline should remain small, readable, and portable during the E0 foundation phase.
 
 ## 8. Future Expansion
 
@@ -148,4 +140,4 @@ This document must be updated when:
 * new baseline checks are added;
 * existing baseline checks are removed;
 * expected successful output changes;
-* verification requirements move from documentation-only checks into code, build, or runtime checks.
+* verification requirements move into Rust build or runtime checks.

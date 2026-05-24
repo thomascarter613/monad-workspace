@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 """
-Check that the required E0 foundation paths exist.
-
-This script verifies the files and directories that should exist after the
-repository foundation, documentation architecture, context bridge foundation,
-workflow standards, verification baseline, work packet records, ADR
-verification, and epic record verification slices.
+Check that the required E0 foundation and E1 handoff paths exist.
 """
 
 from pathlib import Path
@@ -56,13 +51,25 @@ REQUIRED_PATHS = [
     "docs/07-workflow/REVIEW-STANDARD.md",
     "docs/07-workflow/CONTEXT-UPDATE-STANDARD.md",
 
-    # WP-E0-005 — Verification baseline
+    # Verification scripts
     "tools/scripts/verify.sh",
     "tools/scripts/check-required-paths.py",
     "tools/scripts/check-markdown-frontmatter.py",
+    "tools/scripts/check-work-records.py",
+    "tools/scripts/check-task-records.py",
+    "tools/scripts/check-deliverable-records.py",
+    "tools/scripts/check-epic-records.py",
+    "tools/scripts/check-adr-records.py",
+    "tools/scripts/check-context-records.py",
     "docs/12-verification/VERIFICATION-BASELINE.md",
 
-    # WP-E0-006 — Work packet records
+    # ADRs
+    "docs/06-adrs/README.md",
+    "docs/06-adrs/ADR-0000-template.md",
+    "docs/06-adrs/ADR-0001-use-rust-for-core-runtime.md",
+    "docs/06-adrs/ADR-0002-use-monad-as-unified-product-name.md",
+
+    # E0 records
     "work/epics/E0-project-foundation.md",
     "work/packets/E0/README.md",
     "work/packets/E0/WP-E0-001-establish-repository-foundation.md",
@@ -71,19 +78,38 @@ REQUIRED_PATHS = [
     "work/packets/E0/WP-E0-004-establish-workflow-standards.md",
     "work/packets/E0/WP-E0-005-establish-verification-baseline.md",
     "work/packets/E0/WP-E0-006-establish-work-packet-records.md",
-    "tools/scripts/check-work-records.py",
-
-    # WP-E0-007 — ADR verification
-    "docs/06-adrs/README.md",
-    "docs/06-adrs/ADR-0000-template.md",
-    "docs/06-adrs/ADR-0001-use-rust-for-core-runtime.md",
-    "docs/06-adrs/ADR-0002-use-monad-as-unified-product-name.md",
     "work/packets/E0/WP-E0-007-establish-adr-verification.md",
-    "tools/scripts/check-adr-records.py",
-
-    # WP-E0-008 — Epic record verification
     "work/packets/E0/WP-E0-008-establish-epic-record-verification.md",
-    "tools/scripts/check-epic-records.py",
+    "work/packets/E0/WP-E0-009-establish-task-record-foundation.md",
+    "work/packets/E0/WP-E0-010-establish-deliverable-record-foundation.md",
+    "work/packets/E0/WP-E0-011-close-e0-and-prepare-e1-handoff.md",
+
+    # E0 task records
+    "work/tasks/E0/README.md",
+    "work/tasks/E0/T-WP-E0-009-001-create-task-record-directory-and-index.md",
+    "work/tasks/E0/T-WP-E0-009-002-add-task-record-verification.md",
+    "work/tasks/E0/T-WP-E0-009-003-update-e0-planning-and-verification-records.md",
+    "work/tasks/E0/T-WP-E0-010-001-create-deliverable-record-directory-and-index.md",
+    "work/tasks/E0/T-WP-E0-010-002-add-deliverable-record-verification.md",
+    "work/tasks/E0/T-WP-E0-010-003-update-e0-planning-and-verification-records.md",
+    "work/tasks/E0/T-WP-E0-011-001-close-e0-records.md",
+    "work/tasks/E0/T-WP-E0-011-002-update-context-handoff.md",
+    "work/tasks/E0/T-WP-E0-011-003-create-e1-starting-point.md",
+
+    # E0 deliverable records
+    "work/deliverables/E0/README.md",
+    "work/deliverables/E0/D-WP-E0-010-001-deliverable-record-index.md",
+    "work/deliverables/E0/D-WP-E0-010-002-deliverable-record-verifier.md",
+    "work/deliverables/E0/D-WP-E0-010-003-verification-baseline-update.md",
+    "work/deliverables/E0/D-WP-E0-011-001-e0-closure-record.md",
+    "work/deliverables/E0/D-WP-E0-011-002-e1-starting-point.md",
+    "work/deliverables/E0/D-WP-E0-011-003-context-handoff-update.md",
+
+    # E1 handoff records
+    "work/epics/E1-runtime-foundation.md",
+    "work/packets/E1/README.md",
+    "work/packets/E1/WP-E1-001-establish-rust-workspace-runtime-foundation.md",
+    ".monad/context/work-packet-handoffs/WP-E1-001.md",
 ]
 
 
@@ -96,12 +122,12 @@ def main() -> int:
             missing.append(path_text)
 
     if missing:
-        print("Required E0 foundation paths are missing:")
+        print("Required foundation/handoff paths are missing:")
         for item in missing:
             print(f"  {item}")
         return 1
 
-    print("All required E0 foundation paths exist.")
+    print("All required foundation and E1 handoff paths exist.")
     return 0
 
 

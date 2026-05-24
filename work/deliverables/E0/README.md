@@ -1,8 +1,8 @@
 ---
 title: "E0 Deliverable Records"
 document_type: "deliverable-index"
-status: "draft"
-version: "0.1.0"
+status: "complete"
+version: "1.0.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
@@ -11,17 +11,12 @@ tags:
   - deliverables
   - foundation
   - index
+  - complete
 ---
 
 # E0 Deliverable Records
 
 This directory contains durable deliverable records for E0 — Project Foundation.
-
-## Purpose
-
-Deliverable records connect planned work to concrete repository artifacts.
-
-They make it clear which files, scripts, documents, or generated outputs were produced by a work packet and how those artifacts are verified.
 
 ## Current Deliverable Records
 
@@ -29,14 +24,13 @@ They make it clear which files, scripts, documents, or generated outputs were pr
 |---|---|---|---|
 | D-WP-E0-010-001 | WP-E0-010 | `work/deliverables/E0/README.md` | Complete |
 | D-WP-E0-010-002 | WP-E0-010 | `tools/scripts/check-deliverable-records.py` | Complete |
-| D-WP-E0-010-003 | WP-E0-010 | `docs/12-verification/VERIFICATION-BASELINE.md` | In Progress |
+| D-WP-E0-010-003 | WP-E0-010 | `docs/12-verification/VERIFICATION-BASELINE.md` | Complete |
+| D-WP-E0-011-001 | WP-E0-011 | `work/epics/E0-project-foundation.md` | Complete |
+| D-WP-E0-011-002 | WP-E0-011 | `work/epics/E1-runtime-foundation.md` | Complete |
+| D-WP-E0-011-003 | WP-E0-011 | `.monad/context/latest-context-pack.md` | Complete |
 
 ## Maintenance Rules
 
-Deliverable records should remain:
+E0 deliverable records are closed.
 
-- tied to a source work packet;
-- tied to a concrete artifact path;
-- reviewable through `git diff`;
-- verifiable through an explicit command or inspection method;
-- updated when the artifact's verification expectations change.
+Future deliverable records should be created under the relevant epic directory.

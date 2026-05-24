@@ -1,172 +1,43 @@
 ---
-title: "Monad Decision Log"
-status: draft
-owner: "Thomas Carter"
-created: 2026-05-23
-updated: 2026-05-23
-version: 0.1.0
-generated: false
-reviewed: true
-source: "manual-bootstrap"
+title: "Decision Log"
+document_type: "context-decision-log"
+status: "current"
+version: "1.0.0"
+created: "2026-05-23"
+updated: "2026-05-23"
+owner: "Monad Project"
+epic: "E1"
+work_packet: "WP-E1-001"
 tags:
-  - monad
-  - context
-  - decisions
-related:
-  - docs/06-adrs/README.md
-  - docs/08-context/DECISION-LOG-STANDARD.md
+
+* decisions
+* e0-complete
+* e1
+
 ---
 
-# Monad Decision Log
+# Decision Log
 
-## Purpose
+## Accepted Decisions
 
-This file records useful project decisions that may not yet require a full ADR or that summarize already accepted ADRs for handoff purposes.
+1. Monad is the unified product name.
+2. Rust is the durable local core runtime language.
+3. Initial Rust workspace separates `monad-cli` and `monad-core`.
+4. CLI stays thin.
+5. Durable product logic belongs in `monad-core`.
+6. Repository is the source of truth.
+7. Work packets are the primary delivery unit.
+8. Native tools are coordinated, not unnecessarily replaced.
+9. Monad remains local-first and provider-agnostic.
+10. Agent workflows are supervised and human-in-command.
+11. Bazel, Pants, Buck2, and Nx are not default Monad dependencies.
+12. E0 — Project Foundation is complete.
+13. E1 — Runtime Foundation begins with WP-E1-001.
 
-Consequential architecture decisions should still be promoted into `docs/06-adrs/`.
+## Current Epic
 
-## Decision Status Values
+E1 — Runtime Foundation
 
-```text
-noted
-candidate
-accepted
-superseded
-rejected
-```
+## Current Work Packet
 
-## Decisions
-
-### DEC-0001 — Monad is the unified product name
-
-Status: accepted
-
-Source:
-
-```text
-docs/06-adrs/ADR-0002-use-monad-as-unified-product-name.md
-```
-
-Summary:
-
-Monad is the canonical product name. Prior concepts such as AionX, Foundry, Charon, Context Bridge, repo-native memory, and supervised execution are absorbed into Monad.
-
-### DEC-0002 — Rust is the core runtime language
-
-Status: accepted
-
-Source:
-
-```text
-docs/06-adrs/ADR-0001-use-rust-for-core-runtime.md
-```
-
-Summary:
-
-Monad’s durable local runtime will be implemented in Rust.
-
-### DEC-0003 — Repository is source of truth
-
-Status: accepted
-
-Source:
-
-```text
-docs/08-context/CONTEXT-BRIDGE.md
-docs/05-architecture/ARCHITECTURE-PRINCIPLES.md
-```
-
-Summary:
-
-Durable project truth belongs in repository files. Chat history is not canonical.
-
-### DEC-0004 — Work packets are primary delivery units
-
-Status: accepted
-
-Source:
-
-```text
-docs/07-workflow/WORK-PACKET-STANDARD.md
-```
-
-Summary:
-
-Work packets are the primary unit for planned, verifiable, commit-ready work.
-
-### DEC-0005 — Work packet field order
-
-Status: accepted
-
-Source:
-
-```text
-docs/07-workflow/WORK-PACKET-STANDARD.md
-```
-
-Summary:
-
-Work packets include Product Area before Objective, Expected Result After Verification, and Priority and Size at the end.
-
-### DEC-0006 — Prefer python3 in commands
-
-Status: accepted
-
-Source:
-
-```text
-docs/13-operations/TOOLCHAIN-SETUP.md
-```
-
-Summary:
-
-Use `python3` rather than `python` in project commands and walkthroughs.
-
-### DEC-0007 — Do not use Bazel, Pants, Buck2, or Nx as default dependencies
-
-Status: accepted
-
-Source:
-
-```text
-docs/05-architecture/ARCHITECTURE-PRINCIPLES.md
-docs/10-engineering/RUST-CODING-STANDARD.md
-```
-
-Summary:
-
-Monad may learn from or inspect repositories using these tools, but they are not default Monad dependencies.
-
-### DEC-0008 — Coordinate native tools rather than replacing them unnecessarily
-
-Status: accepted
-
-Source:
-
-```text
-docs/14-integrations/NATIVE-TOOL-ADAPTERS.md
-docs/05-architecture/ARCHITECTURE-PRINCIPLES.md
-```
-
-Summary:
-
-Monad should coordinate native ecosystem tools such as Cargo, Bun, Go tooling, and Python tooling rather than reimplementing them prematurely.
-
-### DEC-0009 — AI output is proposed, not verified
-
-Status: accepted
-
-Source:
-
-```text
-docs/09-ai/AI-COLLABORATION-RULES.md
-docs/12-verification/VERIFICATION-MODEL.md
-```
-
-Summary:
-
-AI may propose, draft, explain, and summarize, but repository acceptance and verification determine truth.
-
-## Promotion Rule
-
-If a decision affects architecture, safety, product identity, runtime strategy, workflow, or long-term maintainability, promote it into an ADR.
+WP-E1-001 — Establish Rust Workspace Runtime Foundation
