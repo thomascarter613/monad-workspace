@@ -4,10 +4,13 @@
 //! E2 begins repository intelligence: the ability to inspect a workspace and
 //! describe what exists there in typed, reusable Rust structures.
 //!
-//! This first version intentionally performs a shallow top-level inspection.
-//! It does not recursively walk the whole repository yet. That is deliberate:
-//! recursive inspection needs ignore rules, performance safeguards, and later
+//! This version still performs a shallow top-level inspection. It does not
+//! recursively walk the whole repository yet. That is deliberate: recursive
+//! inspection needs ignore rules, performance safeguards, policy controls, and
 //! graph-oriented design.
+//!
+//! WP-E2-003 enriches first-pass classification so `monad inspect` can describe
+//! more kinds of important repository artifacts without making the CLI smarter.
 
 use std::fs::{self, DirEntry, FileType};
 use std::path::{Path, PathBuf};
@@ -18,15 +21,25 @@ use crate::{MonadError, MonadResult, WorkspaceContext};
 /// repository intelligence work unless explicitly requested.
 ///
 /// This is a safeguard against accidentally walking huge dependency caches,
-/// build outputs, or VCS internals.
+/// build outputs, virtual environments, coverage reports, or VCS internals.
 const GENERATED_OR_EXTERNAL_TOP_LEVEL_DIRS: &[&str] = &[
+    ".cache",
     ".git",
+    ".mypy_cache",
     ".next",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".turbo",
+    ".venv",
     "build",
     "coverage",
     "dist",
     "node_modules",
+    "out",
     "target",
+    "tmp",
+    "vendor",
+    "venv",
 ];
 
 /// The broad filesystem kind of a repository entry.
@@ -73,6 +86,10 @@ impl RepositoryEntryKind {
 }
 
 /// Monad's first-pass interpretation of a repository entry.
+///
+/// These roles are intentionally conservative. They describe what Monad can
+/// infer from a top-level file or directory name without reading file contents
+/// or recursively traversing the repository.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepositoryEntryRole {
     /// Root `monad.toml`.
@@ -81,8 +98,38 @@ pub enum RepositoryEntryRole {
     /// Root `Cargo.toml`.
     RustWorkspaceManifest,
 
+    /// Root `Cargo.lock`.
+    RustLockfile,
+
+    /// Root Rust toolchain file such as `rust-toolchain.toml`.
+    RustToolchain,
+
+    /// Root Rust lint/security config such as `clippy.toml` or `deny.toml`.
+    RustQualityConfig,
+
     /// Root README file.
     Readme,
+
+    /// Root license/copying file.
+    License,
+
+    /// Root `.gitignore`.
+    GitIgnore,
+
+    /// Root `.editorconfig`.
+    EditorConfig,
+
+    /// Root JavaScript/TypeScript package manifest or lockfile.
+    JavaScriptPackageConfig,
+
+    /// Root formatting, linting, hook, or general developer-tool config.
+    ToolingConfig,
+
+    /// Root Docker or deployment config file.
+    InfrastructureConfig,
+
+    /// Root AI-assistant or agent instruction file.
+    AiContextConfig,
 
     /// `docs/`.
     DocumentationRoot,
@@ -93,8 +140,38 @@ pub enum RepositoryEntryRole {
     /// `.monad/`.
     MonadStateRoot,
 
-    /// `crates/`, `src/`, `apps/`, `packages/`, or `services/`.
+    /// `apps/`, `crates/`, `packages/`, `services/`, or `src/`.
     SourceRoot,
+
+    /// `tools/`, `scripts/`, or `bin/`.
+    ToolingRoot,
+
+    /// `config/` or `.config/`.
+    ConfigurationRoot,
+
+    /// `infra/`, `infrastructure/`, `deploy/`, `docker/`, `k8s/`, or `terraform/`.
+    InfrastructureRoot,
+
+    /// `contracts/`, `schemas/`, `proto/`, or `openapi/`.
+    ContractRoot,
+
+    /// `db/`, `database/`, `migrations/`, or `seeds/`.
+    DataRoot,
+
+    /// `governance/`, `policies/`, or `security/`.
+    GovernanceRoot,
+
+    /// `assets/`, `public/`, or `static/`.
+    AssetRoot,
+
+    /// `test/`, `tests/`, or `e2e/`.
+    TestRoot,
+
+    /// `.github/`.
+    CiRoot,
+
+    /// `.devcontainer/`.
+    DevEnvironmentRoot,
 
     /// Build output, dependency cache, VCS internals, or similar.
     GeneratedOrExternal,
@@ -113,11 +190,31 @@ impl RepositoryEntryRole {
         match self {
             Self::MonadManifest => "monad_manifest",
             Self::RustWorkspaceManifest => "rust_workspace_manifest",
+            Self::RustLockfile => "rust_lockfile",
+            Self::RustToolchain => "rust_toolchain",
+            Self::RustQualityConfig => "rust_quality_config",
             Self::Readme => "readme",
+            Self::License => "license",
+            Self::GitIgnore => "gitignore",
+            Self::EditorConfig => "editorconfig",
+            Self::JavaScriptPackageConfig => "javascript_package_config",
+            Self::ToolingConfig => "tooling_config",
+            Self::InfrastructureConfig => "infrastructure_config",
+            Self::AiContextConfig => "ai_context_config",
             Self::DocumentationRoot => "documentation_root",
             Self::WorkRoot => "work_root",
             Self::MonadStateRoot => "monad_state_root",
             Self::SourceRoot => "source_root",
+            Self::ToolingRoot => "tooling_root",
+            Self::ConfigurationRoot => "configuration_root",
+            Self::InfrastructureRoot => "infrastructure_root",
+            Self::ContractRoot => "contract_root",
+            Self::DataRoot => "data_root",
+            Self::GovernanceRoot => "governance_root",
+            Self::AssetRoot => "asset_root",
+            Self::TestRoot => "test_root",
+            Self::CiRoot => "ci_root",
+            Self::DevEnvironmentRoot => "dev_environment_root",
             Self::GeneratedOrExternal => "generated_or_external",
             Self::Hidden => "hidden",
             Self::Other => "other",
@@ -331,23 +428,94 @@ pub fn inspect_workspace(context: &WorkspaceContext) -> MonadResult<RepositoryIn
 }
 
 /// Classifies an entry into a first-pass repository role.
+///
+/// This function only uses the entry name and filesystem kind. Later slices can
+/// add deeper content-aware inspection without changing the CLI command.
 fn classify_entry(name: &str, kind: RepositoryEntryKind) -> RepositoryEntryRole {
-    match (name, kind) {
+    let normalized = name.to_ascii_lowercase();
+
+    match (normalized.as_str(), kind) {
         ("monad.toml", RepositoryEntryKind::File) => RepositoryEntryRole::MonadManifest,
-        ("Cargo.toml", RepositoryEntryKind::File) => RepositoryEntryRole::RustWorkspaceManifest,
-        ("README.md", RepositoryEntryKind::File) => RepositoryEntryRole::Readme,
+        ("cargo.toml", RepositoryEntryKind::File) => RepositoryEntryRole::RustWorkspaceManifest,
+        ("cargo.lock", RepositoryEntryKind::File) => RepositoryEntryRole::RustLockfile,
+        ("rust-toolchain" | "rust-toolchain.toml", RepositoryEntryKind::File) => {
+            RepositoryEntryRole::RustToolchain
+        }
+        ("clippy.toml" | "deny.toml", RepositoryEntryKind::File) => {
+            RepositoryEntryRole::RustQualityConfig
+        }
+        ("readme" | "readme.md" | "readme.txt", RepositoryEntryKind::File) => {
+            RepositoryEntryRole::Readme
+        }
+        ("license" | "license.md" | "license.txt" | "copying", RepositoryEntryKind::File) => {
+            RepositoryEntryRole::License
+        }
+        (".gitignore", RepositoryEntryKind::File) => RepositoryEntryRole::GitIgnore,
+        (".editorconfig", RepositoryEntryKind::File) => RepositoryEntryRole::EditorConfig,
+        (
+            "package.json" | "bun.lock" | "bun.lockb" | "pnpm-lock.yaml" | "package-lock.json"
+            | "yarn.lock",
+            RepositoryEntryKind::File,
+        ) => RepositoryEntryRole::JavaScriptPackageConfig,
+        (
+            "biome.json" | "biome.jsonc" | "lefthook.yml" | "lefthook.yaml" | ".prettierrc"
+            | ".prettierrc.json" | ".prettierrc.yml" | ".prettierrc.yaml" | ".eslintrc"
+            | ".eslintrc.json",
+            RepositoryEntryKind::File,
+        ) => RepositoryEntryRole::ToolingConfig,
+        (
+            "dockerfile"
+            | "docker-compose.yml"
+            | "docker-compose.yaml"
+            | "compose.yml"
+            | "compose.yaml",
+            RepositoryEntryKind::File,
+        ) => RepositoryEntryRole::InfrastructureConfig,
+        (
+            "agents.md" | "agent.md" | "claude.md" | "cursor.md" | "copilot-instructions.md",
+            RepositoryEntryKind::File,
+        ) => RepositoryEntryRole::AiContextConfig,
         ("docs", RepositoryEntryKind::Directory) => RepositoryEntryRole::DocumentationRoot,
         ("work", RepositoryEntryKind::Directory) => RepositoryEntryRole::WorkRoot,
         (".monad", RepositoryEntryKind::Directory) => RepositoryEntryRole::MonadStateRoot,
         ("apps" | "crates" | "packages" | "services" | "src", RepositoryEntryKind::Directory) => {
             RepositoryEntryRole::SourceRoot
         }
-        (name, RepositoryEntryKind::Directory)
-            if GENERATED_OR_EXTERNAL_TOP_LEVEL_DIRS.contains(&name) =>
+        ("tools" | "scripts" | "bin", RepositoryEntryKind::Directory) => {
+            RepositoryEntryRole::ToolingRoot
+        }
+        ("config" | ".config", RepositoryEntryKind::Directory) => {
+            RepositoryEntryRole::ConfigurationRoot
+        }
+        (
+            "infra" | "infrastructure" | "deploy" | "deployments" | "docker" | "k8s" | "kubernetes"
+            | "terraform",
+            RepositoryEntryKind::Directory,
+        ) => RepositoryEntryRole::InfrastructureRoot,
+        (
+            "contracts" | "schemas" | "schema" | "proto" | "protobuf" | "openapi",
+            RepositoryEntryKind::Directory,
+        ) => RepositoryEntryRole::ContractRoot,
+        ("db" | "database" | "migrations" | "seeds", RepositoryEntryKind::Directory) => {
+            RepositoryEntryRole::DataRoot
+        }
+        ("governance" | "policies" | "security", RepositoryEntryKind::Directory) => {
+            RepositoryEntryRole::GovernanceRoot
+        }
+        ("assets" | "public" | "static", RepositoryEntryKind::Directory) => {
+            RepositoryEntryRole::AssetRoot
+        }
+        ("test" | "tests" | "e2e", RepositoryEntryKind::Directory) => RepositoryEntryRole::TestRoot,
+        (".github", RepositoryEntryKind::Directory) => RepositoryEntryRole::CiRoot,
+        (".devcontainer", RepositoryEntryKind::Directory) => {
+            RepositoryEntryRole::DevEnvironmentRoot
+        }
+        (normalized_name, RepositoryEntryKind::Directory)
+            if GENERATED_OR_EXTERNAL_TOP_LEVEL_DIRS.contains(&normalized_name) =>
         {
             RepositoryEntryRole::GeneratedOrExternal
         }
-        (name, _) if name.starts_with('.') => RepositoryEntryRole::Hidden,
+        _ if name.starts_with('.') => RepositoryEntryRole::Hidden,
         _ => RepositoryEntryRole::Other,
     }
 }
@@ -358,15 +526,24 @@ fn traversal_policy_for(name: &str, kind: RepositoryEntryKind) -> RepositoryEntr
         return RepositoryEntryTraversalPolicy::InspectShallowOnly;
     }
 
-    if GENERATED_OR_EXTERNAL_TOP_LEVEL_DIRS.contains(&name) {
+    let normalized = name.to_ascii_lowercase();
+
+    if GENERATED_OR_EXTERNAL_TOP_LEVEL_DIRS.contains(&normalized.as_str()) {
         return RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal;
     }
 
-    if name.starts_with('.') && name != ".monad" {
-        return RepositoryEntryTraversalPolicy::InspectShallowOnly;
+    match normalized.as_str() {
+        ".monad" | ".github" | ".devcontainer" | ".config" | "apps" | "assets" | "bin"
+        | "config" | "contracts" | "crates" | "database" | "db" | "deploy" | "deployments"
+        | "docker" | "docs" | "e2e" | "governance" | "infra" | "infrastructure" | "k8s"
+        | "kubernetes" | "migrations" | "openapi" | "packages" | "policies" | "proto"
+        | "protobuf" | "public" | "schema" | "schemas" | "scripts" | "security" | "seeds"
+        | "services" | "src" | "static" | "terraform" | "test" | "tests" | "tools" | "work" => {
+            RepositoryEntryTraversalPolicy::SafeForFutureTraversal
+        }
+        _ if name.starts_with('.') => RepositoryEntryTraversalPolicy::InspectShallowOnly,
+        _ => RepositoryEntryTraversalPolicy::SafeForFutureTraversal,
     }
-
-    RepositoryEntryTraversalPolicy::SafeForFutureTraversal
 }
 
 #[cfg(test)]
@@ -395,13 +572,38 @@ mod tests {
         fs::create_dir_all(root.join("work")).expect("work directory should be created");
         fs::create_dir_all(root.join(".monad")).expect(".monad directory should be created");
         fs::create_dir_all(root.join("crates")).expect("crates directory should be created");
+        fs::create_dir_all(root.join("tools")).expect("tools directory should be created");
+        fs::create_dir_all(root.join("infra")).expect("infra directory should be created");
+        fs::create_dir_all(root.join("contracts")).expect("contracts directory should be created");
+        fs::create_dir_all(root.join("db")).expect("db directory should be created");
+        fs::create_dir_all(root.join("governance"))
+            .expect("governance directory should be created");
+        fs::create_dir_all(root.join("assets")).expect("assets directory should be created");
+        fs::create_dir_all(root.join("tests")).expect("tests directory should be created");
+        fs::create_dir_all(root.join(".github")).expect(".github directory should be created");
+        fs::create_dir_all(root.join(".devcontainer"))
+            .expect(".devcontainer directory should be created");
         fs::create_dir_all(root.join("target")).expect("target directory should be created");
+        fs::create_dir_all(root.join("node_modules"))
+            .expect("node_modules directory should be created");
         fs::create_dir_all(root.join(".git")).expect(".git directory should be created");
 
         fs::write(root.join("README.md"), "# Test\n").expect("README should be written");
+        fs::write(root.join("LICENSE"), "MIT\n").expect("LICENSE should be written");
+        fs::write(root.join(".gitignore"), "target/\n").expect(".gitignore should be written");
+        fs::write(root.join(".editorconfig"), "root = true\n")
+            .expect(".editorconfig should be written");
         fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("Cargo.toml should be written");
+        fs::write(root.join("Cargo.lock"), "# lock\n").expect("Cargo.lock should be written");
         fs::write(root.join("monad.toml"), "schema_version = 1\n")
             .expect("monad.toml should be written");
+        fs::write(root.join("rust-toolchain.toml"), "[toolchain]\n")
+            .expect("rust-toolchain.toml should be written");
+        fs::write(root.join("package.json"), "{}\n").expect("package.json should be written");
+        fs::write(root.join("biome.json"), "{}\n").expect("biome.json should be written");
+        fs::write(root.join("docker-compose.yml"), "services: {}\n")
+            .expect("docker-compose.yml should be written");
+        fs::write(root.join("AGENTS.md"), "# Agents\n").expect("AGENTS.md should be written");
 
         root
     }
@@ -414,7 +616,7 @@ mod tests {
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
 
         assert_eq!(inspection.root(), root.as_path());
-        assert!(inspection.entry_count() >= 8);
+        assert!(inspection.entry_count() >= 20);
         assert!(inspection.has_relative_path("monad.toml"));
         assert!(inspection.has_relative_path("Cargo.toml"));
         assert!(inspection.has_relative_path("docs"));
@@ -431,15 +633,15 @@ mod tests {
 
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
 
-        assert!(inspection.file_count() >= 3);
-        assert!(inspection.directory_count() >= 5);
+        assert!(inspection.file_count() >= 10);
+        assert!(inspection.directory_count() >= 10);
 
         fs::remove_dir_all(root).ok();
     }
 
     #[test]
-    fn repository_inspection_classifies_known_roles() {
-        let root = create_inspection_workspace("roles");
+    fn repository_inspection_classifies_core_monad_roles() {
+        let root = create_inspection_workspace("core-roles");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
 
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
@@ -485,6 +687,153 @@ mod tests {
     }
 
     #[test]
+    fn repository_inspection_classifies_developer_experience_files() {
+        let root = create_inspection_workspace("developer-experience");
+        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
+
+        let inspection = inspect_workspace(&context).expect("workspace should inspect");
+
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::Readme)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::License)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::GitIgnore)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::EditorConfig)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::RustLockfile)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::RustToolchain)
+                .len(),
+            1
+        );
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn repository_inspection_classifies_polyglot_and_tooling_files() {
+        let root = create_inspection_workspace("polyglot-tooling");
+        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
+
+        let inspection = inspect_workspace(&context).expect("workspace should inspect");
+
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::JavaScriptPackageConfig)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::ToolingConfig)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::InfrastructureConfig)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::AiContextConfig)
+                .len(),
+            1
+        );
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn repository_inspection_classifies_architecture_roots() {
+        let root = create_inspection_workspace("architecture-roots");
+        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
+
+        let inspection = inspect_workspace(&context).expect("workspace should inspect");
+
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::ToolingRoot)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::InfrastructureRoot)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::ContractRoot)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::DataRoot)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::GovernanceRoot)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::AssetRoot)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::TestRoot)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::CiRoot)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_role(RepositoryEntryRole::DevEnvironmentRoot)
+                .len(),
+            1
+        );
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
     fn generated_or_external_directories_are_marked_for_skip() {
         let root = create_inspection_workspace("generated");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
@@ -497,11 +846,76 @@ mod tests {
             .find(|entry| entry.name() == "target")
             .expect("target should be inspected");
 
+        let node_modules = inspection
+            .entries()
+            .iter()
+            .find(|entry| entry.name() == "node_modules")
+            .expect("node_modules should be inspected");
+
+        let git = inspection
+            .entries()
+            .iter()
+            .find(|entry| entry.name() == ".git")
+            .expect(".git should be inspected");
+
         assert_eq!(target.role(), RepositoryEntryRole::GeneratedOrExternal);
         assert_eq!(
             target.traversal_policy(),
             RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal
         );
+
+        assert_eq!(
+            node_modules.role(),
+            RepositoryEntryRole::GeneratedOrExternal
+        );
+        assert_eq!(
+            node_modules.traversal_policy(),
+            RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal
+        );
+
+        assert_eq!(git.role(), RepositoryEntryRole::GeneratedOrExternal);
+        assert_eq!(
+            git.traversal_policy(),
+            RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal
+        );
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn safe_known_roots_are_marked_safe_for_future_traversal() {
+        let root = create_inspection_workspace("safe-roots");
+        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
+
+        let inspection = inspect_workspace(&context).expect("workspace should inspect");
+
+        for name in [
+            "docs",
+            "work",
+            ".monad",
+            "crates",
+            "tools",
+            "infra",
+            "contracts",
+            "db",
+            "governance",
+            "assets",
+            "tests",
+            ".github",
+            ".devcontainer",
+        ] {
+            let entry = inspection
+                .entries()
+                .iter()
+                .find(|entry| entry.name() == name)
+                .expect("expected known safe root to be inspected");
+
+            assert_eq!(
+                entry.traversal_policy(),
+                RepositoryEntryTraversalPolicy::SafeForFutureTraversal,
+                "{name} should be safe for future traversal"
+            );
+        }
 
         fs::remove_dir_all(root).ok();
     }
