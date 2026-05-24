@@ -282,7 +282,7 @@ fn render_version() -> Result<String, String> {
 
 /// Renders workspace info.
 fn render_info(output_format: OutputFormat) -> Result<String, String> {
-    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
     let manifest = load_manifest_from_workspace(&context).map_err(|error| error.to_string())?;
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
@@ -291,7 +291,7 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
 
 /// Renders workspace checks.
 fn render_check(output_format: OutputFormat) -> Result<String, String> {
-    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
     let report = run_workspace_checks(&context);
 
     Ok(render_diagnostic_report(&report, output_format))
@@ -299,7 +299,7 @@ fn render_check(output_format: OutputFormat) -> Result<String, String> {
 
 /// Renders repository inspection.
 fn render_inspect(output_format: OutputFormat) -> Result<String, String> {
-    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
     let summary = repository_inspection_summary_from_workspace(&context)
         .map_err(|error| error.to_string())?;
 
@@ -311,7 +311,7 @@ fn render_inspect(output_format: OutputFormat) -> Result<String, String> {
 
 /// Renders repository graph.
 fn render_graph(graph_format: RepositoryGraphRenderFormat) -> Result<String, String> {
-    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
     let inspection = inspect_workspace(&context).map_err(|error| error.to_string())?;
     let bounded_traversal =
         traverse_workspace_bounded(&inspection).map_err(|error| error.to_string())?;
@@ -325,7 +325,7 @@ fn render_context(
     context_format: RepositoryContextPackRenderFormat,
     write: bool,
 ) -> Result<String, String> {
-    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
 
     if write {
         let export_result = export_repository_context_pack_from_workspace(&context)
