@@ -61,4 +61,19 @@ cargo run --quiet -p monad-cli -- graph --format=mermaid >/dev/null
 echo "==> Running CLI graph DOT smoke test"
 cargo run --quiet -p monad-cli -- graph --format=dot >/dev/null
 
+echo "==> Running CLI context smoke test"
+cargo run --quiet -p monad-cli -- context >/dev/null
+
+echo "==> Running CLI context Markdown smoke test"
+cargo run --quiet -p monad-cli -- context --format=markdown >/dev/null
+
+echo "==> Running CLI context JSON smoke test"
+cargo run --quiet -p monad-cli -- context --format=json >/dev/null
+
+echo "==> Running CLI context md alias smoke test"
+cargo run --quiet -p monad-cli -- context --format=md >/dev/null
+
+echo "==> Running CLI context text alias smoke test"
+cargo run --quiet -p monad-cli -- context --format=text >/dev/null
+
 echo "Verification baseline passed."

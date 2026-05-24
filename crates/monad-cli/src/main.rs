@@ -3,18 +3,19 @@
 //! The CLI should parse user intent, delegate durable behavior to
 //! `monad-core`, and print the result.
 //!
-//! Durable repository intelligence, inspection, graph construction, and
-//! rendering belong in `monad-core`.
+//! Durable repository intelligence, inspection, graph construction, graph
+//! rendering, and context-pack generation belong in `monad-core`.
 
 use std::env;
 use std::process::ExitCode;
 
 use monad_core::{
-    OutputFormat, RepositoryGraphRenderFormat, WorkspaceContext, build_repository_graph,
-    checked_runtime_identity, inspect_workspace, load_manifest_from_workspace,
-    render_diagnostic_report, render_repository_graph, render_repository_inspection_summary,
-    render_workspace_summary, repository_inspection_summary_from_workspace, run_workspace_checks,
-    traverse_workspace_bounded, workspace_summary_from_manifest,
+    OutputFormat, RepositoryContextPackRenderFormat, RepositoryGraphRenderFormat, WorkspaceContext,
+    build_repository_graph, checked_runtime_identity, inspect_workspace,
+    load_manifest_from_workspace, render_diagnostic_report, render_repository_context_pack,
+    render_repository_graph, render_repository_inspection_summary, render_workspace_summary,
+    repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
+    run_workspace_checks, traverse_workspace_bounded, workspace_summary_from_manifest,
 };
 
 /// Parsed CLI command.
@@ -51,6 +52,12 @@ enum CliCommand {
     Graph {
         /// Requested graph render format.
         graph_format: RepositoryGraphRenderFormat,
+    },
+
+    /// Render AI-readable repository context pack.
+    Context {
+        /// Requested context-pack render format.
+        context_format: RepositoryContextPackRenderFormat,
     },
 }
 
@@ -112,6 +119,10 @@ impl CliCommand {
                 let graph_format = parse_graph_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Graph { graph_format })
             }
+            Some("context") => {
+                let context_format = parse_context_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Context { context_format })
+            }
             Some(other) => Err(format!("unknown command: {other}")),
         }
     }
@@ -142,6 +153,7 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
         CliCommand::Check { output_format } => render_check(output_format),
         CliCommand::Inspect { output_format } => render_inspect(output_format),
         CliCommand::Graph { graph_format } => render_graph(graph_format),
+        CliCommand::Context { context_format } => render_context(context_format),
     }
 }
 
@@ -167,6 +179,22 @@ fn parse_graph_format_or_default(
     }
 }
 
+/// Parses the context command render format.
+///
+/// Context output supports Markdown and JSON. The aliases `text` and `md`
+/// intentionally map to Markdown because the context pack is designed to be
+/// human-readable and LLM-readable by default.
+fn parse_context_format_or_default(
+    value: Option<&str>,
+) -> Result<RepositoryContextPackRenderFormat, String> {
+    match value {
+        Some(value) => {
+            RepositoryContextPackRenderFormat::parse(value).map_err(|error| error.to_string())
+        }
+        None => Ok(RepositoryContextPackRenderFormat::Markdown),
+    }
+}
+
 /// Builds help text.
 ///
 /// Keep this text boring and stable. It is user-facing contract documentation.
@@ -182,6 +210,7 @@ fn help_text() -> String {
         "  check     Run workspace checks",
         "  inspect   Inspect repository structure",
         "  graph     Render repository graph",
+        "  context   Render AI-readable repository context pack",
         "  version   Show runtime version",
         "  help      Show this help",
         "",
@@ -194,20 +223,14 @@ fn help_text() -> String {
         "  json",
         "  mermaid",
         "  dot",
+        "",
+        "Context formats:",
+        "  markdown",
+        "  md",
+        "  text",
+        "  json",
     ]
     .join("\n")
-}
-
-/// Discovers the current Monad workspace from the process working directory.
-///
-/// `WorkspaceContext` currently exposes `discover_from(...)`, not a zero-argument
-/// `discover()` constructor. Keeping this helper in the CLI preserves thin CLI
-/// behavior while matching the current `monad-core` API.
-fn discover_workspace_context() -> Result<WorkspaceContext, String> {
-    let current_dir =
-        env::current_dir().map_err(|error| format!("failed to read current directory: {error}"))?;
-
-    WorkspaceContext::discover_from(current_dir).map_err(|error| error.to_string())
 }
 
 /// Renders runtime identity.
@@ -219,7 +242,7 @@ fn render_version() -> Result<String, String> {
 
 /// Renders workspace info.
 fn render_info(output_format: OutputFormat) -> Result<String, String> {
-    let context = discover_workspace_context()?;
+    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
     let manifest = load_manifest_from_workspace(&context).map_err(|error| error.to_string())?;
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
@@ -228,7 +251,7 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
 
 /// Renders workspace checks.
 fn render_check(output_format: OutputFormat) -> Result<String, String> {
-    let context = discover_workspace_context()?;
+    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
     let report = run_workspace_checks(&context);
 
     Ok(render_diagnostic_report(&report, output_format))
@@ -236,7 +259,7 @@ fn render_check(output_format: OutputFormat) -> Result<String, String> {
 
 /// Renders repository inspection.
 fn render_inspect(output_format: OutputFormat) -> Result<String, String> {
-    let context = discover_workspace_context()?;
+    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
     let summary = repository_inspection_summary_from_workspace(&context)
         .map_err(|error| error.to_string())?;
 
@@ -248,13 +271,22 @@ fn render_inspect(output_format: OutputFormat) -> Result<String, String> {
 
 /// Renders repository graph.
 fn render_graph(graph_format: RepositoryGraphRenderFormat) -> Result<String, String> {
-    let context = discover_workspace_context()?;
+    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
     let inspection = inspect_workspace(&context).map_err(|error| error.to_string())?;
     let bounded_traversal =
         traverse_workspace_bounded(&inspection).map_err(|error| error.to_string())?;
     let graph = build_repository_graph(&bounded_traversal);
 
     Ok(render_repository_graph(&graph, graph_format))
+}
+
+/// Renders AI-readable repository context pack.
+fn render_context(context_format: RepositoryContextPackRenderFormat) -> Result<String, String> {
+    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let pack =
+        repository_context_pack_from_workspace(&context).map_err(|error| error.to_string())?;
+
+    Ok(render_repository_context_pack(&pack, context_format))
 }
 
 #[cfg(test)]
@@ -388,6 +420,66 @@ mod tests {
     }
 
     #[test]
+    fn context_command_parses_supported_formats() {
+        assert_eq!(
+            parse_arguments(&["monad", "context"]).expect("context should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Markdown
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "context", "--format=markdown"])
+                .expect("context markdown should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Markdown
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "context", "--format=md"]).expect("context md should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Markdown
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "context", "--format=text"])
+                .expect("context text alias should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Markdown
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "context", "--format=json"])
+                .expect("context json should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Json
+            }
+        );
+    }
+
+    #[test]
+    fn format_can_appear_before_command() {
+        assert_eq!(
+            parse_arguments(&["monad", "--format=json", "context"])
+                .expect("format before context should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Json
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "--format=mermaid", "graph"])
+                .expect("format before graph should parse"),
+            CliCommand::Graph {
+                graph_format: RepositoryGraphRenderFormat::Mermaid
+            }
+        );
+    }
+
+    #[test]
     fn non_graph_commands_reject_graph_only_formats() {
         let error = parse_arguments(&["monad", "inspect", "--format=mermaid"])
             .expect_err("inspect should reject mermaid format");
@@ -404,6 +496,14 @@ mod tests {
     }
 
     #[test]
+    fn context_command_rejects_unknown_formats() {
+        let error = parse_arguments(&["monad", "context", "--format=xml"])
+            .expect_err("xml should not be supported for context packs");
+
+        assert!(error.contains("unsupported repository context pack render format"));
+    }
+
+    #[test]
     fn unknown_command_returns_error() {
         let error =
             parse_arguments(&["monad", "unknown"]).expect_err("unknown command should fail");
@@ -417,6 +517,15 @@ mod tests {
             .expect_err("extra command argument should fail");
 
         assert_eq!(error, "unexpected extra command argument: extra");
+    }
+
+    #[test]
+    fn help_text_mentions_context_command_and_formats() {
+        let text = help_text();
+
+        assert!(text.contains("context"));
+        assert!(text.contains("markdown"));
+        assert!(text.contains("md"));
     }
 
     #[test]
