@@ -2,7 +2,7 @@
 title: "E1 Deliverable Records"
 document_type: "deliverable-index"
 status: "draft"
-version: "0.4.0"
+version: "0.5.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -33,4 +33,8 @@ This directory contains durable deliverable records for E1 — Runtime Foundatio
 | D-WP-E1-003-003 | WP-E1-003 | `.monad/context/work-packet-handoffs/WP-E1-003.md` | Complete |
 | D-WP-E1-004-001 | WP-E1-004 | `crates/monad-core/src/workspace.rs` | Complete |
 | D-WP-E1-004-002 | WP-E1-004 | `crates/monad-core/src/lib.rs` | Complete |
-| D-WP-E1-004-003 | WP-E1-004 | `.monad/context/work-packet-handoffs/WP-E1-004.md` | In Progress |
+| D-WP-E1-004-003 | WP-E1-004 | `.monad/context/work-packet-handoffs/WP-E1-004.md` | Complete |
+| D-WP-E1-005-001 | WP-E1-005 | `monad.toml` | Complete |
+| D-WP-E1-005-002 | WP-E1-005 | `crates/monad-core/src/manifest.rs` | Complete |
+| D-WP-E1-005-003 | WP-E1-005 | `crates/monad-core/src/lib.rs` | Complete |
+| D-WP-E1-005-004 | WP-E1-005 | `.monad/context/work-packet-handoffs/WP-E1-005.md` | In Progress |

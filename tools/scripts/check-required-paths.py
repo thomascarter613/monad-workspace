@@ -14,6 +14,7 @@ REQUIRED_PATHS = [
     ".editorconfig",
     "rust-toolchain.toml",
     "Cargo.toml",
+    "monad.toml",
     "crates/monad-cli/Cargo.toml",
     "crates/monad-cli/src/main.rs",
     "crates/monad-core/Cargo.toml",
@@ -21,6 +22,7 @@ REQUIRED_PATHS = [
     "crates/monad-core/src/diagnostics.rs",
     "crates/monad-core/src/error.rs",
     "crates/monad-core/src/workspace.rs",
+    "crates/monad-core/src/manifest.rs",
 
     # Documentation and work roots
     "docs/README.md",
@@ -46,6 +48,7 @@ REQUIRED_PATHS = [
     ".monad/context/work-packet-handoffs/WP-E1-002.md",
     ".monad/context/work-packet-handoffs/WP-E1-003.md",
     ".monad/context/work-packet-handoffs/WP-E1-004.md",
+    ".monad/context/work-packet-handoffs/WP-E1-005.md",
     ".monad/context/decision-records/README.md",
 
     # Workflow standards
@@ -104,6 +107,7 @@ REQUIRED_PATHS = [
     "work/packets/E1/WP-E1-002-establish-core-diagnostics-foundation.md",
     "work/packets/E1/WP-E1-003-establish-core-error-foundation.md",
     "work/packets/E1/WP-E1-004-establish-workspace-context-foundation.md",
+    "work/packets/E1/WP-E1-005-establish-manifest-model-foundation.md",
     "work/tasks/E1/README.md",
     "work/tasks/E1/T-WP-E1-001-001-create-rust-workspace-crates.md",
     "work/tasks/E1/T-WP-E1-001-002-add-minimal-core-runtime-identity.md",
@@ -118,6 +122,10 @@ REQUIRED_PATHS = [
     "work/tasks/E1/T-WP-E1-004-001-add-workspace-context-module.md",
     "work/tasks/E1/T-WP-E1-004-002-export-workspace-context-from-core-runtime.md",
     "work/tasks/E1/T-WP-E1-004-003-update-e1-records-and-context.md",
+    "work/tasks/E1/T-WP-E1-005-001-add-root-monad-manifest.md",
+    "work/tasks/E1/T-WP-E1-005-002-add-manifest-model-module.md",
+    "work/tasks/E1/T-WP-E1-005-003-export-manifest-model-from-core-runtime.md",
+    "work/tasks/E1/T-WP-E1-005-004-update-e1-records-and-context.md",
     "work/deliverables/E1/README.md",
     "work/deliverables/E1/D-WP-E1-001-001-rust-workspace-manifest.md",
     "work/deliverables/E1/D-WP-E1-001-002-core-runtime-library.md",
@@ -131,6 +139,10 @@ REQUIRED_PATHS = [
     "work/deliverables/E1/D-WP-E1-004-001-workspace-context-module.md",
     "work/deliverables/E1/D-WP-E1-004-002-workspace-context-exports.md",
     "work/deliverables/E1/D-WP-E1-004-003-workspace-context-handoff.md",
+    "work/deliverables/E1/D-WP-E1-005-001-root-monad-manifest.md",
+    "work/deliverables/E1/D-WP-E1-005-002-manifest-model-module.md",
+    "work/deliverables/E1/D-WP-E1-005-003-manifest-model-exports.md",
+    "work/deliverables/E1/D-WP-E1-005-004-manifest-model-handoff.md",
 ]
 
 

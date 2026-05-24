@@ -2,17 +2,17 @@
 title: "Decision Log"
 document_type: "context-decision-log"
 status: "current"
-version: "1.3.0"
+version: "1.4.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-004"
+work_packet: "WP-E1-005"
 tags:
 
 * decisions
 * e1
-* workspace-context
+* manifest-model
 
 ---
 
@@ -36,7 +36,8 @@ tags:
 14. WP-E1-001 established the Rust workspace foundation.
 15. WP-E1-002 established Core Diagnostics in `monad-core`.
 16. WP-E1-003 established Core Error in `monad-core`.
-17. WP-E1-004 establishes Workspace Context in `monad-core`.
+17. WP-E1-004 established Workspace Context in `monad-core`.
+18. WP-E1-005 establishes Manifest Model in `monad-core`.
 
 ## Current Epic
 
@@ -44,10 +45,11 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-004 — Establish Workspace Context Foundation
+WP-E1-005 — Establish Manifest Model Foundation
 
 ## Prior E1 Work Packets
 
 * WP-E1-001 — Establish Rust Workspace Runtime Foundation
 * WP-E1-002 — Establish Core Diagnostics Foundation
 * WP-E1-003 — Establish Core Error Foundation
+* WP-E1-004 — Establish Workspace Context Foundation

@@ -2,18 +2,18 @@
 title: "Latest Context Pack"
 document_type: "context-pack"
 status: "current"
-version: "1.3.0"
+version: "1.4.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-004"
+work_packet: "WP-E1-005"
 tags:
 
 * context-pack
 * e1
 * runtime-foundation
-* workspace-context
+* manifest-model
 
 ---
 
@@ -33,13 +33,15 @@ WP-E1-002 — Establish Core Diagnostics Foundation is complete.
 
 WP-E1-003 — Establish Core Error Foundation is complete.
 
+WP-E1-004 — Establish Workspace Context Foundation is complete.
+
 ## Current Epic
 
 E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-004 — Establish Workspace Context Foundation
+WP-E1-005 — Establish Manifest Model Foundation
 
 ## Runtime Foundation State
 
@@ -64,12 +66,21 @@ Core Error added:
 * stable error codes;
 * conversion to diagnostics.
 
-Workspace Context adds:
+Workspace Context added:
 
 * `WorkspaceContext`;
 * `discover_workspace_root`;
 * `is_workspace_root`;
 * canonical path helpers.
+
+Manifest Model adds:
+
+* root `monad.toml`;
+* `ManifestSchemaVersion`;
+* `ManifestProject`;
+* `ManifestWorkspace`;
+* `ManifestRuntime`;
+* `MonadManifest`.
 
 ## Verification
 

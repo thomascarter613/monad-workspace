@@ -2,17 +2,17 @@
 title: "Latest Handoff"
 document_type: "context-handoff"
 status: "current"
-version: "1.3.0"
+version: "1.4.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-004"
+work_packet: "WP-E1-005"
 tags:
 
 * handoff
 * e1
-* workspace-context
+* manifest-model
 
 ---
 
@@ -28,15 +28,17 @@ WP-E1-002 — Establish Core Diagnostics Foundation is complete.
 
 WP-E1-003 — Establish Core Error Foundation is complete.
 
+WP-E1-004 — Establish Workspace Context Foundation is complete.
+
 ## Current
 
 E1 — Runtime Foundation
 
-WP-E1-004 — Establish Workspace Context Foundation
+WP-E1-005 — Establish Manifest Model Foundation
 
-## Workspace Context
+## Manifest Model
 
-The current slice adds `WorkspaceContext` and workspace root discovery to `monad-core`.
+The current slice adds root `monad.toml` and an in-memory manifest model to `monad-core`.
 
 ## Verification
 

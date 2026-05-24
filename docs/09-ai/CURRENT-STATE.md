@@ -2,17 +2,17 @@
 title: "Current State"
 document_type: "ai-context"
 status: "current"
-version: "1.3.0"
+version: "1.4.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-004"
+work_packet: "WP-E1-005"
 tags:
   - current-state
   - handoff
   - e1
-  - workspace-context
+  - manifest-model
 ---
 
 # Current State
@@ -27,7 +27,7 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-004 — Establish Workspace Context Foundation
+WP-E1-005 — Establish Manifest Model Foundation
 
 ## Prior Work
 
@@ -39,20 +39,25 @@ WP-E1-002 — Establish Core Diagnostics Foundation is complete.
 
 WP-E1-003 — Establish Core Error Foundation is complete.
 
+WP-E1-004 — Establish Workspace Context Foundation is complete.
+
 ## Active Runtime Focus
 
-Workspace Context.
+Manifest Model.
 
 The current slice adds:
 
-- `WorkspaceContext`;
-- workspace root discovery;
-- canonical path helpers;
-- workspace context exports from `monad-core`.
+- root `monad.toml`;
+- `ManifestSchemaVersion`;
+- `ManifestProject`;
+- `ManifestWorkspace`;
+- `ManifestRuntime`;
+- `MonadManifest`;
+- manifest diagnostics and validation.
 
 ## Next Expected Slice
 
-After WP-E1-004, proceed to the next E1 runtime foundation slice, likely manifest model foundation.
+After WP-E1-005, proceed to manifest loading and TOML parsing.
 
 ## Verification
 

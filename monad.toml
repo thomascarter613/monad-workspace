@@ -1,0 +1,19 @@
+schema_version = 1
+
+[project]
+name = "monad"
+display_name = "Monad"
+description = "AI-native, repo-native, local-first Software Foundry OS for understanding, verifying, and safely evolving software repositories."
+
+[workspace]
+root_markers = [
+  "monad.toml",
+  "Cargo.toml",
+  ".monad",
+  "work",
+]
+
+[runtime]
+core_crate = "monad-core"
+cli_crate = "monad-cli"
+execution_model = "local-first"

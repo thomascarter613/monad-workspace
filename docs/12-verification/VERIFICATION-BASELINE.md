@@ -2,12 +2,12 @@
 title: "Verification Baseline"
 document_type: "verification-standard"
 status: "current"
-version: "1.4.0"
+version: "1.5.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-004"
+work_packet: "WP-E1-005"
 tags:
   - verification
   - quality
@@ -17,6 +17,7 @@ tags:
   - diagnostics
   - errors
   - workspace
+  - manifest
   - work-packets
   - tasks
   - deliverables
@@ -72,6 +73,7 @@ The Rust portion of the baseline verifies:
 * Core Diagnostics tests pass;
 * Core Error tests pass;
 * Workspace Context tests pass;
+* Manifest Model tests pass;
 * formatting is stable.
 
 ## 5. Expected Successful Result
@@ -98,9 +100,10 @@ Common causes include:
 
 * a required file was not created;
 * a file was created at the wrong path;
+* root `monad.toml` is missing;
 * a Markdown file is missing YAML frontmatter;
 * a work packet, task, deliverable, epic, or ADR record is missing required structure;
-* context files do not identify E1, WP-E1-004, Runtime Foundation, and Workspace Context;
+* context files do not identify E1, WP-E1-005, Runtime Foundation, and Manifest Model;
 * Rust code is not formatted;
 * Rust tests fail;
 * trailing whitespace or whitespace errors are present in the diff.

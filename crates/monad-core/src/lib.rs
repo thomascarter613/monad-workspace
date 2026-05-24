@@ -8,10 +8,15 @@
 
 pub mod diagnostics;
 pub mod error;
+pub mod manifest;
 pub mod workspace;
 
 pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
 pub use error::{MonadError, MonadResult};
+pub use manifest::{
+    CURRENT_MANIFEST_SCHEMA_VERSION, ManifestProject, ManifestRuntime, ManifestSchemaVersion,
+    ManifestWorkspace, MonadManifest,
+};
 pub use workspace::{WorkspaceContext, discover_workspace_root, is_workspace_root};
 
 /// Describes the currently compiled Monad runtime identity.
@@ -51,6 +56,21 @@ impl RuntimeIdentity {
     #[must_use]
     pub fn startup_diagnostic(self) -> Diagnostic {
         Diagnostic::info("MONAD0001", self.banner())
+    }
+
+    /// Builds the default manifest corresponding to this runtime identity.
+    #[must_use]
+    pub fn default_manifest(self) -> MonadManifest {
+        MonadManifest::new(
+            ManifestSchemaVersion::current(),
+            ManifestProject::new(
+                self.product_name.to_lowercase(),
+                self.product_name,
+                "AI-native, repo-native, local-first Software Foundry OS for understanding, verifying, and safely evolving software repositories.",
+            ),
+            ManifestWorkspace::default(),
+            ManifestRuntime::new("monad-core", "monad-cli", self.execution_model),
+        )
     }
 }
 
@@ -115,5 +135,19 @@ mod tests {
         let context = WorkspaceContext::new(".").expect("workspace context should be created");
 
         assert_eq!(context.root(), std::path::Path::new("."));
+    }
+
+    #[test]
+    fn runtime_identity_can_build_default_manifest() {
+        let manifest = runtime_identity().default_manifest();
+
+        assert_eq!(
+            manifest.schema_version.as_u16(),
+            CURRENT_MANIFEST_SCHEMA_VERSION
+        );
+        assert_eq!(manifest.project.name, "monad");
+        assert_eq!(manifest.runtime.core_crate, "monad-core");
+        assert_eq!(manifest.runtime.cli_crate, "monad-cli");
+        assert!(manifest.validate().is_ok());
     }
 }

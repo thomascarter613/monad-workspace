@@ -2,18 +2,18 @@
 title: "Fresh Chat Handoff"
 document_type: "ai-handoff"
 status: "current"
-version: "1.3.0"
+version: "1.4.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-004"
+work_packet: "WP-E1-005"
 tags:
 
 * handoff
 * e1
 * runtime-foundation
-* workspace-context
+* manifest-model
 
 ---
 
@@ -35,25 +35,27 @@ WP-E1-002 — Establish Core Diagnostics Foundation is complete.
 
 WP-E1-003 — Establish Core Error Foundation is complete.
 
+WP-E1-004 — Establish Workspace Context Foundation is complete.
+
 Current epic:
 
 E1 — Runtime Foundation
 
 Current work packet:
 
-WP-E1-004 — Establish Workspace Context Foundation
+WP-E1-005 — Establish Manifest Model Foundation
 
 ## Read First
 
 1. `docs/09-ai/CURRENT-STATE.md`
 2. `.monad/context/latest-context-pack.md`
 3. `.monad/context/latest-handoff.md`
-4. `.monad/context/work-packet-handoffs/WP-E1-004.md`
+4. `.monad/context/work-packet-handoffs/WP-E1-005.md`
 5. `work/epics/E1-runtime-foundation.md`
-6. `work/packets/E1/WP-E1-004-establish-workspace-context-foundation.md`
-7. `crates/monad-core/src/workspace.rs`
-8. `crates/monad-core/src/error.rs`
-9. `crates/monad-core/src/diagnostics.rs`
+6. `work/packets/E1/WP-E1-005-establish-manifest-model-foundation.md`
+7. `monad.toml`
+8. `crates/monad-core/src/manifest.rs`
+9. `crates/monad-core/src/workspace.rs`
 10. `crates/monad-core/src/lib.rs`
 
 ## Runtime Foundation Progress
@@ -64,7 +66,9 @@ WP-E1-002 added Core Diagnostics.
 
 WP-E1-003 added Core Error.
 
-WP-E1-004 adds Workspace Context.
+WP-E1-004 added Workspace Context.
+
+WP-E1-005 adds Manifest Model.
 
 ## Verification
 
