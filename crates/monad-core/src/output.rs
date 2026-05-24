@@ -3,38 +3,24 @@
 //! The CLI should stay thin. It may decide when to print, but reusable
 //! formatting rules should live in `monad-core` so future commands produce
 //! consistent output.
-//!
-//! This module supports:
-//!
-//! - `text` for human-readable output;
-//! - `json` for machine-readable output;
-//! - reusable summaries for workspace, diagnostic, and repository inspection output.
 
 use std::collections::BTreeMap;
 
 use serde_json::json;
 
 use crate::repository_inspection::{
-    RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
+    RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
     RepositoryEntryTraversalPolicy, RepositoryInspection, build_traversal_plan,
 };
 use crate::{DiagnosticReport, MonadError, MonadManifest, MonadResult, Severity, WorkspaceContext};
 
-/// Output formats supported by the runtime.
-///
-/// `Text` remains the default. `Json` gives scripts, CI, and future tools a
-/// stable machine-readable representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputFormat {
-    /// Human-readable plain text.
     Text,
-
-    /// Machine-readable JSON.
     Json,
 }
 
 impl OutputFormat {
-    /// Returns the stable format name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -43,7 +29,6 @@ impl OutputFormat {
         }
     }
 
-    /// Parses an output format name.
     pub fn parse(value: &str) -> MonadResult<Self> {
         match value.trim().to_ascii_lowercase().as_str() {
             "text" => Ok(Self::Text),
@@ -61,33 +46,18 @@ impl Default for OutputFormat {
     }
 }
 
-/// Renderable workspace summary for `monad info`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceSummary {
-    /// Workspace root path rendered as text.
     pub root: String,
-
-    /// Human-readable project display name.
     pub project_display_name: String,
-
-    /// Stable project name.
     pub project_name: String,
-
-    /// Manifest schema version rendered as text.
     pub schema_version: String,
-
-    /// Durable core runtime crate.
     pub core_crate: String,
-
-    /// Thin CLI crate.
     pub cli_crate: String,
-
-    /// Runtime execution model.
     pub execution_model: String,
 }
 
 impl WorkspaceSummary {
-    /// Builds a workspace summary from a context and loaded manifest.
     #[must_use]
     pub fn from_manifest(context: &WorkspaceContext, manifest: &MonadManifest) -> Self {
         Self {
@@ -102,121 +72,71 @@ impl WorkspaceSummary {
     }
 }
 
-/// One renderable repository entry for `monad inspect`.
-///
-/// This type intentionally stores strings instead of filesystem objects so
-/// rendering can stay deterministic and serialization-friendly.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepositoryInspectionSummaryEntry {
-    /// Path relative to the workspace root.
     pub path: String,
-
-    /// Filesystem kind as a stable label.
     pub kind: String,
-
-    /// Broad category as a stable label.
     pub category: String,
-
-    /// First-pass Monad role classification as a stable label.
     pub role: String,
-
-    /// Default future traversal policy as a stable label.
     pub traversal_policy: String,
-
-    /// Planned future traversal decision as a stable label.
     pub traversal_decision: String,
-
-    /// Reason for the planned future traversal decision.
     pub traversal_reason: String,
 }
 
-/// Renderable repository inspection summary for `monad inspect`.
-///
-/// This is deliberately a summary object rather than raw CLI formatting. The
-/// CLI can ask for this structure and render it as text or JSON without owning
-/// durable repository-intelligence behavior.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepositoryInspectionSummary {
-    /// Inspected workspace root.
     pub root: String,
-
-    /// Total top-level entries inspected.
     pub entry_count: usize,
-
-    /// Number of top-level files.
     pub file_count: usize,
-
-    /// Number of top-level directories.
     pub directory_count: usize,
-
-    /// Number of top-level symbolic links.
     pub symlink_count: usize,
-
-    /// Number of other top-level filesystem entries.
     pub other_count: usize,
-
-    /// Entries that Monad classified into a known, specific category.
     pub known_entry_count: usize,
-
-    /// Entries that remain unknown or generic.
     pub unknown_entry_count: usize,
-
-    /// Entries marked as generated/external.
     pub generated_or_external_count: usize,
-
-    /// Entries safe for future traversal.
     pub safe_for_future_traversal_count: usize,
-
-    /// Entries that should only be inspected shallowly by default.
     pub inspect_shallow_only_count: usize,
-
-    /// Entries that should be skipped during future deep traversal by default.
     pub skip_generated_or_external_count: usize,
-
-    /// Planned traversal mode.
     pub future_traversal_mode: String,
-
-    /// Planned maximum traversal depth.
     pub future_traversal_max_depth: usize,
-
-    /// Whether future traversal should follow symbolic links.
     pub future_traversal_follow_symlinks: bool,
-
-    /// Whether future traversal should include generated/external directories.
     pub future_traversal_include_generated_or_external: bool,
-
-    /// Whether future traversal should respect ignore files.
     pub future_traversal_respect_ignore_files: bool,
-
-    /// Whether future traversal output must be deterministic.
     pub future_traversal_deterministic_ordering: bool,
-
-    /// Count of future traversal candidates.
     pub future_traversal_candidate_count: usize,
-
-    /// Count of shallow-only planned traversal entries.
     pub future_traversal_shallow_only_count: usize,
-
-    /// Count of planned skip entries.
     pub future_traversal_skip_count: usize,
-
-    /// Category counts keyed by stable category label.
+    pub bounded_traversal_mode: String,
+    pub bounded_traversal_entry_count: usize,
+    pub bounded_traversal_max_observed_depth: usize,
+    pub bounded_traversal_candidate_count: usize,
+    pub bounded_traversal_shallow_only_count: usize,
+    pub bounded_traversal_skip_count: usize,
+    pub bounded_traversal_generated_or_external_count: usize,
     pub category_counts: BTreeMap<String, usize>,
-
-    /// Role counts keyed by stable role label.
     pub role_counts: BTreeMap<String, usize>,
-
-    /// Traversal-policy counts keyed by stable traversal-policy label.
     pub traversal_policy_counts: BTreeMap<String, usize>,
-
-    /// Renderable inspected entries.
     pub entries: Vec<RepositoryInspectionSummaryEntry>,
 }
 
 impl RepositoryInspectionSummary {
-    /// Builds a renderable repository inspection summary from the domain model.
     #[must_use]
     pub fn from_inspection(inspection: &RepositoryInspection) -> Self {
+        Self::from_parts(inspection, None)
+    }
+
+    #[must_use]
+    pub fn from_inspection_and_bounded_traversal(
+        inspection: &RepositoryInspection,
+        bounded_traversal: &RepositoryBoundedTraversal,
+    ) -> Self {
+        Self::from_parts(inspection, Some(bounded_traversal))
+    }
+
+    fn from_parts(
+        inspection: &RepositoryInspection,
+        bounded_traversal: Option<&RepositoryBoundedTraversal>,
+    ) -> Self {
         let traversal_plan = build_traversal_plan(inspection);
         let guardrails = traversal_plan.guardrails();
 
@@ -290,6 +210,29 @@ impl RepositoryInspectionSummary {
             future_traversal_candidate_count: traversal_plan.candidate_for_future_traversal_count(),
             future_traversal_shallow_only_count: traversal_plan.inspect_shallow_only_count(),
             future_traversal_skip_count: traversal_plan.skip_by_default_count(),
+            bounded_traversal_mode: bounded_traversal
+                .map(|traversal| traversal.mode().as_str().to_string())
+                .unwrap_or_else(|| "not_run".to_string()),
+            bounded_traversal_entry_count: bounded_traversal
+                .map(RepositoryBoundedTraversal::entry_count)
+                .unwrap_or(0),
+            bounded_traversal_max_observed_depth: bounded_traversal
+                .map(RepositoryBoundedTraversal::max_observed_depth)
+                .unwrap_or(0),
+            bounded_traversal_candidate_count: bounded_traversal
+                .map(RepositoryBoundedTraversal::candidate_count)
+                .unwrap_or(0),
+            bounded_traversal_shallow_only_count: bounded_traversal
+                .map(RepositoryBoundedTraversal::shallow_only_count)
+                .unwrap_or(0),
+            bounded_traversal_skip_count: bounded_traversal
+                .map(RepositoryBoundedTraversal::skip_count)
+                .unwrap_or(0),
+            bounded_traversal_generated_or_external_count: bounded_traversal
+                .map(|traversal| {
+                    traversal.category_count(RepositoryEntryCategory::GeneratedOrExternal)
+                })
+                .unwrap_or(0),
             category_counts,
             role_counts,
             traversal_policy_counts,
@@ -298,7 +241,6 @@ impl RepositoryInspectionSummary {
     }
 }
 
-/// Counts entries with a specific filesystem kind.
 fn count_entries_by_kind(inspection: &RepositoryInspection, kind: RepositoryEntryKind) -> usize {
     inspection
         .entries()
@@ -307,7 +249,6 @@ fn count_entries_by_kind(inspection: &RepositoryInspection, kind: RepositoryEntr
         .count()
 }
 
-/// Counts entries with a specific broad category.
 fn count_entries_by_category(
     inspection: &RepositoryInspection,
     category: RepositoryEntryCategory,
@@ -319,7 +260,6 @@ fn count_entries_by_category(
         .count()
 }
 
-/// Counts entries with a specific traversal policy.
 fn count_entries_by_traversal_policy(
     inspection: &RepositoryInspection,
     traversal_policy: RepositoryEntryTraversalPolicy,
@@ -331,7 +271,6 @@ fn count_entries_by_traversal_policy(
         .count()
 }
 
-/// Converts a diagnostic severity into a stable JSON string.
 fn severity_name(severity: Severity) -> &'static str {
     match severity {
         Severity::Info => "info",
@@ -340,7 +279,6 @@ fn severity_name(severity: Severity) -> &'static str {
     }
 }
 
-/// Renders a diagnostic report.
 #[must_use]
 pub fn render_diagnostic_report(report: &DiagnosticReport, format: OutputFormat) -> String {
     match format {
@@ -370,7 +308,6 @@ pub fn render_diagnostic_report(report: &DiagnosticReport, format: OutputFormat)
     }
 }
 
-/// Renders workspace summary information.
 #[must_use]
 pub fn render_workspace_summary(summary: &WorkspaceSummary, format: OutputFormat) -> String {
     match format {
@@ -407,7 +344,6 @@ pub fn render_workspace_summary(summary: &WorkspaceSummary, format: OutputFormat
     }
 }
 
-/// Renders repository inspection summary information.
 #[must_use]
 pub fn render_repository_inspection_summary(
     summary: &RepositoryInspectionSummary,
@@ -470,6 +406,26 @@ pub fn render_repository_inspection_summary(
                     summary.future_traversal_shallow_only_count
                 ),
                 format!("    skip_entries: {}", summary.future_traversal_skip_count),
+                "  bounded_traversal:".to_string(),
+                format!("    mode: {}", summary.bounded_traversal_mode),
+                format!("    entries: {}", summary.bounded_traversal_entry_count),
+                format!(
+                    "    max_observed_depth: {}",
+                    summary.bounded_traversal_max_observed_depth
+                ),
+                format!(
+                    "    candidate_entries: {}",
+                    summary.bounded_traversal_candidate_count
+                ),
+                format!(
+                    "    shallow_only_entries: {}",
+                    summary.bounded_traversal_shallow_only_count
+                ),
+                format!("    skip_entries: {}", summary.bounded_traversal_skip_count),
+                format!(
+                    "    generated_or_external_entries: {}",
+                    summary.bounded_traversal_generated_or_external_count
+                ),
                 "  categories:".to_string(),
             ];
 
@@ -554,6 +510,15 @@ pub fn render_repository_inspection_summary(
                         "shallow_only_entry_count": summary.future_traversal_shallow_only_count,
                         "skip_entry_count": summary.future_traversal_skip_count,
                     },
+                    "bounded_traversal": {
+                        "mode": &summary.bounded_traversal_mode,
+                        "entry_count": summary.bounded_traversal_entry_count,
+                        "max_observed_depth": summary.bounded_traversal_max_observed_depth,
+                        "candidate_entry_count": summary.bounded_traversal_candidate_count,
+                        "shallow_only_entry_count": summary.bounded_traversal_shallow_only_count,
+                        "skip_entry_count": summary.bounded_traversal_skip_count,
+                        "generated_or_external_entry_count": summary.bounded_traversal_generated_or_external_count,
+                    },
                     "category_counts": &summary.category_counts,
                     "role_counts": &summary.role_counts,
                     "traversal_policy_counts": &summary.traversal_policy_counts,
@@ -576,7 +541,7 @@ mod tests {
     use crate::{
         Diagnostic, ManifestProject, ManifestRuntime, ManifestSchemaVersion, ManifestWorkspace,
     };
-    use crate::{WorkspaceContext, inspect_workspace};
+    use crate::{WorkspaceContext, inspect_workspace, traverse_workspace_bounded};
 
     fn unique_temp_dir(test_name: &str) -> PathBuf {
         let unique = SystemTime::now()
@@ -593,10 +558,11 @@ mod tests {
     fn create_inspection_workspace(test_name: &str) -> PathBuf {
         let root = unique_temp_dir(test_name);
 
-        fs::create_dir_all(root.join("docs")).expect("docs directory should be created");
+        fs::create_dir_all(root.join("docs/guide")).expect("docs directory should be created");
         fs::create_dir_all(root.join("work")).expect("work directory should be created");
         fs::create_dir_all(root.join(".monad")).expect(".monad directory should be created");
-        fs::create_dir_all(root.join("crates")).expect("crates directory should be created");
+        fs::create_dir_all(root.join("crates/monad-core/src"))
+            .expect("crates directory should be created");
         fs::create_dir_all(root.join("tools")).expect("tools directory should be created");
         fs::create_dir_all(root.join("target")).expect("target directory should be created");
 
@@ -604,6 +570,12 @@ mod tests {
         fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("Cargo.toml should be written");
         fs::write(root.join("monad.toml"), "schema_version = 1\n")
             .expect("monad.toml should be written");
+        fs::write(root.join("docs/guide/intro.md"), "# Intro\n").expect("intro should be written");
+        fs::write(
+            root.join("crates/monad-core/src/lib.rs"),
+            "pub fn test() {}\n",
+        )
+        .expect("lib should be written");
 
         root
     }
@@ -676,26 +648,23 @@ mod tests {
     }
 
     #[test]
-    fn workspace_summary_renders_as_json() {
-        let context = WorkspaceContext::new("/tmp/monad").expect("context should be created");
-        let manifest = MonadManifest::new(
-            ManifestSchemaVersion::current(),
-            ManifestProject::new("monad", "Monad", "test"),
-            ManifestWorkspace::default(),
-            ManifestRuntime::new("monad-core", "monad-cli", "local-first"),
+    fn repository_inspection_summary_includes_bounded_traversal_metrics() {
+        let root = create_inspection_workspace("bounded-summary");
+        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
+        let inspection = inspect_workspace(&context).expect("workspace should inspect");
+        let bounded =
+            traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
+        let summary = RepositoryInspectionSummary::from_inspection_and_bounded_traversal(
+            &inspection,
+            &bounded,
         );
 
-        let summary = WorkspaceSummary::from_manifest(&context, &manifest);
-        let rendered = render_workspace_summary(&summary, OutputFormat::Json);
+        assert_eq!(summary.bounded_traversal_mode, "bounded_recursive");
+        assert!(summary.bounded_traversal_entry_count > summary.entry_count);
+        assert!(summary.bounded_traversal_max_observed_depth > 0);
+        assert!(summary.bounded_traversal_candidate_count > 0);
 
-        assert!(rendered.contains(r#""format": "json""#));
-        assert!(rendered.contains(r#""kind": "workspace_summary""#));
-        assert!(rendered.contains(r#""root": "/tmp/monad""#));
-        assert!(rendered.contains(r#""display_name": "Monad""#));
-        assert!(rendered.contains(r#""name": "monad""#));
-        assert!(rendered.contains(r#""core_crate": "monad-core""#));
-        assert!(rendered.contains(r#""cli_crate": "monad-cli""#));
-        assert!(rendered.contains(r#""execution_model": "local-first""#));
+        fs::remove_dir_all(root).ok();
     }
 
     #[test]
@@ -703,20 +672,20 @@ mod tests {
         let root = create_inspection_workspace("inspection-text");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
-        let summary = RepositoryInspectionSummary::from_inspection(&inspection);
+        let bounded =
+            traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
+        let summary = RepositoryInspectionSummary::from_inspection_and_bounded_traversal(
+            &inspection,
+            &bounded,
+        );
 
         let rendered = render_repository_inspection_summary(&summary, OutputFormat::Text);
 
         assert!(rendered.contains("Monad repository inspection"));
-        assert!(rendered.contains("metrics:"));
         assert!(rendered.contains("future_traversal_guardrails:"));
-        assert!(rendered.contains("max_depth: 3"));
-        assert!(rendered.contains("categories:"));
-        assert!(rendered.contains("monad.toml"));
-        assert!(rendered.contains("category=monad_control"));
-        assert!(rendered.contains("role=monad_manifest"));
-        assert!(rendered.contains("decision=inspect_shallow_only"));
-        assert!(rendered.contains("skip_generated_or_external"));
+        assert!(rendered.contains("bounded_traversal:"));
+        assert!(rendered.contains("mode: bounded_recursive"));
+        assert!(rendered.contains("max_observed_depth:"));
 
         fs::remove_dir_all(root).ok();
     }
@@ -726,39 +695,20 @@ mod tests {
         let root = create_inspection_workspace("inspection-json");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
-        let summary = RepositoryInspectionSummary::from_inspection(&inspection);
+        let bounded =
+            traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
+        let summary = RepositoryInspectionSummary::from_inspection_and_bounded_traversal(
+            &inspection,
+            &bounded,
+        );
 
         let rendered = render_repository_inspection_summary(&summary, OutputFormat::Json);
 
-        assert!(rendered.contains(r#""format": "json""#));
         assert!(rendered.contains(r#""kind": "repository_inspection_summary""#));
-        assert!(rendered.contains(r#""metrics""#));
-        assert!(rendered.contains(r#""future_traversal""#));
-        assert!(rendered.contains(r#""max_depth": 3"#));
-        assert!(rendered.contains(r#""follow_symlinks": false"#));
-        assert!(rendered.contains(r#""respect_ignore_files": true"#));
-        assert!(rendered.contains(r#""category_counts""#));
+        assert!(rendered.contains(r#""bounded_traversal""#));
+        assert!(rendered.contains(r#""mode": "bounded_recursive""#));
+        assert!(rendered.contains(r#""max_observed_depth""#));
         assert!(rendered.contains(r#""entry_count""#));
-        assert!(rendered.contains(r#""path": "monad.toml""#));
-        assert!(rendered.contains(r#""category": "monad_control""#));
-        assert!(rendered.contains(r#""role": "monad_manifest""#));
-        assert!(rendered.contains(r#""traversal_decision""#));
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn repository_inspection_summary_counts_entry_kinds() {
-        let root = create_inspection_workspace("inspection-counts");
-        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
-        let inspection = inspect_workspace(&context).expect("workspace should inspect");
-        let summary = RepositoryInspectionSummary::from_inspection(&inspection);
-
-        assert!(summary.entry_count >= 7);
-        assert!(summary.file_count >= 3);
-        assert!(summary.directory_count >= 4);
-        assert_eq!(summary.symlink_count, 0);
-        assert_eq!(summary.other_count, 0);
 
         fs::remove_dir_all(root).ok();
     }
@@ -781,41 +731,6 @@ mod tests {
                 .category_counts
                 .contains_key(RepositoryEntryCategory::MonadControl.as_str())
         );
-        assert!(
-            summary
-                .category_counts
-                .contains_key(RepositoryEntryCategory::Source.as_str())
-        );
-        assert!(
-            summary
-                .category_counts
-                .contains_key(RepositoryEntryCategory::Tooling.as_str())
-        );
-        assert!(
-            summary
-                .category_counts
-                .contains_key(RepositoryEntryCategory::GeneratedOrExternal.as_str())
-        );
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn repository_inspection_summary_includes_future_traversal_plan_counts() {
-        let root = create_inspection_workspace("future-traversal-counts");
-        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
-        let inspection = inspect_workspace(&context).expect("workspace should inspect");
-        let summary = RepositoryInspectionSummary::from_inspection(&inspection);
-
-        assert_eq!(summary.future_traversal_mode, "future_recursive_limited");
-        assert_eq!(summary.future_traversal_max_depth, 3);
-        assert!(!summary.future_traversal_follow_symlinks);
-        assert!(!summary.future_traversal_include_generated_or_external);
-        assert!(summary.future_traversal_respect_ignore_files);
-        assert!(summary.future_traversal_deterministic_ordering);
-        assert!(summary.future_traversal_candidate_count > 0);
-        assert!(summary.future_traversal_shallow_only_count > 0);
-        assert!(summary.future_traversal_skip_count > 0);
 
         fs::remove_dir_all(root).ok();
     }

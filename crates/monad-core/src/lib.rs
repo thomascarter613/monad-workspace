@@ -30,28 +30,22 @@ pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
 };
 pub use repository_inspection::{
-    RepositoryEntry, RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
-    RepositoryEntryTraversalPolicy, RepositoryInspection, RepositoryTraversalDecision,
-    RepositoryTraversalGuardrails, RepositoryTraversalMode, RepositoryTraversalPlan,
-    RepositoryTraversalPlanEntry, build_traversal_plan, inspect_workspace,
+    RepositoryBoundedTraversal, RepositoryEntry, RepositoryEntryCategory, RepositoryEntryKind,
+    RepositoryEntryRole, RepositoryEntryTraversalPolicy, RepositoryInspection,
+    RepositoryTraversalDecision, RepositoryTraversalEntry, RepositoryTraversalGuardrails,
+    RepositoryTraversalMode, RepositoryTraversalPlan, RepositoryTraversalPlanEntry,
+    build_traversal_plan, inspect_workspace, traverse_workspace_bounded,
 };
 pub use workspace::{WorkspaceContext, discover_workspace_root, is_workspace_root};
 
-/// Describes the currently compiled Monad runtime identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RuntimeIdentity {
-    /// The public product name.
     pub product_name: &'static str,
-
-    /// The crate responsible for durable runtime logic.
     pub runtime_crate: &'static str,
-
-    /// The operating model Monad is currently enforcing.
     pub execution_model: &'static str,
 }
 
 impl RuntimeIdentity {
-    /// Creates the canonical runtime identity for this early workspace slice.
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -61,7 +55,6 @@ impl RuntimeIdentity {
         }
     }
 
-    /// Builds a human-readable startup banner.
     #[must_use]
     pub fn banner(self) -> String {
         format!(
@@ -70,13 +63,11 @@ impl RuntimeIdentity {
         )
     }
 
-    /// Builds a structured startup diagnostic.
     #[must_use]
     pub fn startup_diagnostic(self) -> Diagnostic {
         Diagnostic::info("MONAD0001", self.banner())
     }
 
-    /// Builds the default manifest corresponding to this runtime identity.
     #[must_use]
     pub fn default_manifest(self) -> MonadManifest {
         MonadManifest::new(
@@ -98,23 +89,19 @@ impl Default for RuntimeIdentity {
     }
 }
 
-/// Returns Monad's canonical runtime identity.
 #[must_use]
 pub fn runtime_identity() -> RuntimeIdentity {
     RuntimeIdentity::new()
 }
 
-/// Returns Monad's runtime identity through the shared result type.
 pub fn checked_runtime_identity() -> MonadResult<RuntimeIdentity> {
     Ok(runtime_identity())
 }
 
-/// Loads `monad.toml` from a workspace context.
 pub fn load_manifest_from_workspace(context: &WorkspaceContext) -> MonadResult<MonadManifest> {
     MonadManifest::load_from_workspace(context)
 }
 
-/// Builds a renderable workspace summary from a context and loaded manifest.
 #[must_use]
 pub fn workspace_summary_from_manifest(
     context: &WorkspaceContext,
@@ -123,18 +110,18 @@ pub fn workspace_summary_from_manifest(
     WorkspaceSummary::from_manifest(context, manifest)
 }
 
-/// Inspects a workspace and builds the reusable renderable summary used by
-/// `monad inspect`.
-///
-/// The CLI remains thin because it does not classify entries or build output
-/// structures itself. It asks `monad-core` for the summary and then renders it
-/// through the shared output formatter.
 pub fn repository_inspection_summary_from_workspace(
     context: &WorkspaceContext,
 ) -> MonadResult<RepositoryInspectionSummary> {
     let inspection = inspect_workspace(context)?;
+    let bounded_traversal = traverse_workspace_bounded(&inspection)?;
 
-    Ok(RepositoryInspectionSummary::from_inspection(&inspection))
+    Ok(
+        RepositoryInspectionSummary::from_inspection_and_bounded_traversal(
+            &inspection,
+            &bounded_traversal,
+        ),
+    )
 }
 
 #[cfg(test)]
@@ -246,6 +233,10 @@ mod tests {
             "future_recursive_limited"
         );
         assert_eq!(
+            RepositoryTraversalMode::BoundedRecursive.as_str(),
+            "bounded_recursive"
+        );
+        assert_eq!(
             RepositoryTraversalDecision::SkipByDefault.as_str(),
             "skip_by_default"
         );
@@ -267,5 +258,6 @@ mod tests {
         assert_eq!(summary.known_entry_count, 0);
         assert_eq!(summary.unknown_entry_count, 0);
         assert_eq!(summary.future_traversal_mode, "future_recursive_limited");
+        assert_eq!(summary.bounded_traversal_mode, "not_run");
     }
 }
