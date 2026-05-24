@@ -2,17 +2,17 @@
 title: "Decision Log"
 document_type: "context-decision-log"
 status: "current"
-version: "1.7.0"
+version: "1.8.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-008"
+work_packet: "WP-E1-009"
 tags:
 
 * decisions
 * e1
-* cli-check
+* repository-contract
 
 ---
 
@@ -32,15 +32,8 @@ tags:
 10. Agent workflows are supervised and human-in-command.
 11. Bazel, Pants, Buck2, and Nx are not default Monad dependencies.
 12. E0 — Project Foundation is complete.
-13. E1 — Runtime Foundation began with WP-E1-001.
-14. WP-E1-001 established the Rust workspace foundation.
-15. WP-E1-002 established Core Diagnostics in `monad-core`.
-16. WP-E1-003 established Core Error in `monad-core`.
-17. WP-E1-004 established Workspace Context in `monad-core`.
-18. WP-E1-005 established Manifest Model in `monad-core`.
-19. WP-E1-006 established Manifest Loading in `monad-core`.
-20. WP-E1-007 established CLI Info in `monad-cli`.
-21. WP-E1-008 establishes CLI Check through `monad-core` diagnostics and `monad-cli`.
+13. WP-E1-001 through WP-E1-008 are complete.
+14. WP-E1-009 establishes Repository Contract checks in `monad-core`.
 
 ## Current Epic
 
@@ -48,4 +41,4 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-008 — Establish CLI Check Command Foundation
+WP-E1-009 — Establish Repository Contract Check Foundation

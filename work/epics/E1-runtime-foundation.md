@@ -2,7 +2,7 @@
 title: "E1 — Runtime Foundation"
 document_type: "epic"
 status: "in-progress"
-version: "0.9.0"
+version: "0.10.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -48,6 +48,7 @@ E1 includes:
 - manifest loading foundation;
 - CLI info command foundation;
 - CLI check command foundation;
+- repository contract check foundation;
 - additional runtime foundation slices as later E1 work packets.
 
 ## Out of Scope
@@ -73,11 +74,12 @@ E1 does not include:
 | WP-E1-005 | Establish manifest model foundation | Complete |
 | WP-E1-006 | Establish manifest loading foundation | Complete |
 | WP-E1-007 | Establish CLI info command foundation | Complete |
-| WP-E1-008 | Establish CLI check command foundation | In Progress |
+| WP-E1-008 | Establish CLI check command foundation | Complete |
+| WP-E1-009 | Establish repository contract check foundation | In Progress |
 
 ## Expected Result After Verification
 
-The repository has a working Rust workspace foundation, reusable diagnostics, a shared core error model, workspace context, manifest loading, `monad info`, and `monad check`.
+The repository has a working Rust workspace foundation, reusable diagnostics, a shared core error model, workspace context, manifest loading, `monad info`, `monad check`, and repository contract checks.
 
 ## Verification
 

@@ -10,6 +10,7 @@ pub mod checks;
 pub mod diagnostics;
 pub mod error;
 pub mod manifest;
+pub mod repo_contract;
 pub mod workspace;
 
 pub use checks::run_workspace_checks;
@@ -18,6 +19,9 @@ pub use error::{MonadError, MonadResult};
 pub use manifest::{
     CURRENT_MANIFEST_SCHEMA_VERSION, ManifestProject, ManifestRuntime, ManifestSchemaVersion,
     ManifestWorkspace, MonadManifest,
+};
+pub use repo_contract::{
+    RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
 };
 pub use workspace::{WorkspaceContext, discover_workspace_root, is_workspace_root};
 
@@ -164,5 +168,12 @@ mod tests {
         let report = run_workspace_checks(&context);
 
         assert!(!report.is_empty());
+    }
+
+    #[test]
+    fn repository_contract_is_exported_from_core_root() {
+        let contract = RepositoryContract::initial_monad();
+
+        assert!(!contract.required_paths().is_empty());
     }
 }

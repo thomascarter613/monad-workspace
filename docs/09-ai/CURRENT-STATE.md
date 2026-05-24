@@ -2,17 +2,17 @@
 title: "Current State"
 document_type: "ai-context"
 status: "current"
-version: "1.7.0"
+version: "1.8.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-008"
+work_packet: "WP-E1-009"
 tags:
   - current-state
   - handoff
   - e1
-  - cli-check
+  - repository-contract
 ---
 
 # Current State
@@ -27,41 +27,29 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-008 — Establish CLI Check Command Foundation
+WP-E1-009 — Establish Repository Contract Check Foundation
 
 ## Prior Work
 
 E0 — Project Foundation is complete.
 
-WP-E1-001 — Establish Rust Workspace Runtime Foundation is complete.
-
-WP-E1-002 — Establish Core Diagnostics Foundation is complete.
-
-WP-E1-003 — Establish Core Error Foundation is complete.
-
-WP-E1-004 — Establish Workspace Context Foundation is complete.
-
-WP-E1-005 — Establish Manifest Model Foundation is complete.
-
-WP-E1-006 — Establish Manifest Loading Foundation is complete.
-
-WP-E1-007 — Establish CLI Info Command Foundation is complete.
+WP-E1-001 through WP-E1-008 are complete.
 
 ## Active Runtime Focus
 
-CLI Check.
+Repository Contract.
 
 The current slice adds:
 
-- `monad-core` workspace checks;
-- `monad check`;
-- CLI diagnostic rendering;
-- CLI failure-state outcome handling;
-- CLI check smoke verification.
+- `RequiredPathKind`;
+- `RequiredPath`;
+- `RepositoryContract`;
+- `check_repository_contract`;
+- repository-contract diagnostics in `monad check`.
 
 ## Next Expected Slice
 
-After WP-E1-008, proceed to a repository contract check foundation.
+After WP-E1-009, proceed to runtime output formatting or repository contract hardening.
 
 ## Verification
 

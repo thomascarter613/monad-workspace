@@ -1,17 +1,14 @@
 //! Workspace check primitives for Monad.
 //!
-//! This module is the first runtime checking foundation. It composes earlier
-//! E1 primitives:
+//! This module composes E1 runtime primitives:
 //!
 //! - diagnostics;
 //! - core errors;
 //! - workspace context;
-//! - manifest loading.
-//!
-//! The CLI can call this module to produce structured findings without owning
-//! the actual checking logic.
+//! - manifest loading;
+//! - repository contract checks.
 
-use crate::{Diagnostic, DiagnosticReport, MonadManifest, WorkspaceContext};
+use crate::{Diagnostic, DiagnosticReport, MonadManifest, RepositoryContract, WorkspaceContext};
 
 /// Runs the initial workspace checks for a Monad workspace.
 ///
@@ -30,6 +27,7 @@ pub fn run_workspace_checks(context: &WorkspaceContext) -> DiagnosticReport {
     check_manifest_path(context, &mut report);
     check_cargo_manifest_path(context, &mut report);
     check_manifest_loading(context, &mut report);
+    check_repository_contract(context, &mut report);
 
     report
 }
@@ -104,6 +102,16 @@ fn check_manifest_loading(context: &WorkspaceContext, report: &mut DiagnosticRep
     }
 }
 
+/// Runs the initial repository contract check and appends its diagnostics.
+fn check_repository_contract(context: &WorkspaceContext, report: &mut DiagnosticReport) {
+    for diagnostic in RepositoryContract::initial_monad()
+        .check(context)
+        .diagnostics()
+    {
+        report.push(diagnostic.clone());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,9 +152,14 @@ execution_model = "local-first"
     fn create_test_workspace(test_name: &str) -> PathBuf {
         let root = unique_temp_dir(test_name);
 
-        fs::create_dir_all(root.join("crates")).expect("crates directory should be created");
-        fs::create_dir_all(root.join(".monad")).expect(".monad directory should be created");
+        fs::create_dir_all(root.join("docs")).expect("docs directory should be created");
         fs::create_dir_all(root.join("work")).expect("work directory should be created");
+        fs::create_dir_all(root.join(".monad")).expect(".monad directory should be created");
+        fs::create_dir_all(root.join("crates/monad-cli"))
+            .expect("monad-cli directory should be created");
+        fs::create_dir_all(root.join("crates/monad-core"))
+            .expect("monad-core directory should be created");
+
         fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("Cargo.toml should be written");
         fs::write(root.join("monad.toml"), VALID_MANIFEST_TOML)
             .expect("monad.toml should be written");
@@ -168,6 +181,7 @@ execution_model = "local-first"
         assert!(rendered.contains("MONAD4002"));
         assert!(rendered.contains("MONAD4003"));
         assert!(rendered.contains("MONAD4004"));
+        assert!(rendered.contains("MONAD4500"));
 
         fs::remove_dir_all(root).ok();
     }
@@ -176,7 +190,14 @@ execution_model = "local-first"
     fn workspace_checks_report_missing_manifest() {
         let root = unique_temp_dir("missing-manifest");
 
-        fs::create_dir_all(root.join("crates")).expect("crates directory should be created");
+        fs::create_dir_all(root.join("docs")).expect("docs directory should be created");
+        fs::create_dir_all(root.join("work")).expect("work directory should be created");
+        fs::create_dir_all(root.join(".monad")).expect(".monad directory should be created");
+        fs::create_dir_all(root.join("crates/monad-cli"))
+            .expect("monad-cli directory should be created");
+        fs::create_dir_all(root.join("crates/monad-core"))
+            .expect("monad-core directory should be created");
+
         fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("Cargo.toml should be written");
 
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
@@ -185,6 +206,7 @@ execution_model = "local-first"
 
         assert!(report.has_errors());
         assert!(rendered.contains("MONAD4401"));
+        assert!(rendered.contains("MONAD4501"));
 
         fs::remove_dir_all(root).ok();
     }

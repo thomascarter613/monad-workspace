@@ -2,18 +2,18 @@
 title: "Latest Context Pack"
 document_type: "context-pack"
 status: "current"
-version: "1.7.0"
+version: "1.8.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-008"
+work_packet: "WP-E1-009"
 tags:
 
 * context-pack
 * e1
 * runtime-foundation
-* cli-check
+* repository-contract
 
 ---
 
@@ -27,19 +27,7 @@ Monad is an AI-native, repo-native, local-first Software Foundry OS.
 
 E0 — Project Foundation is complete.
 
-WP-E1-001 — Establish Rust Workspace Runtime Foundation is complete.
-
-WP-E1-002 — Establish Core Diagnostics Foundation is complete.
-
-WP-E1-003 — Establish Core Error Foundation is complete.
-
-WP-E1-004 — Establish Workspace Context Foundation is complete.
-
-WP-E1-005 — Establish Manifest Model Foundation is complete.
-
-WP-E1-006 — Establish Manifest Loading Foundation is complete.
-
-WP-E1-007 — Establish CLI Info Command Foundation is complete.
+WP-E1-001 through WP-E1-008 are complete.
 
 ## Current Epic
 
@@ -47,30 +35,28 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-008 — Establish CLI Check Command Foundation
+WP-E1-009 — Establish Repository Contract Check Foundation
 
 ## Runtime Foundation State
 
-The Rust workspace contains:
+Monad currently has:
 
-```text
-crates/
-  monad-cli/
-  monad-core/
-```
+* Rust workspace foundation;
+* Core Diagnostics;
+* Core Error;
+* Workspace Context;
+* Manifest Model;
+* Manifest Loading;
+* CLI Info;
+* CLI Check.
 
-CLI Info added:
+Repository Contract adds:
 
-* early command parsing;
-* `monad help`;
-* `monad info`.
-
-CLI Check adds:
-
-* `monad-core::run_workspace_checks`;
-* `monad check`;
-* structured diagnostic rendering;
-* CLI failure outcomes when error diagnostics exist.
+* `RequiredPathKind`;
+* `RequiredPath`;
+* `RepositoryContract`;
+* `check_repository_contract`;
+* `MONAD4500`, `MONAD4501`, and `MONAD4502` diagnostics.
 
 ## Verification
 
@@ -79,7 +65,6 @@ Run:
 ```bash
 cargo fmt --check
 cargo test
-cargo run --quiet -p monad-cli -- info
 cargo run --quiet -p monad-cli -- check
 tools/scripts/verify.sh
 ```

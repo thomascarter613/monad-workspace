@@ -153,6 +153,15 @@ REQUIRED_PATHS = [
     "work/deliverables/E1/D-WP-E1-008-002-cli-check-command.md",
     "work/deliverables/E1/D-WP-E1-008-003-cli-check-verification.md",
     "work/deliverables/E1/D-WP-E1-008-004-cli-check-handoff.md",
+    "crates/monad-core/src/repo_contract.rs",
+    ".monad/context/work-packet-handoffs/WP-E1-009.md",
+    "work/packets/E1/WP-E1-009-establish-repository-contract-check-foundation.md",
+    "work/tasks/E1/T-WP-E1-009-001-add-repository-contract-module.md",
+    "work/tasks/E1/T-WP-E1-009-002-integrate-contract-checks-with-monad-check.md",
+    "work/tasks/E1/T-WP-E1-009-003-update-e1-records-and-context.md",
+    "work/deliverables/E1/D-WP-E1-009-001-repository-contract-module.md",
+    "work/deliverables/E1/D-WP-E1-009-002-checks-integration.md",
+    "work/deliverables/E1/D-WP-E1-009-003-repository-contract-handoff.md",
 ]
 
 

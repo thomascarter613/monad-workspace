@@ -235,9 +235,13 @@ execution_model = "local-first"
     fn create_test_workspace(test_name: &str) -> PathBuf {
         let root = unique_temp_dir(test_name);
 
-        fs::create_dir_all(root.join("crates")).expect("crates directory should be created");
-        fs::create_dir_all(root.join(".monad")).expect(".monad directory should be created");
+        fs::create_dir_all(root.join("docs")).expect("docs directory should be created");
         fs::create_dir_all(root.join("work")).expect("work directory should be created");
+        fs::create_dir_all(root.join(".monad")).expect(".monad directory should be created");
+        fs::create_dir_all(root.join("crates/monad-cli"))
+            .expect("monad-cli directory should be created");
+        fs::create_dir_all(root.join("crates/monad-core"))
+            .expect("monad-core directory should be created");
         fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("Cargo.toml should be written");
         fs::write(root.join("monad.toml"), VALID_MANIFEST_TOML)
             .expect("monad.toml should be written");
