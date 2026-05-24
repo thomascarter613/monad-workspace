@@ -143,6 +143,16 @@ REQUIRED_PATHS = [
     "work/deliverables/E1/D-WP-E1-005-002-manifest-model-module.md",
     "work/deliverables/E1/D-WP-E1-005-003-manifest-model-exports.md",
     "work/deliverables/E1/D-WP-E1-005-004-manifest-model-handoff.md",
+    "crates/monad-core/src/checks.rs",
+    ".monad/context/work-packet-handoffs/WP-E1-008.md",
+    "work/packets/E1/WP-E1-008-establish-cli-check-command-foundation.md",
+    "work/tasks/E1/T-WP-E1-008-001-add-core-workspace-checks.md",
+    "work/tasks/E1/T-WP-E1-008-002-add-cli-check-command.md",
+    "work/tasks/E1/T-WP-E1-008-003-update-e1-records-and-context.md",
+    "work/deliverables/E1/D-WP-E1-008-001-core-workspace-checks.md",
+    "work/deliverables/E1/D-WP-E1-008-002-cli-check-command.md",
+    "work/deliverables/E1/D-WP-E1-008-003-cli-check-verification.md",
+    "work/deliverables/E1/D-WP-E1-008-004-cli-check-handoff.md",
 ]
 
 

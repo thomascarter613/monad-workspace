@@ -44,6 +44,9 @@ cargo test
 log "Running CLI info smoke test"
 cargo run --quiet -p monad-cli -- info
 
+log "Running CLI check smoke test"
+cargo run --quiet -p monad-cli -- check
+
 log "Reporting working tree status"
 git status --short
 

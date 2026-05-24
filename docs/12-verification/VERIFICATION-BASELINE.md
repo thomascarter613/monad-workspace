@@ -2,12 +2,12 @@
 title: "Verification Baseline"
 document_type: "verification-standard"
 status: "current"
-version: "1.7.0"
+version: "1.8.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-007"
+work_packet: "WP-E1-008"
 tags:
   - verification
   - quality
@@ -15,7 +15,8 @@ tags:
   - workflow
   - rust
   - cli
-  - info
+  - checks
+  - diagnostics
   - work-packets
   - tasks
   - deliverables
@@ -60,7 +61,8 @@ The baseline currently verifies:
 10. Rust formatting with `cargo fmt --check`.
 11. Rust tests with `cargo test`.
 12. CLI info smoke test with `cargo run --quiet -p monad-cli -- info`.
-13. Current working tree status.
+13. CLI check smoke test with `cargo run --quiet -p monad-cli -- check`.
+14. Current working tree status.
 
 ## 4. Rust Runtime Checks
 
@@ -75,6 +77,7 @@ The Rust portion of the baseline verifies:
 * Manifest Model tests pass;
 * Manifest Loading tests pass;
 * CLI Info tests pass;
+* CLI Check tests pass;
 * formatting is stable.
 
 ## 5. Expected Successful Result
@@ -91,6 +94,7 @@ All epic records satisfy the required baseline structure.
 All ADR records satisfy the required baseline structure.
 All context records satisfy the E1 runtime handoff baseline.
 Monad workspace
+[INFO] MONAD4000
 Verification baseline passed.
 ```
 
@@ -105,10 +109,10 @@ Common causes include:
 * root `monad.toml` is missing;
 * manifest loading tests fail;
 * `monad info` cannot discover the workspace;
-* `monad info` cannot load `monad.toml`;
+* `monad check` reports error diagnostics;
 * a Markdown file is missing YAML frontmatter;
 * a work packet, task, deliverable, epic, or ADR record is missing required structure;
-* context files do not identify E1, WP-E1-007, Runtime Foundation, and CLI Info;
+* context files do not identify E1, WP-E1-008, Runtime Foundation, and CLI Check;
 * Rust code is not formatted;
 * Rust tests fail;
 * trailing whitespace or whitespace errors are present in the diff.

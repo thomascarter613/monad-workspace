@@ -2,17 +2,17 @@
 title: "Current State"
 document_type: "ai-context"
 status: "current"
-version: "1.4.0"
+version: "1.7.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-005"
+work_packet: "WP-E1-008"
 tags:
   - current-state
   - handoff
   - e1
-  - manifest-model
+  - cli-check
 ---
 
 # Current State
@@ -27,7 +27,7 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-005 — Establish Manifest Model Foundation
+WP-E1-008 — Establish CLI Check Command Foundation
 
 ## Prior Work
 
@@ -41,23 +41,27 @@ WP-E1-003 — Establish Core Error Foundation is complete.
 
 WP-E1-004 — Establish Workspace Context Foundation is complete.
 
+WP-E1-005 — Establish Manifest Model Foundation is complete.
+
+WP-E1-006 — Establish Manifest Loading Foundation is complete.
+
+WP-E1-007 — Establish CLI Info Command Foundation is complete.
+
 ## Active Runtime Focus
 
-Manifest Model.
+CLI Check.
 
 The current slice adds:
 
-- root `monad.toml`;
-- `ManifestSchemaVersion`;
-- `ManifestProject`;
-- `ManifestWorkspace`;
-- `ManifestRuntime`;
-- `MonadManifest`;
-- manifest diagnostics and validation.
+- `monad-core` workspace checks;
+- `monad check`;
+- CLI diagnostic rendering;
+- CLI failure-state outcome handling;
+- CLI check smoke verification.
 
 ## Next Expected Slice
 
-After WP-E1-005, proceed to manifest loading and TOML parsing.
+After WP-E1-008, proceed to a repository contract check foundation.
 
 ## Verification
 

@@ -2,17 +2,17 @@
 title: "Latest Handoff"
 document_type: "context-handoff"
 status: "current"
-version: "1.6.0"
+version: "1.7.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-007"
+work_packet: "WP-E1-008"
 tags:
 
 * handoff
 * e1
-* cli-info
+* cli-check
 
 ---
 
@@ -34,15 +34,17 @@ WP-E1-005 — Establish Manifest Model Foundation is complete.
 
 WP-E1-006 — Establish Manifest Loading Foundation is complete.
 
+WP-E1-007 — Establish CLI Info Command Foundation is complete.
+
 ## Current
 
 E1 — Runtime Foundation
 
-WP-E1-007 — Establish CLI Info Command Foundation
+WP-E1-008 — Establish CLI Check Command Foundation
 
-## CLI Info
+## CLI Check
 
-The current slice adds the first useful CLI command: `monad info`.
+The current slice adds the first diagnostics-producing CLI command: `monad check`.
 
 ## Verification
 

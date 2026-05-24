@@ -2,18 +2,18 @@
 title: "Fresh Chat Handoff"
 document_type: "ai-handoff"
 status: "current"
-version: "1.6.0"
+version: "1.7.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-007"
+work_packet: "WP-E1-008"
 tags:
 
 * handoff
 * e1
 * runtime-foundation
-* cli-info
+* cli-check
 
 ---
 
@@ -41,24 +41,26 @@ WP-E1-005 — Establish Manifest Model Foundation is complete.
 
 WP-E1-006 — Establish Manifest Loading Foundation is complete.
 
+WP-E1-007 — Establish CLI Info Command Foundation is complete.
+
 Current epic:
 
 E1 — Runtime Foundation
 
 Current work packet:
 
-WP-E1-007 — Establish CLI Info Command Foundation
+WP-E1-008 — Establish CLI Check Command Foundation
 
 ## Read First
 
 1. `docs/09-ai/CURRENT-STATE.md`
 2. `.monad/context/latest-context-pack.md`
 3. `.monad/context/latest-handoff.md`
-4. `.monad/context/work-packet-handoffs/WP-E1-007.md`
+4. `.monad/context/work-packet-handoffs/WP-E1-008.md`
 5. `work/epics/E1-runtime-foundation.md`
-6. `work/packets/E1/WP-E1-007-establish-cli-info-command-foundation.md`
-7. `crates/monad-cli/src/main.rs`
-8. `monad.toml`
+6. `work/packets/E1/WP-E1-008-establish-cli-check-command-foundation.md`
+7. `crates/monad-core/src/checks.rs`
+8. `crates/monad-cli/src/main.rs`
 9. `crates/monad-core/src/manifest.rs`
 10. `crates/monad-core/src/workspace.rs`
 
@@ -76,7 +78,9 @@ WP-E1-005 added Manifest Model.
 
 WP-E1-006 added Manifest Loading.
 
-WP-E1-007 adds CLI Info.
+WP-E1-007 added CLI Info.
+
+WP-E1-008 adds CLI Check.
 
 ## Verification
 

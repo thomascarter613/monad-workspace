@@ -6,11 +6,13 @@
 //! Monad's architecture keeps durable product logic here, while the CLI crate
 //! stays thin and delegates to this library.
 
+pub mod checks;
 pub mod diagnostics;
 pub mod error;
 pub mod manifest;
 pub mod workspace;
 
+pub use checks::run_workspace_checks;
 pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
 pub use error::{MonadError, MonadResult};
 pub use manifest::{
@@ -92,9 +94,6 @@ pub fn checked_runtime_identity() -> MonadResult<RuntimeIdentity> {
 }
 
 /// Loads `monad.toml` from a workspace context.
-///
-/// This is a small convenience wrapper that keeps callers from needing to know
-/// which module owns manifest loading.
 pub fn load_manifest_from_workspace(context: &WorkspaceContext) -> MonadResult<MonadManifest> {
     MonadManifest::load_from_workspace(context)
 }
@@ -157,5 +156,13 @@ mod tests {
         assert_eq!(manifest.runtime.core_crate, "monad-core");
         assert_eq!(manifest.runtime.cli_crate, "monad-cli");
         assert!(manifest.validate().is_ok());
+    }
+
+    #[test]
+    fn workspace_checks_are_exported_from_core_root() {
+        let context = WorkspaceContext::new(".").expect("workspace context should be created");
+        let report = run_workspace_checks(&context);
+
+        assert!(!report.is_empty());
     }
 }
