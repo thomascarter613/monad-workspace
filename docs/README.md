@@ -1,6 +1,6 @@
 ---
 title: "Monad Documentation"
-status: draft
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
@@ -8,10 +8,12 @@ version: 0.1.0
 tags:
   - monad
   - documentation
+  - index
 related:
   - docs/00-meta/DOCUMENTATION-MAP.md
   - docs/00-meta/DOCUMENTATION-STANDARD.md
   - docs/09-ai/BOOTSTRAP-PROMPT.md
+  - docs/09-ai/FRESH-CHAT-HANDOFF.md
 ---
 
 # Monad Documentation
@@ -20,9 +22,11 @@ related:
 
 This directory contains Monad’s canonical project documentation.
 
-Monad is a repo-native project. Durable product, architecture, workflow, requirements, context, implementation, security, and verification knowledge belongs in the repository.
+Monad is a repo-native project. Durable product, architecture, workflow, requirements, context, implementation, security, verification, and operational knowledge belongs in the repository.
 
-## Documentation Areas
+## Documentation Architecture
+
+Monad documentation is organized into numbered areas so humans and AI assistants can read the project in a stable order.
 
 ```text
 00-meta/          Documentation standards and metadata rules
@@ -44,9 +48,9 @@ Monad is a repo-native project. Durable product, architecture, workflow, require
 16-reference/     Command catalog, configuration reference, terminology, FAQ
 ```
 
-## Start Here
+## Recommended Reading Order
 
-Recommended reading order for new sessions:
+For a new session, read:
 
 ```text
 docs/09-ai/BOOTSTRAP-PROMPT.md
@@ -55,9 +59,21 @@ docs/01-project/01-charter/PRODUCT-CHARTER.md
 docs/01-project/00-vision/PRODUCT-VISION.md
 docs/02-product/MVP-SCOPE.md
 docs/05-architecture/SYSTEM-OVERVIEW.md
+docs/05-architecture/ARCHITECTURE-PRINCIPLES.md
+docs/05-architecture/MODULE-BOUNDARIES.md
 docs/06-adrs/README.md
 docs/07-workflow/OPERATING-MODEL.md
+docs/07-workflow/WORK-PACKET-STANDARD.md
+docs/08-context/CONTEXT-BRIDGE.md
 ```
+
+## Canonical Rules
+
+* Every Markdown document in `docs/` should have YAML frontmatter.
+* Durable decisions should be promoted into accepted docs or ADRs.
+* Generated context must be distinguishable from accepted doctrine.
+* Documentation should guide implementation, not prevent it.
+* When implementation changes behavior, related docs should be updated.
 
 ## Documentation Rule
 

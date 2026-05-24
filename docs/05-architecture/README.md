@@ -1,35 +1,61 @@
 ---
 title: "Architecture"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 05-architecture
-related: []
+
+* monad
+* architecture
+  related:
+* docs/05-architecture/SYSTEM-OVERVIEW.md
+* docs/05-architecture/ARCHITECTURE-PRINCIPLES.md
+* docs/05-architecture/MODULE-BOUNDARIES.md
+* docs/06-adrs/README.md
 ---
 
 # Architecture
 
 ## Purpose
 
-This document is the canonical Monad location for the **Architecture** topic within the **Architecture** documentation area.
+This directory defines Monad’s architecture.
 
-## Status
+It explains system boundaries, runtime shape, module responsibilities, safety strategies, and major architectural models.
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+## Belongs Here
 
-## Expected Contents
+* System overview.
+* Architecture principles.
+* Module boundaries.
+* Runtime architecture.
+* Data flow.
+* Control flow.
+* Workspace model.
+* Project graph model.
+* Context bridge architecture.
+* Verification architecture.
+* Evolution engine architecture.
+* Agent supervision architecture.
+* Worktree safety strategy.
+* MCP integration strategy.
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+## Does Not Belong Here
 
-## Notes
+* ADR index details.
+* Product personas.
+* Work packet issue bodies.
+* Generated context packs.
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+## Start Here
+
+```text
+SYSTEM-OVERVIEW.md
+ARCHITECTURE-PRINCIPLES.md
+MODULE-BOUNDARIES.md
+```
+
+## Decision Rule
+
+Consequential architecture decisions should be recorded in `docs/06-adrs/`.

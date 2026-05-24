@@ -1,35 +1,57 @@
 ---
 title: "Workflow"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 07-workflow
-related: []
+
+* monad
+* workflow
+  related:
+* docs/07-workflow/OPERATING-MODEL.md
+* docs/07-workflow/WORK-HIERARCHY.md
+* docs/07-workflow/WORK-PACKET-STANDARD.md
+
 ---
 
 # Workflow
 
 ## Purpose
 
-This document is the canonical Monad location for the **Workflow** topic within the **Workflow** documentation area.
+This directory defines how Monad work is planned, executed, verified, reviewed, committed, and handed off.
 
-## Status
+## Belongs Here
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+* Operating model.
+* Work hierarchy.
+* Epic standard.
+* Work packet standard.
+* Task standard.
+* Deliverable standard.
+* Definition of Ready.
+* Definition of Done.
+* Verification standard.
+* Commit standard.
+* Branching standard.
+* Review standard.
+* Release standard.
+* Context update standard.
 
-## Expected Contents
+## Does Not Belong Here
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+* Product vision.
+* Domain model.
+* Implementation code.
+* Generated reports.
 
-## Notes
+## Start Here
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+```text
+OPERATING-MODEL.md
+WORK-HIERARCHY.md
+WORK-PACKET-STANDARD.md
+DEFINITION-OF-READY.md
+DEFINITION-OF-DONE.md
+```

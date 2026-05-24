@@ -1,35 +1,51 @@
 ---
 title: "Verification"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 12-verification
-related: []
+
+* monad
+* verification
+* evidence
+  related:
+* docs/12-verification/VERIFICATION-MODEL.md
+* docs/12-verification/CHECK-REGISTRY-STANDARD.md
+* docs/12-verification/EVIDENCE-PACKET-STANDARD.md
+
 ---
 
 # Verification
 
 ## Purpose
 
-This document is the canonical Monad location for the **Verification** topic within the **Verification** documentation area.
+This directory defines Monad’s verification model.
 
-## Status
+Monad should earn trust through evidence, not vibes.
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+## Belongs Here
 
-## Expected Contents
+* Verification model.
+* Check registry standard.
+* Evidence packet standard.
+* Reporting standard.
+* Exit-code standard.
+* Test matrix.
+* Quality gates.
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+## Does Not Belong Here
 
-## Notes
+* Raw generated reports.
+* Product roadmap.
+* Implementation-only code notes.
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+## Start Here
+
+```text
+VERIFICATION-MODEL.md
+CHECK-REGISTRY-STANDARD.md
+EVIDENCE-PACKET-STANDARD.md
+EXIT-CODE-STANDARD.md
+```

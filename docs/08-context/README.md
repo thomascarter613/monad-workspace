@@ -1,35 +1,53 @@
 ---
 title: "Context Bridge"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 08-context
-related: []
+
+* monad
+* context
+* handoff
+  related:
+* docs/08-context/CONTEXT-BRIDGE.md
+* docs/08-context/HANDOFF-STANDARD.md
+* docs/08-context/CONTEXT-PACK-STANDARD.md
+* docs/09-ai/BOOTSTRAP-PROMPT.md
+
 ---
 
 # Context Bridge
 
 ## Purpose
 
-This document is the canonical Monad location for the **Context Bridge** topic within the **Context Bridge** documentation area.
+This directory defines Monad’s Context Bridge standards.
 
-## Status
+The Context Bridge preserves current state, handoffs, context packs, session chronicles, and AI-readable continuity in repository artifacts.
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+## Belongs Here
 
-## Expected Contents
+* Context bridge concept.
+* Context artifact schemas.
+* Current-state standard.
+* Handoff standard.
+* Session chronicle standard.
+* Context pack standard.
+* Rehydration standard.
+* Decision log standard.
+* Generated context standard.
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+## Does Not Belong Here
 
-## Notes
+* Generated context files themselves unless intentionally canonical.
+* AI prompting rules that belong in `docs/09-ai/`.
+* General product strategy.
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+## Start Here
+
+```text
+CONTEXT-BRIDGE.md
+HANDOFF-STANDARD.md
+CONTEXT-PACK-STANDARD.md
+```

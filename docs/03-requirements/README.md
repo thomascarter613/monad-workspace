@@ -1,35 +1,53 @@
 ---
 title: "Requirements"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 03-requirements
-related: []
+
+* monad
+* requirements
+  related:
+* docs/03-requirements/MVP-REQUIREMENTS.md
+* docs/03-requirements/FUNCTIONAL-REQUIREMENTS.md
+* docs/03-requirements/NONFUNCTIONAL-REQUIREMENTS.md
+
 ---
 
 # Requirements
 
 ## Purpose
 
-This document is the canonical Monad location for the **Requirements** topic within the **Requirements** documentation area.
+This directory defines what Monad must do and what qualities it must preserve.
 
-## Status
+## Belongs Here
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+* Functional requirements.
+* Nonfunctional requirements.
+* System qualities.
+* Acceptance criteria standards.
+* Traceability matrix.
+* MVP requirements.
+* Future requirements.
 
-## Expected Contents
+## Does Not Belong Here
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+* General product vision.
+* Implementation code.
+* GitHub issue bodies.
+* Generated verification evidence.
 
-## Notes
+## Start Here
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+```text
+MVP-REQUIREMENTS.md
+FUNCTIONAL-REQUIREMENTS.md
+NONFUNCTIONAL-REQUIREMENTS.md
+SYSTEM-QUALITIES.md
+```
+
+## Maintenance Rule
+
+Update requirements when MVP scope changes, when a requirement is implemented, or when verification proves a requirement should be revised.

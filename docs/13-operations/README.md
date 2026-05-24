@@ -1,35 +1,49 @@
 ---
 title: "Operations"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 13-operations
-related: []
+
+* monad
+* operations
+  related:
+* docs/13-operations/LOCAL-DEVELOPMENT.md
+* docs/13-operations/TOOLCHAIN-SETUP.md
+
 ---
 
 # Operations
 
 ## Purpose
 
-This document is the canonical Monad location for the **Operations** topic within the **Operations** documentation area.
+This directory defines how Monad is set up, maintained, released, and supported.
 
-## Status
+## Belongs Here
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+* Local development.
+* Repository setup.
+* Toolchain setup.
+* Release process.
+* Versioning policy.
+* Support model.
+* Maintenance model.
+* Backup and exports.
 
-## Expected Contents
+## Does Not Belong Here
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+* Product vision.
+* Architecture decisions.
+* Generated evidence packets.
 
-## Notes
+## Start Here
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+```text
+LOCAL-DEVELOPMENT.md
+TOOLCHAIN-SETUP.md
+REPOSITORY-SETUP.md
+RELEASE-PROCESS.md
+VERSIONING-POLICY.md
+```

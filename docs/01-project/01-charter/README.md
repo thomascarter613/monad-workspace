@@ -1,35 +1,37 @@
 ---
-title: "01 Charter"
-status: stub
+title: "Project Charter"
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 01-project
-related: []
+
+* monad
+* project
+* charter
+  related:
+* docs/01-project/01-charter/PRODUCT-CHARTER.md
+
 ---
 
-# 01 Charter
+# Project Charter
 
 ## Purpose
 
-This document is the canonical Monad location for the **01 Charter** topic within the **Project Foundation** documentation area.
+This directory contains Monad’s charter documents.
 
-## Status
+## Belongs Here
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+* Product charter.
+* Project charter.
+* Mission.
+* Scope boundaries.
+* Foundational operating commitments.
 
-## Expected Contents
+## Start Here
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
-
-## Notes
-
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+```text
+PRODUCT-CHARTER.md
+PROJECT-CHARTER.md
+```

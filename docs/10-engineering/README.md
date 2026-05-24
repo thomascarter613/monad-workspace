@@ -1,35 +1,54 @@
 ---
 title: "Engineering"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 10-engineering
-related: []
+
+* monad
+* engineering
+  related:
+* docs/10-engineering/RUST-CODING-STANDARD.md
+* docs/10-engineering/RUST-LEARNING-NOTES.md
+* docs/10-engineering/RUST-VERIFICATION.md
+
 ---
 
 # Engineering
 
 ## Purpose
 
-This document is the canonical Monad location for the **Engineering** topic within the **Engineering** documentation area.
+This directory defines Monad engineering standards.
 
-## Status
+## Belongs Here
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+* Coding standard.
+* Rust coding standard.
+* Rust learning notes.
+* Rust verification.
+* Error handling standard.
+* Diagnostic standard.
+* Testing standard.
+* Fixture standard.
+* Output format standard.
+* CLI UX standard.
+* Dependency standard.
 
-## Expected Contents
+## Does Not Belong Here
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+* Product strategy.
+* Business strategy.
+* GitHub project board configuration.
+* Generated reports.
 
-## Notes
+## Start Here
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+```text
+RUST-CODING-STANDARD.md
+RUST-LEARNING-NOTES.md
+RUST-VERIFICATION.md
+CODING-STANDARD.md
+TESTING-STANDARD.md
+```

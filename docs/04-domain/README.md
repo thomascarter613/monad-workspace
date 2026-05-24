@@ -1,35 +1,50 @@
 ---
 title: "Domain"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 04-domain
-related: []
+
+* monad
+* domain
+* ddd
+  related:
+* docs/04-domain/DOMAIN-MODEL.md
+* docs/04-domain/BOUNDED-CONTEXTS.md
+* docs/16-reference/TERMINOLOGY.md
+
 ---
 
 # Domain
 
 ## Purpose
 
-This document is the canonical Monad location for the **Domain** topic within the **Domain** documentation area.
+This directory defines Monad’s domain model and language.
 
-## Status
+Monad’s domain is repository understanding, verification, context preservation, safe evolution, and supervised AI-assisted software development.
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+## Belongs Here
 
-## Expected Contents
+* Domain model.
+* Bounded contexts.
+* Ubiquitous language.
+* Domain events.
+* Domain invariants.
+* Conceptual model.
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+## Does Not Belong Here
 
-## Notes
+* Product marketing language.
+* Implementation-only module details.
+* Active GitHub planning records.
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+## Start Here
+
+```text
+DOMAIN-MODEL.md
+BOUNDED-CONTEXTS.md
+UBIQUITOUS-LANGUAGE.md
+DOMAIN-INVARIANTS.md
+```

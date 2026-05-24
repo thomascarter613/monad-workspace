@@ -1,35 +1,58 @@
 ---
 title: "Product"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 02-product
-related: []
+
+* monad
+* product
+  related:
+* docs/02-product/PROBLEM-STATEMENT.md
+* docs/02-product/TARGET-USERS.md
+* docs/02-product/VALUE-PROPOSITION.md
+* docs/02-product/MVP-SCOPE.md
+* docs/02-product/NON-GOALS.md
+
 ---
 
 # Product
 
 ## Purpose
 
-This document is the canonical Monad location for the **Product** topic within the **Product** documentation area.
+This directory defines Monad as a product.
 
-## Status
+It explains the problem, users, value proposition, scope, positioning, and success criteria.
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+## Belongs Here
 
-## Expected Contents
+* Problem statement.
+* Target users.
+* Personas.
+* Value proposition.
+* Positioning.
+* Use cases.
+* User journeys.
+* MVP scope.
+* Non-goals.
+* Success metrics.
+* Competitive landscape.
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+## Does Not Belong Here
 
-## Notes
+* Low-level architecture.
+* Rust implementation details.
+* Active work packet status.
+* Generated reports.
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+## Start Here
+
+```text
+PROBLEM-STATEMENT.md
+TARGET-USERS.md
+VALUE-PROPOSITION.md
+MVP-SCOPE.md
+NON-GOALS.md
+```

@@ -1,35 +1,55 @@
 ---
 title: "Security"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 11-security
-related: []
+
+* monad
+* security
+* safety
+  related:
+* docs/11-security/COMMAND-EXECUTION-SAFETY.md
+* docs/11-security/FILE-OPERATION-SAFETY.md
+* docs/09-ai/AI-COLLABORATION-RULES.md
+
 ---
 
 # Security
 
 ## Purpose
 
-This document is the canonical Monad location for the **Security** topic within the **Security** documentation area.
+This directory defines Monad’s security and safety standards.
 
-## Status
+Monad works near files, commands, generated context, and future AI-assisted actions. These areas require conservative safety rules.
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+## Belongs Here
 
-## Expected Contents
+* Security model.
+* Threat model.
+* Secret handling.
+* Sandboxing principles.
+* Command execution safety.
+* File operation safety.
+* Agent safety model.
+* MCP safety boundaries.
+* Supply-chain security.
+* Responsible disclosure.
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+## Does Not Belong Here
 
-## Notes
+* General product scope.
+* Non-security implementation docs.
+* Generated verification reports.
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+## Start Here
+
+```text
+COMMAND-EXECUTION-SAFETY.md
+FILE-OPERATION-SAFETY.md
+AGENT-SAFETY-MODEL.md
+MCP-SAFETY-BOUNDARIES.md
+SECRET-HANDLING.md
+```

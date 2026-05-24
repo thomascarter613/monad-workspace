@@ -1,35 +1,51 @@
 ---
 title: "AI Collaboration"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 09-ai
-related: []
+
+* monad
+* ai
+* collaboration
+  related:
+* docs/09-ai/BOOTSTRAP-PROMPT.md
+* docs/09-ai/FRESH-CHAT-HANDOFF.md
+* docs/09-ai/AI-COLLABORATION-RULES.md
+* docs/08-context/CONTEXT-BRIDGE.md
+
 ---
 
 # AI Collaboration
 
 ## Purpose
 
-This document is the canonical Monad location for the **AI Collaboration** topic within the **AI Collaboration** documentation area.
+This directory defines how humans and AI assistants collaborate on Monad.
 
-## Status
+## Belongs Here
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+* Bootstrap prompt.
+* Current state.
+* Fresh-chat handoff.
+* AI collaboration rules.
+* Agent runbook.
+* Agent safety rules.
+* Prompting standard.
+* Model provider standard.
+* MCP tooling standard.
 
-## Expected Contents
+## Does Not Belong Here
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+* Generated `.monad/context/` artifacts.
+* General architecture docs.
+* Provider-specific implementation details unless accepted.
 
-## Notes
+## Start Here
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+```text
+BOOTSTRAP-PROMPT.md
+FRESH-CHAT-HANDOFF.md
+AI-COLLABORATION-RULES.md
+```

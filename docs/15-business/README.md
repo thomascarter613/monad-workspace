@@ -1,35 +1,51 @@
 ---
 title: "Business"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 15-business
-related: []
+
+* monad
+* business
+* strategy
+  related:
+* docs/15-business/BUSINESS-THESIS.md
+* docs/15-business/REPO-AUDIT-OFFER.md
+* docs/01-project/02-strategy/MONETIZATION-STRATEGY.md
+
 ---
 
 # Business
 
 ## Purpose
 
-This document is the canonical Monad location for the **Business** topic within the **Business** documentation area.
+This directory contains Monad’s business, validation, and monetization thinking.
 
-## Status
+## Belongs Here
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+* Business thesis.
+* Repo audit offer.
+* Pricing hypotheses.
+* Customer segments.
+* Distribution strategy.
+* Validation plan.
+* Business risks.
 
-## Expected Contents
+## Does Not Belong Here
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+* Core architecture decisions.
+* Implementation code.
+* Active engineering work packets.
 
-## Notes
+## Start Here
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+```text
+BUSINESS-THESIS.md
+REPO-AUDIT-OFFER.md
+CUSTOMER-SEGMENTS.md
+DISTRIBUTION-STRATEGY.md
+VALIDATION-PLAN.md
+RISKS.md
+```

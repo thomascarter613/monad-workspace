@@ -1,35 +1,47 @@
 ---
 title: "Reference"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 16-reference
-related: []
+
+* monad
+* reference
+  related:
+* docs/16-reference/COMMAND-CATALOG.md
+* docs/16-reference/TERMINOLOGY.md
+
 ---
 
 # Reference
 
 ## Purpose
 
-This document is the canonical Monad location for the **Reference** topic within the **Reference** documentation area.
+This directory contains Monad reference material.
 
-## Status
+## Belongs Here
 
-This file is a stub created during the Monad documentation foundation pass. It establishes where this topic belongs and will be expanded when the relevant work packet becomes active.
+* Command catalog.
+* Configuration reference.
+* `monad.toml` reference.
+* Terminology.
+* FAQ.
+* Resources.
 
-## Expected Contents
+## Does Not Belong Here
 
-- Clear explanation of this topic.
-- Canonical decisions, standards, or guidance for this area.
-- Links to related Monad documents, ADRs, work packets, and implementation artifacts.
-- Verification notes where applicable.
+* Product strategy.
+* Architecture decisions.
+* Generated context or reports.
 
-## Notes
+## Start Here
 
-- Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
-- Prefer precise statements over vague claims.
-- Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+```text
+COMMAND-CATALOG.md
+TERMINOLOGY.md
+CONFIGURATION-REFERENCE.md
+MONAD-TOML-REFERENCE.md
+FAQ.md
+```

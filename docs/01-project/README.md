@@ -1,14 +1,20 @@
 ---
 title: "Project Foundation"
-status: stub
+status: approved
 owner: "Thomas Carter"
 created: 2026-05-23
 updated: 2026-05-23
 version: 0.1.0
 tags:
-  - monad
-  - 01-project
-related: []
+
+* monad
+* project
+* foundation
+  related:
+* docs/01-project/00-vision/PRODUCT-VISION.md
+* docs/01-project/01-charter/PRODUCT-CHARTER.md
+* docs/01-project/03-roadmap/MVP-ROADMAP.md
+
 ---
 
 # Project Foundation
