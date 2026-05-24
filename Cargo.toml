@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = []
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+authors = ["Thomas Carter <thomas.carter@appliedinnovationcorp.com>"]
+repository = "https://github.com/thomascarter613/monad-workspace"
+homepage = "https://github.com/thomascarter613/monad-workspace"
+readme = "README.md"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
