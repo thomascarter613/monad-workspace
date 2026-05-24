@@ -7,6 +7,7 @@
 //! stays thin and delegates to this library.
 
 pub mod checks;
+pub mod dependency_detection;
 pub mod diagnostics;
 pub mod error;
 pub mod manifest;
@@ -18,6 +19,10 @@ pub mod toolchain_detection;
 pub mod workspace;
 
 pub use checks::run_workspace_checks;
+pub use dependency_detection::{
+    RepositoryDependencyDetection, RepositoryDependencySignal, RepositoryDependencySignalKind,
+    detect_repository_dependency_signals,
+};
 pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
 pub use error::{MonadError, MonadResult};
 pub use manifest::{
@@ -25,9 +30,9 @@ pub use manifest::{
     ManifestWorkspace, MonadManifest,
 };
 pub use output::{
-    OutputFormat, RepositoryInspectionSummary, RepositoryInspectionSummaryEntry,
-    RepositoryToolchainSummaryEntry, WorkspaceSummary, render_diagnostic_report,
-    render_repository_inspection_summary, render_workspace_summary,
+    OutputFormat, RepositoryDependencySummaryEntry, RepositoryInspectionSummary,
+    RepositoryInspectionSummaryEntry, RepositoryToolchainSummaryEntry, WorkspaceSummary,
+    render_diagnostic_report, render_repository_inspection_summary, render_workspace_summary,
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
@@ -129,13 +134,15 @@ pub fn repository_inspection_summary_from_workspace(
     let bounded_traversal = traverse_workspace_bounded(&inspection)?;
     let graph = build_repository_graph(&bounded_traversal);
     let toolchains = detect_repository_toolchains(&bounded_traversal);
+    let dependencies = detect_repository_dependency_signals(&bounded_traversal);
 
     Ok(
-        RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_and_toolchains(
+        RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_toolchains_and_dependencies(
             &inspection,
             &bounded_traversal,
             &graph,
             &toolchains,
+            &dependencies,
         ),
     )
 }
@@ -265,6 +272,23 @@ mod tests {
     }
 
     #[test]
+    fn repository_dependency_detection_types_are_exported_from_core_root() {
+        assert_eq!(
+            RepositoryDependencySignalKind::Manifest.as_str(),
+            "manifest"
+        );
+        assert_eq!(
+            RepositoryDependencySignalKind::Lockfile.as_str(),
+            "lockfile"
+        );
+
+        let detection = RepositoryDependencyDetection::from_signals(Vec::new());
+
+        assert_eq!(detection.detected_toolchain_count(), 0);
+        assert_eq!(detection.signal_count(), 0);
+    }
+
+    #[test]
     fn repository_entry_category_is_exported_from_core_root() {
         assert_eq!(RepositoryEntryCategory::Source.as_str(), "source");
         assert_eq!(
@@ -310,5 +334,7 @@ mod tests {
         assert_eq!(summary.graph_edge_count, 0);
         assert_eq!(summary.toolchain_count, 0);
         assert_eq!(summary.toolchain_signal_count, 0);
+        assert_eq!(summary.dependency_toolchain_count, 0);
+        assert_eq!(summary.dependency_signal_count, 0);
     }
 }

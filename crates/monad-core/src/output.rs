@@ -8,6 +8,10 @@ use std::collections::BTreeMap;
 
 use serde_json::json;
 
+use crate::dependency_detection::{
+    RepositoryDependencyDetection, RepositoryDependencySignalKind,
+    detect_repository_dependency_signals,
+};
 use crate::repository_graph::{RepositoryGraph, build_repository_graph};
 use crate::repository_inspection::{
     RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
@@ -95,6 +99,17 @@ pub struct RepositoryToolchainSummaryEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepositoryDependencySummaryEntry {
+    pub toolchain: String,
+    pub signal_count: usize,
+    pub manifest_count: usize,
+    pub lockfile_count: usize,
+    pub package_manager_config_count: usize,
+    pub build_file_count: usize,
+    pub signal_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepositoryInspectionSummary {
     pub root: String,
     pub entry_count: usize,
@@ -134,6 +149,15 @@ pub struct RepositoryInspectionSummary {
     pub toolchain_counts: BTreeMap<String, usize>,
     pub toolchain_signal_kind_counts: BTreeMap<String, usize>,
     pub toolchains: Vec<RepositoryToolchainSummaryEntry>,
+    pub dependency_toolchain_count: usize,
+    pub dependency_signal_count: usize,
+    pub dependency_manifest_count: usize,
+    pub dependency_lockfile_count: usize,
+    pub dependency_package_manager_config_count: usize,
+    pub dependency_build_file_count: usize,
+    pub dependency_toolchain_counts: BTreeMap<String, usize>,
+    pub dependency_signal_kind_counts: BTreeMap<String, usize>,
+    pub dependencies: Vec<RepositoryDependencySummaryEntry>,
     pub category_counts: BTreeMap<String, usize>,
     pub role_counts: BTreeMap<String, usize>,
     pub traversal_policy_counts: BTreeMap<String, usize>,
@@ -143,7 +167,7 @@ pub struct RepositoryInspectionSummary {
 impl RepositoryInspectionSummary {
     #[must_use]
     pub fn from_inspection(inspection: &RepositoryInspection) -> Self {
-        Self::from_parts(inspection, None, None, None)
+        Self::from_parts(inspection, None, None, None, None)
     }
 
     #[must_use]
@@ -153,12 +177,14 @@ impl RepositoryInspectionSummary {
     ) -> Self {
         let graph = build_repository_graph(bounded_traversal);
         let toolchain_detection = detect_repository_toolchains(bounded_traversal);
+        let dependency_detection = detect_repository_dependency_signals(bounded_traversal);
 
         Self::from_parts(
             inspection,
             Some(bounded_traversal),
             Some(&graph),
             Some(&toolchain_detection),
+            Some(&dependency_detection),
         )
     }
 
@@ -169,12 +195,14 @@ impl RepositoryInspectionSummary {
         graph: &RepositoryGraph,
     ) -> Self {
         let toolchain_detection = detect_repository_toolchains(bounded_traversal);
+        let dependency_detection = detect_repository_dependency_signals(bounded_traversal);
 
         Self::from_parts(
             inspection,
             Some(bounded_traversal),
             Some(graph),
             Some(&toolchain_detection),
+            Some(&dependency_detection),
         )
     }
 
@@ -185,11 +213,31 @@ impl RepositoryInspectionSummary {
         graph: &RepositoryGraph,
         toolchain_detection: &RepositoryToolchainDetection,
     ) -> Self {
+        let dependency_detection = detect_repository_dependency_signals(bounded_traversal);
+
         Self::from_parts(
             inspection,
             Some(bounded_traversal),
             Some(graph),
             Some(toolchain_detection),
+            Some(&dependency_detection),
+        )
+    }
+
+    #[must_use]
+    pub fn from_inspection_bounded_traversal_graph_toolchains_and_dependencies(
+        inspection: &RepositoryInspection,
+        bounded_traversal: &RepositoryBoundedTraversal,
+        graph: &RepositoryGraph,
+        toolchain_detection: &RepositoryToolchainDetection,
+        dependency_detection: &RepositoryDependencyDetection,
+    ) -> Self {
+        Self::from_parts(
+            inspection,
+            Some(bounded_traversal),
+            Some(graph),
+            Some(toolchain_detection),
+            Some(dependency_detection),
         )
     }
 
@@ -198,6 +246,7 @@ impl RepositoryInspectionSummary {
         bounded_traversal: Option<&RepositoryBoundedTraversal>,
         graph: Option<&RepositoryGraph>,
         toolchain_detection: Option<&RepositoryToolchainDetection>,
+        dependency_detection: Option<&RepositoryDependencyDetection>,
     ) -> Self {
         let traversal_plan = build_traversal_plan(inspection);
         let guardrails = traversal_plan.guardrails();
@@ -247,6 +296,18 @@ impl RepositoryInspectionSummary {
 
         let toolchains = toolchain_detection
             .map(build_toolchain_summary_entries)
+            .unwrap_or_default();
+
+        let dependency_toolchain_counts = dependency_detection
+            .map(RepositoryDependencyDetection::toolchain_counts)
+            .unwrap_or_default();
+
+        let dependency_signal_kind_counts = dependency_detection
+            .map(RepositoryDependencyDetection::signal_kind_counts)
+            .unwrap_or_default();
+
+        let dependencies = dependency_detection
+            .map(build_dependency_summary_entries)
             .unwrap_or_default();
 
         Self {
@@ -325,6 +386,27 @@ impl RepositoryInspectionSummary {
             toolchain_counts,
             toolchain_signal_kind_counts,
             toolchains,
+            dependency_toolchain_count: dependency_detection
+                .map(RepositoryDependencyDetection::detected_toolchain_count)
+                .unwrap_or(0),
+            dependency_signal_count: dependency_detection
+                .map(RepositoryDependencyDetection::signal_count)
+                .unwrap_or(0),
+            dependency_manifest_count: dependency_detection
+                .map(RepositoryDependencyDetection::manifest_signal_count)
+                .unwrap_or(0),
+            dependency_lockfile_count: dependency_detection
+                .map(RepositoryDependencyDetection::lockfile_signal_count)
+                .unwrap_or(0),
+            dependency_package_manager_config_count: dependency_detection
+                .map(RepositoryDependencyDetection::package_manager_config_signal_count)
+                .unwrap_or(0),
+            dependency_build_file_count: dependency_detection
+                .map(RepositoryDependencyDetection::build_file_signal_count)
+                .unwrap_or(0),
+            dependency_toolchain_counts,
+            dependency_signal_kind_counts,
+            dependencies,
             category_counts,
             role_counts,
             traversal_policy_counts,
@@ -345,6 +427,40 @@ fn build_toolchain_summary_entries(
             RepositoryToolchainSummaryEntry {
                 toolchain: toolchain.as_str().to_string(),
                 signal_count: signal_paths.len(),
+                signal_paths,
+            }
+        })
+        .collect()
+}
+
+fn build_dependency_summary_entries(
+    detection: &RepositoryDependencyDetection,
+) -> Vec<RepositoryDependencySummaryEntry> {
+    detection
+        .detected_toolchains()
+        .iter()
+        .map(|toolchain| {
+            let signal_paths = detection.signal_paths_for_toolchain(*toolchain);
+
+            RepositoryDependencySummaryEntry {
+                toolchain: toolchain.as_str().to_string(),
+                signal_count: signal_paths.len(),
+                manifest_count: detection.signal_count_for_toolchain_and_kind(
+                    *toolchain,
+                    RepositoryDependencySignalKind::Manifest,
+                ),
+                lockfile_count: detection.signal_count_for_toolchain_and_kind(
+                    *toolchain,
+                    RepositoryDependencySignalKind::Lockfile,
+                ),
+                package_manager_config_count: detection.signal_count_for_toolchain_and_kind(
+                    *toolchain,
+                    RepositoryDependencySignalKind::PackageManagerConfig,
+                ),
+                build_file_count: detection.signal_count_for_toolchain_and_kind(
+                    *toolchain,
+                    RepositoryDependencySignalKind::BuildFile,
+                ),
                 signal_paths,
             }
         })
@@ -460,254 +576,303 @@ pub fn render_repository_inspection_summary(
     format: OutputFormat,
 ) -> String {
     match format {
-        OutputFormat::Text => {
-            let mut lines = vec![
-                "Monad repository inspection".to_string(),
-                format!("  root: {}", summary.root),
-                format!("  entries: {}", summary.entry_count),
-                format!("  files: {}", summary.file_count),
-                format!("  directories: {}", summary.directory_count),
-                format!("  symlinks: {}", summary.symlink_count),
-                format!("  other: {}", summary.other_count),
-                "  metrics:".to_string(),
-                format!("    known_entries: {}", summary.known_entry_count),
-                format!("    unknown_entries: {}", summary.unknown_entry_count),
-                format!(
-                    "    generated_or_external_entries: {}",
-                    summary.generated_or_external_count
-                ),
-                format!(
-                    "    safe_for_future_traversal: {}",
-                    summary.safe_for_future_traversal_count
-                ),
-                format!(
-                    "    inspect_shallow_only: {}",
-                    summary.inspect_shallow_only_count
-                ),
-                format!(
-                    "    skip_generated_or_external: {}",
-                    summary.skip_generated_or_external_count
-                ),
-                "  future_traversal_guardrails:".to_string(),
-                format!("    mode: {}", summary.future_traversal_mode),
-                format!("    max_depth: {}", summary.future_traversal_max_depth),
-                format!(
-                    "    follow_symlinks: {}",
-                    summary.future_traversal_follow_symlinks
-                ),
-                format!(
-                    "    include_generated_or_external: {}",
-                    summary.future_traversal_include_generated_or_external
-                ),
-                format!(
-                    "    respect_ignore_files: {}",
-                    summary.future_traversal_respect_ignore_files
-                ),
-                format!(
-                    "    deterministic_ordering: {}",
-                    summary.future_traversal_deterministic_ordering
-                ),
-                format!(
-                    "    candidate_entries: {}",
-                    summary.future_traversal_candidate_count
-                ),
-                format!(
-                    "    shallow_only_entries: {}",
-                    summary.future_traversal_shallow_only_count
-                ),
-                format!("    skip_entries: {}", summary.future_traversal_skip_count),
-                "  bounded_traversal:".to_string(),
-                format!("    mode: {}", summary.bounded_traversal_mode),
-                format!("    entries: {}", summary.bounded_traversal_entry_count),
-                format!(
-                    "    max_observed_depth: {}",
-                    summary.bounded_traversal_max_observed_depth
-                ),
-                format!(
-                    "    candidate_entries: {}",
-                    summary.bounded_traversal_candidate_count
-                ),
-                format!(
-                    "    shallow_only_entries: {}",
-                    summary.bounded_traversal_shallow_only_count
-                ),
-                format!("    skip_entries: {}", summary.bounded_traversal_skip_count),
-                format!(
-                    "    generated_or_external_entries: {}",
-                    summary.bounded_traversal_generated_or_external_count
-                ),
-                "  graph:".to_string(),
-                format!("    nodes: {}", summary.graph_node_count),
-                format!("    edges: {}", summary.graph_edge_count),
-                format!("    max_depth: {}", summary.graph_max_depth),
-                "  toolchains:".to_string(),
-                format!("    detected: {}", summary.toolchain_count),
-                format!("    signals: {}", summary.toolchain_signal_count),
-                "  toolchain_counts:".to_string(),
-            ];
+        OutputFormat::Text => render_repository_inspection_summary_text(summary),
+        OutputFormat::Json => render_repository_inspection_summary_json(summary),
+    }
+}
 
-            for (toolchain, count) in &summary.toolchain_counts {
-                lines.push(format!("    {toolchain}: {count}"));
-            }
+fn render_repository_inspection_summary_text(summary: &RepositoryInspectionSummary) -> String {
+    let mut lines = vec![
+        "Monad repository inspection".to_string(),
+        format!("  root: {}", summary.root),
+        format!("  entries: {}", summary.entry_count),
+        format!("  files: {}", summary.file_count),
+        format!("  directories: {}", summary.directory_count),
+        format!("  symlinks: {}", summary.symlink_count),
+        format!("  other: {}", summary.other_count),
+        "  metrics:".to_string(),
+        format!("    known_entries: {}", summary.known_entry_count),
+        format!("    unknown_entries: {}", summary.unknown_entry_count),
+        format!(
+            "    generated_or_external_entries: {}",
+            summary.generated_or_external_count
+        ),
+        format!(
+            "    safe_for_future_traversal: {}",
+            summary.safe_for_future_traversal_count
+        ),
+        format!(
+            "    inspect_shallow_only: {}",
+            summary.inspect_shallow_only_count
+        ),
+        format!(
+            "    skip_generated_or_external: {}",
+            summary.skip_generated_or_external_count
+        ),
+        "  future_traversal_guardrails:".to_string(),
+        format!("    mode: {}", summary.future_traversal_mode),
+        format!("    max_depth: {}", summary.future_traversal_max_depth),
+        format!(
+            "    follow_symlinks: {}",
+            summary.future_traversal_follow_symlinks
+        ),
+        format!(
+            "    include_generated_or_external: {}",
+            summary.future_traversal_include_generated_or_external
+        ),
+        format!(
+            "    respect_ignore_files: {}",
+            summary.future_traversal_respect_ignore_files
+        ),
+        format!(
+            "    deterministic_ordering: {}",
+            summary.future_traversal_deterministic_ordering
+        ),
+        "  bounded_traversal:".to_string(),
+        format!("    mode: {}", summary.bounded_traversal_mode),
+        format!("    entries: {}", summary.bounded_traversal_entry_count),
+        format!(
+            "    max_observed_depth: {}",
+            summary.bounded_traversal_max_observed_depth
+        ),
+        "  graph:".to_string(),
+        format!("    nodes: {}", summary.graph_node_count),
+        format!("    edges: {}", summary.graph_edge_count),
+        format!("    max_depth: {}", summary.graph_max_depth),
+        "  toolchains:".to_string(),
+        format!("    detected: {}", summary.toolchain_count),
+        format!("    signals: {}", summary.toolchain_signal_count),
+        "  dependencies:".to_string(),
+        format!("    toolchains: {}", summary.dependency_toolchain_count),
+        format!("    signals: {}", summary.dependency_signal_count),
+        format!("    manifests: {}", summary.dependency_manifest_count),
+        format!("    lockfiles: {}", summary.dependency_lockfile_count),
+        format!(
+            "    package_manager_configs: {}",
+            summary.dependency_package_manager_config_count
+        ),
+        format!("    build_files: {}", summary.dependency_build_file_count),
+        "  dependency_toolchain_counts:".to_string(),
+    ];
 
-            lines.push("  toolchain_signal_kind_counts:".to_string());
+    for (toolchain, count) in &summary.dependency_toolchain_counts {
+        lines.push(format!("    {toolchain}: {count}"));
+    }
 
-            for (signal_kind, count) in &summary.toolchain_signal_kind_counts {
-                lines.push(format!("    {signal_kind}: {count}"));
-            }
+    lines.push("  dependency_signal_kind_counts:".to_string());
 
-            lines.push("  detected_toolchains:".to_string());
+    for (signal_kind, count) in &summary.dependency_signal_kind_counts {
+        lines.push(format!("    {signal_kind}: {count}"));
+    }
 
-            for toolchain in &summary.toolchains {
-                lines.push(format!(
-                    "    - {} signals={}",
-                    toolchain.toolchain, toolchain.signal_count
-                ));
+    lines.push("  dependency_signals:".to_string());
 
-                for path in &toolchain.signal_paths {
-                    lines.push(format!("      - {path}"));
-                }
-            }
+    for dependency in &summary.dependencies {
+        lines.push(format!(
+            "    - {} signals={} manifests={} lockfiles={} configs={} build_files={}",
+            dependency.toolchain,
+            dependency.signal_count,
+            dependency.manifest_count,
+            dependency.lockfile_count,
+            dependency.package_manager_config_count,
+            dependency.build_file_count
+        ));
 
-            lines.push("  graph_categories:".to_string());
-
-            for (category, count) in &summary.graph_category_counts {
-                lines.push(format!("    {category}: {count}"));
-            }
-
-            lines.push("  graph_traversal_decisions:".to_string());
-
-            for (decision, count) in &summary.graph_traversal_decision_counts {
-                lines.push(format!("    {decision}: {count}"));
-            }
-
-            lines.push("  categories:".to_string());
-
-            for (category, count) in &summary.category_counts {
-                lines.push(format!("    {category}: {count}"));
-            }
-
-            lines.push("  roles:".to_string());
-
-            for (role, count) in &summary.role_counts {
-                lines.push(format!("    {role}: {count}"));
-            }
-
-            lines.push("  traversal_policies:".to_string());
-
-            for (policy, count) in &summary.traversal_policy_counts {
-                lines.push(format!("    {policy}: {count}"));
-            }
-
-            lines.push("  top_level_entries:".to_string());
-
-            for entry in &summary.entries {
-                lines.push(format!(
-                    "    - {} [{} category={} role={} traversal={} decision={} reason={}]",
-                    entry.path,
-                    entry.kind,
-                    entry.category,
-                    entry.role,
-                    entry.traversal_policy,
-                    entry.traversal_decision,
-                    entry.traversal_reason
-                ));
-            }
-
-            lines.join("\n")
-        }
-        OutputFormat::Json => {
-            let entries = summary
-                .entries
-                .iter()
-                .map(|entry| {
-                    json!({
-                        "path": &entry.path,
-                        "kind": &entry.kind,
-                        "category": &entry.category,
-                        "role": &entry.role,
-                        "traversal_policy": &entry.traversal_policy,
-                        "traversal_decision": &entry.traversal_decision,
-                        "traversal_reason": &entry.traversal_reason,
-                    })
-                })
-                .collect::<Vec<_>>();
-
-            let toolchains = summary
-                .toolchains
-                .iter()
-                .map(|toolchain| {
-                    json!({
-                        "toolchain": &toolchain.toolchain,
-                        "signal_count": toolchain.signal_count,
-                        "signal_paths": &toolchain.signal_paths,
-                    })
-                })
-                .collect::<Vec<_>>();
-
-            serde_json::to_string_pretty(&json!({
-                "format": OutputFormat::Json.as_str(),
-                "kind": "repository_inspection_summary",
-                "repository": {
-                    "root": &summary.root,
-                    "entry_count": summary.entry_count,
-                    "file_count": summary.file_count,
-                    "directory_count": summary.directory_count,
-                    "symlink_count": summary.symlink_count,
-                    "other_count": summary.other_count,
-                    "metrics": {
-                        "known_entry_count": summary.known_entry_count,
-                        "unknown_entry_count": summary.unknown_entry_count,
-                        "generated_or_external_count": summary.generated_or_external_count,
-                        "safe_for_future_traversal_count": summary.safe_for_future_traversal_count,
-                        "inspect_shallow_only_count": summary.inspect_shallow_only_count,
-                        "skip_generated_or_external_count": summary.skip_generated_or_external_count,
-                    },
-                    "future_traversal": {
-                        "mode": &summary.future_traversal_mode,
-                        "guardrails": {
-                            "max_depth": summary.future_traversal_max_depth,
-                            "follow_symlinks": summary.future_traversal_follow_symlinks,
-                            "include_generated_or_external": summary.future_traversal_include_generated_or_external,
-                            "respect_ignore_files": summary.future_traversal_respect_ignore_files,
-                            "deterministic_ordering": summary.future_traversal_deterministic_ordering,
-                        },
-                        "candidate_entry_count": summary.future_traversal_candidate_count,
-                        "shallow_only_entry_count": summary.future_traversal_shallow_only_count,
-                        "skip_entry_count": summary.future_traversal_skip_count,
-                    },
-                    "bounded_traversal": {
-                        "mode": &summary.bounded_traversal_mode,
-                        "entry_count": summary.bounded_traversal_entry_count,
-                        "max_observed_depth": summary.bounded_traversal_max_observed_depth,
-                        "candidate_entry_count": summary.bounded_traversal_candidate_count,
-                        "shallow_only_entry_count": summary.bounded_traversal_shallow_only_count,
-                        "skip_entry_count": summary.bounded_traversal_skip_count,
-                        "generated_or_external_entry_count": summary.bounded_traversal_generated_or_external_count,
-                    },
-                    "graph": {
-                        "node_count": summary.graph_node_count,
-                        "edge_count": summary.graph_edge_count,
-                        "max_depth": summary.graph_max_depth,
-                        "category_counts": &summary.graph_category_counts,
-                        "traversal_decision_counts": &summary.graph_traversal_decision_counts,
-                    },
-                    "toolchains": {
-                        "detected_toolchain_count": summary.toolchain_count,
-                        "signal_count": summary.toolchain_signal_count,
-                        "toolchain_counts": &summary.toolchain_counts,
-                        "signal_kind_counts": &summary.toolchain_signal_kind_counts,
-                        "detected": toolchains,
-                    },
-                    "category_counts": &summary.category_counts,
-                    "role_counts": &summary.role_counts,
-                    "traversal_policy_counts": &summary.traversal_policy_counts,
-                    "entries": entries,
-                },
-            }))
-            .expect("serializing repository inspection summary JSON should not fail")
+        for path in &dependency.signal_paths {
+            lines.push(format!("      - {path}"));
         }
     }
+
+    lines.push("  toolchain_counts:".to_string());
+
+    for (toolchain, count) in &summary.toolchain_counts {
+        lines.push(format!("    {toolchain}: {count}"));
+    }
+
+    lines.push("  toolchain_signal_kind_counts:".to_string());
+
+    for (signal_kind, count) in &summary.toolchain_signal_kind_counts {
+        lines.push(format!("    {signal_kind}: {count}"));
+    }
+
+    lines.push("  detected_toolchains:".to_string());
+
+    for toolchain in &summary.toolchains {
+        lines.push(format!(
+            "    - {} signals={}",
+            toolchain.toolchain, toolchain.signal_count
+        ));
+
+        for path in &toolchain.signal_paths {
+            lines.push(format!("      - {path}"));
+        }
+    }
+
+    lines.push("  graph_categories:".to_string());
+
+    for (category, count) in &summary.graph_category_counts {
+        lines.push(format!("    {category}: {count}"));
+    }
+
+    lines.push("  graph_traversal_decisions:".to_string());
+
+    for (decision, count) in &summary.graph_traversal_decision_counts {
+        lines.push(format!("    {decision}: {count}"));
+    }
+
+    lines.push("  categories:".to_string());
+
+    for (category, count) in &summary.category_counts {
+        lines.push(format!("    {category}: {count}"));
+    }
+
+    lines.push("  roles:".to_string());
+
+    for (role, count) in &summary.role_counts {
+        lines.push(format!("    {role}: {count}"));
+    }
+
+    lines.push("  traversal_policies:".to_string());
+
+    for (policy, count) in &summary.traversal_policy_counts {
+        lines.push(format!("    {policy}: {count}"));
+    }
+
+    lines.push("  top_level_entries:".to_string());
+
+    for entry in &summary.entries {
+        lines.push(format!(
+            "    - {} [{} category={} role={} traversal={} decision={} reason={}]",
+            entry.path,
+            entry.kind,
+            entry.category,
+            entry.role,
+            entry.traversal_policy,
+            entry.traversal_decision,
+            entry.traversal_reason
+        ));
+    }
+
+    lines.join("\n")
+}
+
+fn render_repository_inspection_summary_json(summary: &RepositoryInspectionSummary) -> String {
+    let entries = summary
+        .entries
+        .iter()
+        .map(|entry| {
+            json!({
+                "path": &entry.path,
+                "kind": &entry.kind,
+                "category": &entry.category,
+                "role": &entry.role,
+                "traversal_policy": &entry.traversal_policy,
+                "traversal_decision": &entry.traversal_decision,
+                "traversal_reason": &entry.traversal_reason,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let toolchains = summary
+        .toolchains
+        .iter()
+        .map(|toolchain| {
+            json!({
+                "toolchain": &toolchain.toolchain,
+                "signal_count": toolchain.signal_count,
+                "signal_paths": &toolchain.signal_paths,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let dependencies = summary
+        .dependencies
+        .iter()
+        .map(|dependency| {
+            json!({
+                "toolchain": &dependency.toolchain,
+                "signal_count": dependency.signal_count,
+                "manifest_count": dependency.manifest_count,
+                "lockfile_count": dependency.lockfile_count,
+                "package_manager_config_count": dependency.package_manager_config_count,
+                "build_file_count": dependency.build_file_count,
+                "signal_paths": &dependency.signal_paths,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    serde_json::to_string_pretty(&json!({
+        "format": OutputFormat::Json.as_str(),
+        "kind": "repository_inspection_summary",
+        "repository": {
+            "root": &summary.root,
+            "entry_count": summary.entry_count,
+            "file_count": summary.file_count,
+            "directory_count": summary.directory_count,
+            "symlink_count": summary.symlink_count,
+            "other_count": summary.other_count,
+            "metrics": {
+                "known_entry_count": summary.known_entry_count,
+                "unknown_entry_count": summary.unknown_entry_count,
+                "generated_or_external_count": summary.generated_or_external_count,
+                "safe_for_future_traversal_count": summary.safe_for_future_traversal_count,
+                "inspect_shallow_only_count": summary.inspect_shallow_only_count,
+                "skip_generated_or_external_count": summary.skip_generated_or_external_count,
+            },
+            "future_traversal": {
+                "mode": &summary.future_traversal_mode,
+                "guardrails": {
+                    "max_depth": summary.future_traversal_max_depth,
+                    "follow_symlinks": summary.future_traversal_follow_symlinks,
+                    "include_generated_or_external": summary.future_traversal_include_generated_or_external,
+                    "respect_ignore_files": summary.future_traversal_respect_ignore_files,
+                    "deterministic_ordering": summary.future_traversal_deterministic_ordering,
+                },
+                "candidate_entry_count": summary.future_traversal_candidate_count,
+                "shallow_only_entry_count": summary.future_traversal_shallow_only_count,
+                "skip_entry_count": summary.future_traversal_skip_count,
+            },
+            "bounded_traversal": {
+                "mode": &summary.bounded_traversal_mode,
+                "entry_count": summary.bounded_traversal_entry_count,
+                "max_observed_depth": summary.bounded_traversal_max_observed_depth,
+                "candidate_entry_count": summary.bounded_traversal_candidate_count,
+                "shallow_only_entry_count": summary.bounded_traversal_shallow_only_count,
+                "skip_entry_count": summary.bounded_traversal_skip_count,
+                "generated_or_external_entry_count": summary.bounded_traversal_generated_or_external_count,
+            },
+            "graph": {
+                "node_count": summary.graph_node_count,
+                "edge_count": summary.graph_edge_count,
+                "max_depth": summary.graph_max_depth,
+                "category_counts": &summary.graph_category_counts,
+                "traversal_decision_counts": &summary.graph_traversal_decision_counts,
+            },
+            "toolchains": {
+                "detected_toolchain_count": summary.toolchain_count,
+                "signal_count": summary.toolchain_signal_count,
+                "toolchain_counts": &summary.toolchain_counts,
+                "signal_kind_counts": &summary.toolchain_signal_kind_counts,
+                "detected": toolchains,
+            },
+            "dependencies": {
+                "detected_toolchain_count": summary.dependency_toolchain_count,
+                "signal_count": summary.dependency_signal_count,
+                "manifest_count": summary.dependency_manifest_count,
+                "lockfile_count": summary.dependency_lockfile_count,
+                "package_manager_config_count": summary.dependency_package_manager_config_count,
+                "build_file_count": summary.dependency_build_file_count,
+                "toolchain_counts": &summary.dependency_toolchain_counts,
+                "signal_kind_counts": &summary.dependency_signal_kind_counts,
+                "detected": dependencies,
+            },
+            "category_counts": &summary.category_counts,
+            "role_counts": &summary.role_counts,
+            "traversal_policy_counts": &summary.traversal_policy_counts,
+            "entries": entries,
+        },
+    }))
+    .expect("serializing repository inspection summary JSON should not fail")
 }
 
 #[cfg(test)]
@@ -722,8 +887,8 @@ mod tests {
         Diagnostic, ManifestProject, ManifestRuntime, ManifestSchemaVersion, ManifestWorkspace,
     };
     use crate::{
-        WorkspaceContext, build_repository_graph, detect_repository_toolchains, inspect_workspace,
-        traverse_workspace_bounded,
+        WorkspaceContext, build_repository_graph, detect_repository_dependency_signals,
+        detect_repository_toolchains, inspect_workspace, traverse_workspace_bounded,
     };
 
     fn unique_temp_dir(test_name: &str) -> PathBuf {
@@ -746,7 +911,9 @@ mod tests {
         fs::create_dir_all(root.join(".monad")).expect(".monad directory should be created");
         fs::create_dir_all(root.join("crates/monad-core/src"))
             .expect("crates directory should be created");
-        fs::create_dir_all(root.join("apps/web/src")).expect("web directory should be created");
+        fs::create_dir_all(root.join("apps/web")).expect("web directory should be created");
+        fs::create_dir_all(root.join("services/python"))
+            .expect("python directory should be created");
         fs::create_dir_all(root.join("tools")).expect("tools directory should be created");
         fs::create_dir_all(root.join("target")).expect("target directory should be created");
 
@@ -755,16 +922,19 @@ mod tests {
         fs::write(root.join("Cargo.lock"), "# lock\n").expect("Cargo.lock should be written");
         fs::write(root.join("monad.toml"), "schema_version = 1\n")
             .expect("monad.toml should be written");
-        fs::write(root.join("package.json"), "{}\n").expect("package.json should be written");
-        fs::write(root.join("tsconfig.json"), "{}\n").expect("tsconfig.json should be written");
+        fs::write(root.join("apps/web/package.json"), "{}\n")
+            .expect("package.json should be written");
+        fs::write(root.join("apps/web/bun.lock"), "# lock\n").expect("bun.lock should be written");
+        fs::write(root.join("services/python/pyproject.toml"), "[project]\n")
+            .expect("pyproject.toml should be written");
+        fs::write(root.join("services/python/poetry.lock"), "# lock\n")
+            .expect("poetry.lock should be written");
         fs::write(root.join("docs/guide/intro.md"), "# Intro\n").expect("intro should be written");
         fs::write(
             root.join("crates/monad-core/src/lib.rs"),
             "pub fn test() {}\n",
         )
         .expect("lib should be written");
-        fs::write(root.join("apps/web/src/main.ts"), "export {}\n")
-            .expect("typescript should be written");
 
         root
     }
@@ -817,95 +987,100 @@ mod tests {
     }
 
     #[test]
-    fn repository_inspection_summary_includes_toolchain_metrics() {
-        let root = create_inspection_workspace("toolchain-summary");
+    fn repository_inspection_summary_includes_dependency_metrics() {
+        let root = create_inspection_workspace("dependency-summary");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
         let bounded =
             traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
         let graph = build_repository_graph(&bounded);
         let toolchains = detect_repository_toolchains(&bounded);
+        let dependencies = detect_repository_dependency_signals(&bounded);
 
         let summary =
-            RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_and_toolchains(
+            RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_toolchains_and_dependencies(
                 &inspection,
                 &bounded,
                 &graph,
                 &toolchains,
+                &dependencies,
             );
 
-        assert!(summary.toolchain_count >= 3);
-        assert!(summary.toolchain_signal_count >= 3);
-        assert!(summary.toolchain_counts.contains_key("rust"));
-        assert!(summary.toolchain_counts.contains_key("javascript"));
-        assert!(summary.toolchain_counts.contains_key("typescript"));
+        assert!(summary.dependency_toolchain_count >= 3);
+        assert!(summary.dependency_signal_count >= 6);
+        assert!(summary.dependency_manifest_count >= 3);
+        assert!(summary.dependency_lockfile_count >= 3);
+        assert!(summary.dependency_toolchain_counts.contains_key("rust"));
         assert!(
             summary
-                .toolchain_signal_kind_counts
-                .contains_key("manifest")
+                .dependency_toolchain_counts
+                .contains_key("javascript")
         );
-        assert!(
-            summary
-                .toolchain_signal_kind_counts
-                .contains_key("source_file")
-        );
+        assert!(summary.dependency_toolchain_counts.contains_key("python"));
 
         fs::remove_dir_all(root).ok();
     }
 
     #[test]
-    fn repository_inspection_summary_renders_toolchains_as_text() {
-        let root = create_inspection_workspace("toolchain-text");
+    fn repository_inspection_summary_renders_dependencies_as_text() {
+        let root = create_inspection_workspace("dependency-text");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
         let bounded =
             traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
         let graph = build_repository_graph(&bounded);
         let toolchains = detect_repository_toolchains(&bounded);
+        let dependencies = detect_repository_dependency_signals(&bounded);
 
         let summary =
-            RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_and_toolchains(
+            RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_toolchains_and_dependencies(
                 &inspection,
                 &bounded,
                 &graph,
                 &toolchains,
+                &dependencies,
             );
 
         let rendered = render_repository_inspection_summary(&summary, OutputFormat::Text);
 
-        assert!(rendered.contains("toolchains:"));
-        assert!(rendered.contains("toolchain_counts:"));
+        assert!(rendered.contains("dependencies:"));
+        assert!(rendered.contains("dependency_toolchain_counts:"));
+        assert!(rendered.contains("dependency_signal_kind_counts:"));
+        assert!(rendered.contains("dependency_signals:"));
         assert!(rendered.contains("rust:"));
-        assert!(rendered.contains("typescript:"));
+        assert!(rendered.contains("javascript:"));
 
         fs::remove_dir_all(root).ok();
     }
 
     #[test]
-    fn repository_inspection_summary_renders_toolchains_as_json() {
-        let root = create_inspection_workspace("toolchain-json");
+    fn repository_inspection_summary_renders_dependencies_as_json() {
+        let root = create_inspection_workspace("dependency-json");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
         let bounded =
             traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
         let graph = build_repository_graph(&bounded);
         let toolchains = detect_repository_toolchains(&bounded);
+        let dependencies = detect_repository_dependency_signals(&bounded);
 
         let summary =
-            RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_and_toolchains(
+            RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_toolchains_and_dependencies(
                 &inspection,
                 &bounded,
                 &graph,
                 &toolchains,
+                &dependencies,
             );
 
         let rendered = render_repository_inspection_summary(&summary, OutputFormat::Json);
 
-        assert!(rendered.contains(r#""toolchains""#));
-        assert!(rendered.contains(r#""detected_toolchain_count""#));
+        assert!(rendered.contains(r#""dependencies""#));
+        assert!(rendered.contains(r#""manifest_count""#));
+        assert!(rendered.contains(r#""lockfile_count""#));
         assert!(rendered.contains(r#""toolchain_counts""#));
         assert!(rendered.contains(r#""rust""#));
-        assert!(rendered.contains(r#""typescript""#));
+        assert!(rendered.contains(r#""javascript""#));
 
         fs::remove_dir_all(root).ok();
     }
