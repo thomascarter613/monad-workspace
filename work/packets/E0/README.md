@@ -2,7 +2,7 @@
 title: "E0 Work Packets"
 document_type: "work-packet-index"
 status: "draft"
-version: "0.3.0"
+version: "0.5.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
@@ -21,16 +21,18 @@ This directory contains durable work packet records for E0 — Project Foundatio
 
 ## Work Packets
 
-| Work Packet | Title                                | Status      |
-| ----------- | ------------------------------------ | ----------- |
-| WP-E0-001   | Establish repository foundation      | Complete    |
-| WP-E0-002   | Establish documentation architecture | Complete    |
-| WP-E0-003   | Establish context bridge foundation  | Complete    |
-| WP-E0-004   | Establish workflow standards         | Complete    |
-| WP-E0-005   | Establish verification baseline      | Complete    |
-| WP-E0-006   | Establish work packet records        | Complete    |
-| WP-E0-007   | Establish ADR verification           | Complete    |
-| WP-E0-008   | Establish epic record verification   | In Progress |
+| Work Packet | Title                                   | Status      |
+| ----------- | --------------------------------------- | ----------- |
+| WP-E0-001   | Establish repository foundation         | Complete    |
+| WP-E0-002   | Establish documentation architecture    | Complete    |
+| WP-E0-003   | Establish context bridge foundation     | Complete    |
+| WP-E0-004   | Establish workflow standards            | Complete    |
+| WP-E0-005   | Establish verification baseline         | Complete    |
+| WP-E0-006   | Establish work packet records           | Complete    |
+| WP-E0-007   | Establish ADR verification              | Complete    |
+| WP-E0-008   | Establish epic record verification      | Complete    |
+| WP-E0-009   | Establish task record foundation        | Complete    |
+| WP-E0-010   | Establish deliverable record foundation | In Progress |
 
 ## Maintenance Rules
 
