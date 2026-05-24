@@ -8,15 +8,13 @@
 
 pub mod diagnostics;
 pub mod error;
+pub mod workspace;
 
 pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
 pub use error::{MonadError, MonadResult};
+pub use workspace::{WorkspaceContext, discover_workspace_root, is_workspace_root};
 
 /// Describes the currently compiled Monad runtime identity.
-///
-/// A `struct` groups related values into one named type.
-/// Here we use string slices with a `'static` lifetime because these values are
-/// fixed text baked into the compiled program.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RuntimeIdentity {
     /// The public product name.
@@ -31,9 +29,6 @@ pub struct RuntimeIdentity {
 
 impl RuntimeIdentity {
     /// Creates the canonical runtime identity for this early workspace slice.
-    ///
-    /// `const fn` means this function can be evaluated at compile time because
-    /// it only returns fixed values and does not allocate memory.
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -44,8 +39,6 @@ impl RuntimeIdentity {
     }
 
     /// Builds a human-readable startup banner.
-    ///
-    /// This returns a `String` because `format!` creates owned text at runtime.
     #[must_use]
     pub fn banner(self) -> String {
         format!(
@@ -55,9 +48,6 @@ impl RuntimeIdentity {
     }
 
     /// Builds a structured startup diagnostic.
-    ///
-    /// Future CLI commands can use diagnostics when they need stable structured
-    /// output instead of plain strings.
     #[must_use]
     pub fn startup_diagnostic(self) -> Diagnostic {
         Diagnostic::info("MONAD0001", self.banner())
@@ -65,29 +55,18 @@ impl RuntimeIdentity {
 }
 
 impl Default for RuntimeIdentity {
-    /// Provides the default runtime identity.
-    ///
-    /// `Default` is a common Rust trait used when a type has an obvious default
-    /// value. We forward to `RuntimeIdentity::new()` so there is only one source
-    /// of truth for the default fields.
     fn default() -> Self {
         Self::new()
     }
 }
 
 /// Returns Monad's canonical runtime identity.
-///
-/// Free functions like this are useful API entrypoints for other crates.
-/// The CLI crate will call this rather than duplicating core runtime facts.
 #[must_use]
 pub fn runtime_identity() -> RuntimeIdentity {
     RuntimeIdentity::new()
 }
 
 /// Returns Monad's runtime identity through the shared result type.
-///
-/// This small function exists so early tests and examples can demonstrate
-/// `MonadResult<T>` before more complex runtime operations exist.
 pub fn checked_runtime_identity() -> MonadResult<RuntimeIdentity> {
     Ok(runtime_identity())
 }
@@ -129,5 +108,12 @@ mod tests {
         let identity = checked_runtime_identity().expect("runtime identity should be available");
 
         assert_eq!(identity.product_name, "Monad");
+    }
+
+    #[test]
+    fn workspace_context_is_exported_from_core_root() {
+        let context = WorkspaceContext::new(".").expect("workspace context should be created");
+
+        assert_eq!(context.root(), std::path::Path::new("."));
     }
 }

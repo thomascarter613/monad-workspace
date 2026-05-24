@@ -20,6 +20,7 @@ REQUIRED_PATHS = [
     "crates/monad-core/src/lib.rs",
     "crates/monad-core/src/diagnostics.rs",
     "crates/monad-core/src/error.rs",
+    "crates/monad-core/src/workspace.rs",
 
     # Documentation and work roots
     "docs/README.md",
@@ -44,6 +45,7 @@ REQUIRED_PATHS = [
     ".monad/context/work-packet-handoffs/WP-E1-001.md",
     ".monad/context/work-packet-handoffs/WP-E1-002.md",
     ".monad/context/work-packet-handoffs/WP-E1-003.md",
+    ".monad/context/work-packet-handoffs/WP-E1-004.md",
     ".monad/context/decision-records/README.md",
 
     # Workflow standards
@@ -101,6 +103,7 @@ REQUIRED_PATHS = [
     "work/packets/E1/WP-E1-001-establish-rust-workspace-runtime-foundation.md",
     "work/packets/E1/WP-E1-002-establish-core-diagnostics-foundation.md",
     "work/packets/E1/WP-E1-003-establish-core-error-foundation.md",
+    "work/packets/E1/WP-E1-004-establish-workspace-context-foundation.md",
     "work/tasks/E1/README.md",
     "work/tasks/E1/T-WP-E1-001-001-create-rust-workspace-crates.md",
     "work/tasks/E1/T-WP-E1-001-002-add-minimal-core-runtime-identity.md",
@@ -112,6 +115,9 @@ REQUIRED_PATHS = [
     "work/tasks/E1/T-WP-E1-003-001-add-core-error-module.md",
     "work/tasks/E1/T-WP-E1-003-002-export-core-error-model.md",
     "work/tasks/E1/T-WP-E1-003-003-update-e1-records-and-context.md",
+    "work/tasks/E1/T-WP-E1-004-001-add-workspace-context-module.md",
+    "work/tasks/E1/T-WP-E1-004-002-export-workspace-context-from-core-runtime.md",
+    "work/tasks/E1/T-WP-E1-004-003-update-e1-records-and-context.md",
     "work/deliverables/E1/README.md",
     "work/deliverables/E1/D-WP-E1-001-001-rust-workspace-manifest.md",
     "work/deliverables/E1/D-WP-E1-001-002-core-runtime-library.md",
@@ -122,6 +128,9 @@ REQUIRED_PATHS = [
     "work/deliverables/E1/D-WP-E1-003-001-core-error-module.md",
     "work/deliverables/E1/D-WP-E1-003-002-core-error-exports.md",
     "work/deliverables/E1/D-WP-E1-003-003-core-error-context-handoff.md",
+    "work/deliverables/E1/D-WP-E1-004-001-workspace-context-module.md",
+    "work/deliverables/E1/D-WP-E1-004-002-workspace-context-exports.md",
+    "work/deliverables/E1/D-WP-E1-004-003-workspace-context-handoff.md",
 ]
 
 

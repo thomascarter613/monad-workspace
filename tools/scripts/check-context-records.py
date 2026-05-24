@@ -16,6 +16,7 @@ REQUIRED_CONTEXT_FILES = [
     Path(".monad/context/work-packet-handoffs/WP-E1-001.md"),
     Path(".monad/context/work-packet-handoffs/WP-E1-002.md"),
     Path(".monad/context/work-packet-handoffs/WP-E1-003.md"),
+    Path(".monad/context/work-packet-handoffs/WP-E1-004.md"),
 ]
 
 GLOBAL_REQUIRED_TERMS = [
@@ -24,9 +25,11 @@ GLOBAL_REQUIRED_TERMS = [
     "WP-E1-001",
     "WP-E1-002",
     "WP-E1-003",
+    "WP-E1-004",
     "Runtime Foundation",
     "Core Diagnostics",
     "Core Error",
+    "Workspace Context",
 ]
 
 CURRENT_CONTEXT_FILES = [
@@ -69,7 +72,7 @@ def main() -> int:
             continue
 
         text = path.read_text(encoding="utf-8")
-        for term in ["E1", "WP-E1-003", "Runtime Foundation", "Core Error"]:
+        for term in ["E1", "WP-E1-004", "Runtime Foundation", "Workspace Context"]:
             if term not in text:
                 failures.append(f"{path}: missing current-context term {term}")
 
