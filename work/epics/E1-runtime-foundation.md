@@ -2,7 +2,7 @@
 title: "E1 — Runtime Foundation"
 document_type: "epic"
 status: "in-progress"
-version: "0.7.0"
+version: "0.8.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -46,6 +46,7 @@ E1 includes:
 - workspace context foundation;
 - manifest model foundation;
 - manifest loading foundation;
+- CLI info command foundation;
 - additional runtime foundation slices as later E1 work packets.
 
 ## Out of Scope
@@ -69,11 +70,12 @@ E1 does not include:
 | WP-E1-003 | Establish core error foundation | Complete |
 | WP-E1-004 | Establish workspace context foundation | Complete |
 | WP-E1-005 | Establish manifest model foundation | Complete |
-| WP-E1-006 | Establish manifest loading foundation | In Progress |
+| WP-E1-006 | Establish manifest loading foundation | Complete |
+| WP-E1-007 | Establish CLI info command foundation | In Progress |
 
 ## Expected Result After Verification
 
-The repository has a working Rust workspace foundation, reusable diagnostics, a shared core error model, workspace context, a manifest model, and manifest loading.
+The repository has a working Rust workspace foundation, reusable diagnostics, a shared core error model, workspace context, manifest loading, and a first useful CLI command.
 
 ## Verification
 
@@ -89,6 +91,7 @@ Expected result:
 All required foundation and runtime paths exist.
 cargo fmt --check
 cargo test
+Monad workspace
 Verification baseline passed.
 ```
 

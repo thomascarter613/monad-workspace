@@ -41,6 +41,9 @@ cargo fmt --check
 log "Running Rust tests"
 cargo test
 
+log "Running CLI info smoke test"
+cargo run --quiet -p monad-cli -- info
+
 log "Reporting working tree status"
 git status --short
 

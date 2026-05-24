@@ -2,17 +2,17 @@
 title: "Latest Handoff"
 document_type: "context-handoff"
 status: "current"
-version: "1.5.0"
+version: "1.6.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-006"
+work_packet: "WP-E1-007"
 tags:
 
 * handoff
 * e1
-* manifest-loading
+* cli-info
 
 ---
 
@@ -32,15 +32,17 @@ WP-E1-004 — Establish Workspace Context Foundation is complete.
 
 WP-E1-005 — Establish Manifest Model Foundation is complete.
 
+WP-E1-006 — Establish Manifest Loading Foundation is complete.
+
 ## Current
 
 E1 — Runtime Foundation
 
-WP-E1-006 — Establish Manifest Loading Foundation
+WP-E1-007 — Establish CLI Info Command Foundation
 
-## Manifest Loading
+## CLI Info
 
-The current slice adds TOML parsing and file loading for `monad.toml`.
+The current slice adds the first useful CLI command: `monad info`.
 
 ## Verification
 

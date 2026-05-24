@@ -2,20 +2,20 @@
 title: "Verification Baseline"
 document_type: "verification-standard"
 status: "current"
-version: "1.6.0"
+version: "1.7.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-006"
+work_packet: "WP-E1-007"
 tags:
   - verification
   - quality
   - repository-contract
   - workflow
   - rust
-  - manifest
-  - loading
+  - cli
+  - info
   - work-packets
   - tasks
   - deliverables
@@ -59,7 +59,8 @@ The baseline currently verifies:
 9. E1 runtime context handoff records.
 10. Rust formatting with `cargo fmt --check`.
 11. Rust tests with `cargo test`.
-12. Current working tree status.
+12. CLI info smoke test with `cargo run --quiet -p monad-cli -- info`.
+13. Current working tree status.
 
 ## 4. Rust Runtime Checks
 
@@ -73,6 +74,7 @@ The Rust portion of the baseline verifies:
 * Workspace Context tests pass;
 * Manifest Model tests pass;
 * Manifest Loading tests pass;
+* CLI Info tests pass;
 * formatting is stable.
 
 ## 5. Expected Successful Result
@@ -88,6 +90,7 @@ All deliverable records satisfy the required baseline structure.
 All epic records satisfy the required baseline structure.
 All ADR records satisfy the required baseline structure.
 All context records satisfy the E1 runtime handoff baseline.
+Monad workspace
 Verification baseline passed.
 ```
 
@@ -100,11 +103,12 @@ Common causes include:
 * a required file was not created;
 * a file was created at the wrong path;
 * root `monad.toml` is missing;
-* manifest parsing dependencies cannot be resolved;
 * manifest loading tests fail;
+* `monad info` cannot discover the workspace;
+* `monad info` cannot load `monad.toml`;
 * a Markdown file is missing YAML frontmatter;
 * a work packet, task, deliverable, epic, or ADR record is missing required structure;
-* context files do not identify E1, WP-E1-006, Runtime Foundation, and Manifest Loading;
+* context files do not identify E1, WP-E1-007, Runtime Foundation, and CLI Info;
 * Rust code is not formatted;
 * Rust tests fail;
 * trailing whitespace or whitespace errors are present in the diff.

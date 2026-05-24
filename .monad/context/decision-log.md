@@ -2,17 +2,17 @@
 title: "Decision Log"
 document_type: "context-decision-log"
 status: "current"
-version: "1.5.0"
+version: "1.6.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-006"
+work_packet: "WP-E1-007"
 tags:
 
 * decisions
 * e1
-* manifest-loading
+* cli-info
 
 ---
 
@@ -38,7 +38,8 @@ tags:
 16. WP-E1-003 established Core Error in `monad-core`.
 17. WP-E1-004 established Workspace Context in `monad-core`.
 18. WP-E1-005 established Manifest Model in `monad-core`.
-19. WP-E1-006 establishes Manifest Loading in `monad-core`.
+19. WP-E1-006 established Manifest Loading in `monad-core`.
+20. WP-E1-007 establishes CLI Info in `monad-cli`.
 
 ## Current Epic
 
@@ -46,4 +47,4 @@ E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-006 — Establish Manifest Loading Foundation
+WP-E1-007 — Establish CLI Info Command Foundation

@@ -2,19 +2,19 @@
 title: "Monad Context Current State"
 document_type: "context-current-state"
 status: "current"
-version: "1.5.0"
+version: "1.6.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-006"
+work_packet: "WP-E1-007"
 tags:
 
 * context
 * current-state
 * e1
 * runtime-foundation
-* manifest-loading
+* cli-info
 
 ---
 
@@ -32,23 +32,25 @@ WP-E1-004 — Establish Workspace Context Foundation is complete.
 
 WP-E1-005 — Establish Manifest Model Foundation is complete.
 
+WP-E1-006 — Establish Manifest Loading Foundation is complete.
+
 The current epic is E1 — Runtime Foundation.
 
-The current work packet is WP-E1-006 — Establish Manifest Loading Foundation.
+The current work packet is WP-E1-007 — Establish CLI Info Command Foundation.
 
 ## Active Focus
 
-Manifest Loading.
+CLI Info.
 
 ## Runtime Files
 
 * `monad.toml`
+* `crates/monad-cli/src/main.rs`
 * `crates/monad-core/src/diagnostics.rs`
 * `crates/monad-core/src/error.rs`
 * `crates/monad-core/src/workspace.rs`
 * `crates/monad-core/src/manifest.rs`
 * `crates/monad-core/src/lib.rs`
-* `crates/monad-cli/src/main.rs`
 
 ## Verification
 
