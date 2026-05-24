@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""
+Check that the required E0 foundation paths exist.
+
+This script is intentionally conservative. It verifies the files and directories
+that should exist after the repository foundation, documentation architecture,
+context bridge foundation, and workflow standards slices.
+"""
+
+from pathlib import Path
+
+
+REQUIRED_PATHS = [
+    # WP-E0-001 — Repository foundation
+    "README.md",
+    "LICENSE",
+    ".gitignore",
+    ".editorconfig",
+    "rust-toolchain.toml",
+    "Cargo.toml",
+    "docs/README.md",
+    "work/README.md",
+    "work/epics/README.md",
+    "work/packets/README.md",
+    "work/tasks/README.md",
+    "work/records/README.md",
+    ".monad/README.md",
+    ".monad/context/README.md",
+    ".monad/reports/README.md",
+
+    # WP-E0-003 — Context bridge foundation
+    "docs/09-ai/CURRENT-STATE.md",
+    "docs/09-ai/FRESH-CHAT-HANDOFF.md",
+    ".monad/context/current-state.md",
+    ".monad/context/latest-handoff.md",
+    ".monad/context/latest-context-pack.md",
+    ".monad/context/decision-log.md",
+    ".monad/context/session-chronicles/README.md",
+    ".monad/context/work-packet-handoffs/README.md",
+    ".monad/context/decision-records/README.md",
+
+    # WP-E0-004 — Workflow standards
+    "docs/07-workflow/OPERATING-MODEL.md",
+    "docs/07-workflow/WORK-HIERARCHY.md",
+    "docs/07-workflow/WORK-PACKET-STANDARD.md",
+    "docs/07-workflow/DEFINITION-OF-READY.md",
+    "docs/07-workflow/DEFINITION-OF-DONE.md",
+    "docs/07-workflow/README.md",
+    "docs/07-workflow/EPIC-STANDARD.md",
+    "docs/07-workflow/TASK-STANDARD.md",
+    "docs/07-workflow/DELIVERABLE-STANDARD.md",
+    "docs/07-workflow/VERIFICATION-STANDARD.md",
+    "docs/07-workflow/COMMIT-STANDARD.md",
+    "docs/07-workflow/BRANCHING-STANDARD.md",
+    "docs/07-workflow/REVIEW-STANDARD.md",
+    "docs/07-workflow/CONTEXT-UPDATE-STANDARD.md",
+]
+
+
+def main() -> int:
+    missing: list[str] = []
+
+    for path_text in REQUIRED_PATHS:
+        path = Path(path_text)
+        if not path.exists():
+            missing.append(path_text)
+
+    if missing:
+        print("Required E0 foundation paths are missing:")
+        for item in missing:
+            print(f"  {item}")
+        return 1
+
+    print("All required E0 foundation paths exist.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
