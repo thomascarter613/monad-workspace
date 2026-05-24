@@ -13,6 +13,9 @@ cleanup_generated_context() {
 echo "==> Checking git diff whitespace"
 git diff --check
 
+echo "==> Checking generated context artifact ignore policy"
+grep -qxF ".monad/context/generated/" .gitignore
+
 echo "==> Checking required foundation and runtime paths"
 python3 tools/scripts/check-required-paths.py
 

@@ -68,3 +68,5 @@ coverage/
 *.tar
 *.tar.gz
 *.zip
+# Monad generated context artifacts
+.monad/context/generated/
