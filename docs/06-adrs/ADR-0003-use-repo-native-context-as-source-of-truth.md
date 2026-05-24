@@ -1,5 +1,6 @@
 ---
 title: "ADR 0003: Use Repo Native Context As Source Of Truth"
+document_type: "adr"
 status: stub
 owner: "Thomas Carter"
 created: 2026-05-23
@@ -33,3 +34,13 @@ This file is a stub created during the Monad documentation foundation pass. It e
 - Keep this document repo-native, reviewable, and useful for both humans and AI-assisted handoff.
 - Prefer precise statements over vague claims.
 - Update the frontmatter status as the document matures from `stub` to `draft`, `review`, or `accepted`.
+
+## Context
+
+
+
+## Decision
+
+
+
+## Consequences

@@ -1,5 +1,6 @@
 ---
 title: "ADR 0002: Use Monad as Unified Product Name"
+document_type: "adr"
 status: accepted
 owner: "Thomas Carter"
 created: 2026-05-23

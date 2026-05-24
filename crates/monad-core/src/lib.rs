@@ -30,8 +30,8 @@ pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
 };
 pub use repository_inspection::{
-    RepositoryEntry, RepositoryEntryKind, RepositoryEntryRole, RepositoryEntryTraversalPolicy,
-    RepositoryInspection, inspect_workspace,
+    RepositoryEntry, RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
+    RepositoryEntryTraversalPolicy, RepositoryInspection, inspect_workspace,
 };
 pub use workspace::{WorkspaceContext, discover_workspace_root, is_workspace_root};
 
@@ -229,11 +229,22 @@ mod tests {
     }
 
     #[test]
+    fn repository_entry_category_is_exported_from_core_root() {
+        assert_eq!(RepositoryEntryCategory::Source.as_str(), "source");
+        assert_eq!(
+            RepositoryEntryRole::SourceRoot.category(),
+            RepositoryEntryCategory::Source
+        );
+    }
+
+    #[test]
     fn repository_inspection_summary_type_is_exported_from_core_root() {
         let inspection = RepositoryInspection::new(".", Vec::new());
         let summary = RepositoryInspectionSummary::from_inspection(&inspection);
 
         assert_eq!(summary.root, ".");
         assert_eq!(summary.entry_count, 0);
+        assert_eq!(summary.known_entry_count, 0);
+        assert_eq!(summary.unknown_entry_count, 0);
     }
 }

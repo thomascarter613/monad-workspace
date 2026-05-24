@@ -9,8 +9,8 @@
 //! inspection needs ignore rules, performance safeguards, policy controls, and
 //! graph-oriented design.
 //!
-//! WP-E2-003 enriches first-pass classification so `monad inspect` can describe
-//! more kinds of important repository artifacts without making the CLI smarter.
+//! WP-E2-004 adds stable category-level metrics. Roles remain specific, while
+//! categories provide broader summary buckets for `monad inspect`.
 
 use std::fs::{self, DirEntry, FileType};
 use std::path::{Path, PathBuf};
@@ -80,6 +80,113 @@ impl RepositoryEntryKind {
             Self::File => "file",
             Self::Directory => "directory",
             Self::Symlink => "symlink",
+            Self::Other => "other",
+        }
+    }
+}
+
+/// Broad category bucket for a repository entry.
+///
+/// Roles answer "what is this exact thing?". Categories answer "what broad
+/// area of the repository does this thing belong to?".
+///
+/// Keeping both levels lets `monad inspect` show useful summary metrics without
+/// losing precise role information.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepositoryEntryCategory {
+    /// Monad-specific control files or state roots.
+    MonadControl,
+
+    /// Source code roots.
+    Source,
+
+    /// Documentation roots or files.
+    Documentation,
+
+    /// Work management, planning, packet, task, and deliverable records.
+    WorkManagement,
+
+    /// Runtime/toolchain files for Rust.
+    RustRuntime,
+
+    /// JavaScript/TypeScript package management files.
+    JavaScriptPackageManagement,
+
+    /// General developer tooling configuration.
+    Tooling,
+
+    /// General configuration roots.
+    Configuration,
+
+    /// Infrastructure/deployment roots or files.
+    Infrastructure,
+
+    /// API contracts, schemas, protobuf, OpenAPI, or related contract roots.
+    Contracts,
+
+    /// Database, migration, seed, or data roots.
+    Data,
+
+    /// Governance, policy, or security roots.
+    Governance,
+
+    /// Public/static/assets roots.
+    Assets,
+
+    /// Test roots.
+    Tests,
+
+    /// CI or repository automation roots.
+    ContinuousIntegration,
+
+    /// Development environment roots.
+    DevelopmentEnvironment,
+
+    /// AI/agent context configuration.
+    AiContext,
+
+    /// Legal or licensing files.
+    Legal,
+
+    /// VCS support files.
+    VersionControl,
+
+    /// Build output, dependency cache, virtual environment, VCS internals, or similar.
+    GeneratedOrExternal,
+
+    /// Hidden path without a more specific category.
+    Hidden,
+
+    /// No category detected yet.
+    Other,
+}
+
+impl RepositoryEntryCategory {
+    /// Returns a stable category label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::MonadControl => "monad_control",
+            Self::Source => "source",
+            Self::Documentation => "documentation",
+            Self::WorkManagement => "work_management",
+            Self::RustRuntime => "rust_runtime",
+            Self::JavaScriptPackageManagement => "javascript_package_management",
+            Self::Tooling => "tooling",
+            Self::Configuration => "configuration",
+            Self::Infrastructure => "infrastructure",
+            Self::Contracts => "contracts",
+            Self::Data => "data",
+            Self::Governance => "governance",
+            Self::Assets => "assets",
+            Self::Tests => "tests",
+            Self::ContinuousIntegration => "continuous_integration",
+            Self::DevelopmentEnvironment => "development_environment",
+            Self::AiContext => "ai_context",
+            Self::Legal => "legal",
+            Self::VersionControl => "version_control",
+            Self::GeneratedOrExternal => "generated_or_external",
+            Self::Hidden => "hidden",
             Self::Other => "other",
         }
     }
@@ -220,6 +327,40 @@ impl RepositoryEntryRole {
             Self::Other => "other",
         }
     }
+
+    /// Returns the broad category associated with this role.
+    #[must_use]
+    pub const fn category(self) -> RepositoryEntryCategory {
+        match self {
+            Self::MonadManifest | Self::MonadStateRoot => RepositoryEntryCategory::MonadControl,
+            Self::SourceRoot => RepositoryEntryCategory::Source,
+            Self::Readme | Self::DocumentationRoot => RepositoryEntryCategory::Documentation,
+            Self::WorkRoot => RepositoryEntryCategory::WorkManagement,
+            Self::RustWorkspaceManifest
+            | Self::RustLockfile
+            | Self::RustToolchain
+            | Self::RustQualityConfig => RepositoryEntryCategory::RustRuntime,
+            Self::JavaScriptPackageConfig => RepositoryEntryCategory::JavaScriptPackageManagement,
+            Self::ToolingConfig | Self::ToolingRoot => RepositoryEntryCategory::Tooling,
+            Self::EditorConfig | Self::ConfigurationRoot => RepositoryEntryCategory::Configuration,
+            Self::InfrastructureConfig | Self::InfrastructureRoot => {
+                RepositoryEntryCategory::Infrastructure
+            }
+            Self::ContractRoot => RepositoryEntryCategory::Contracts,
+            Self::DataRoot => RepositoryEntryCategory::Data,
+            Self::GovernanceRoot => RepositoryEntryCategory::Governance,
+            Self::AssetRoot => RepositoryEntryCategory::Assets,
+            Self::TestRoot => RepositoryEntryCategory::Tests,
+            Self::CiRoot => RepositoryEntryCategory::ContinuousIntegration,
+            Self::DevEnvironmentRoot => RepositoryEntryCategory::DevelopmentEnvironment,
+            Self::AiContextConfig => RepositoryEntryCategory::AiContext,
+            Self::License => RepositoryEntryCategory::Legal,
+            Self::GitIgnore => RepositoryEntryCategory::VersionControl,
+            Self::GeneratedOrExternal => RepositoryEntryCategory::GeneratedOrExternal,
+            Self::Hidden => RepositoryEntryCategory::Hidden,
+            Self::Other => RepositoryEntryCategory::Other,
+        }
+    }
 }
 
 /// Whether future deeper inspection should descend into an entry.
@@ -314,6 +455,12 @@ impl RepositoryEntry {
         self.role
     }
 
+    /// Returns the entry's broad category.
+    #[must_use]
+    pub const fn category(&self) -> RepositoryEntryCategory {
+        self.role.category()
+    }
+
     /// Returns the default future traversal policy.
     #[must_use]
     pub const fn traversal_policy(&self) -> RepositoryEntryTraversalPolicy {
@@ -390,6 +537,18 @@ impl RepositoryInspection {
         self.entries
             .iter()
             .filter(|entry| entry.role() == role)
+            .collect()
+    }
+
+    /// Returns entries with a specific broad category.
+    #[must_use]
+    pub fn entries_with_category(
+        &self,
+        category: RepositoryEntryCategory,
+    ) -> Vec<&RepositoryEntry> {
+        self.entries
+            .iter()
+            .filter(|entry| entry.category() == category)
             .collect()
     }
 }
@@ -834,6 +993,61 @@ mod tests {
     }
 
     #[test]
+    fn repository_inspection_exposes_category_queries() {
+        let root = create_inspection_workspace("category-queries");
+        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
+
+        let inspection = inspect_workspace(&context).expect("workspace should inspect");
+
+        assert!(
+            inspection
+                .entries_with_category(RepositoryEntryCategory::MonadControl)
+                .len()
+                >= 2
+        );
+        assert_eq!(
+            inspection
+                .entries_with_category(RepositoryEntryCategory::Source)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_category(RepositoryEntryCategory::WorkManagement)
+                .len(),
+            1
+        );
+        assert_eq!(
+            inspection
+                .entries_with_category(RepositoryEntryCategory::ContinuousIntegration)
+                .len(),
+            1
+        );
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn repository_entry_roles_map_to_stable_categories() {
+        assert_eq!(
+            RepositoryEntryRole::MonadManifest.category(),
+            RepositoryEntryCategory::MonadControl
+        );
+        assert_eq!(
+            RepositoryEntryRole::SourceRoot.category(),
+            RepositoryEntryCategory::Source
+        );
+        assert_eq!(
+            RepositoryEntryRole::DocumentationRoot.category(),
+            RepositoryEntryCategory::Documentation
+        );
+        assert_eq!(
+            RepositoryEntryRole::GeneratedOrExternal.category(),
+            RepositoryEntryCategory::GeneratedOrExternal
+        );
+    }
+
+    #[test]
     fn generated_or_external_directories_are_marked_for_skip() {
         let root = create_inspection_workspace("generated");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
@@ -860,6 +1074,10 @@ mod tests {
 
         assert_eq!(target.role(), RepositoryEntryRole::GeneratedOrExternal);
         assert_eq!(
+            target.category(),
+            RepositoryEntryCategory::GeneratedOrExternal
+        );
+        assert_eq!(
             target.traversal_policy(),
             RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal
         );
@@ -869,11 +1087,16 @@ mod tests {
             RepositoryEntryRole::GeneratedOrExternal
         );
         assert_eq!(
+            node_modules.category(),
+            RepositoryEntryCategory::GeneratedOrExternal
+        );
+        assert_eq!(
             node_modules.traversal_policy(),
             RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal
         );
 
         assert_eq!(git.role(), RepositoryEntryRole::GeneratedOrExternal);
+        assert_eq!(git.category(), RepositoryEntryCategory::GeneratedOrExternal);
         assert_eq!(
             git.traversal_policy(),
             RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal

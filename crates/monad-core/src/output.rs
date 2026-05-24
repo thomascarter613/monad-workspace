@@ -15,7 +15,8 @@ use std::collections::BTreeMap;
 use serde_json::json;
 
 use crate::repository_inspection::{
-    RepositoryEntryKind, RepositoryEntryRole, RepositoryEntryTraversalPolicy, RepositoryInspection,
+    RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
+    RepositoryEntryTraversalPolicy, RepositoryInspection,
 };
 use crate::{DiagnosticReport, MonadError, MonadManifest, MonadResult, Severity, WorkspaceContext};
 
@@ -113,6 +114,9 @@ pub struct RepositoryInspectionSummaryEntry {
     /// Filesystem kind as a stable label.
     pub kind: String,
 
+    /// Broad category as a stable label.
+    pub category: String,
+
     /// First-pass Monad role classification as a stable label.
     pub role: String,
 
@@ -145,6 +149,27 @@ pub struct RepositoryInspectionSummary {
     /// Number of other top-level filesystem entries.
     pub other_count: usize,
 
+    /// Entries that Monad classified into a known, specific category.
+    pub known_entry_count: usize,
+
+    /// Entries that remain unknown or generic.
+    pub unknown_entry_count: usize,
+
+    /// Entries marked as generated/external.
+    pub generated_or_external_count: usize,
+
+    /// Entries safe for future traversal.
+    pub safe_for_future_traversal_count: usize,
+
+    /// Entries that should only be inspected shallowly by default.
+    pub inspect_shallow_only_count: usize,
+
+    /// Entries that should be skipped during future deep traversal by default.
+    pub skip_generated_or_external_count: usize,
+
+    /// Category counts keyed by stable category label.
+    pub category_counts: BTreeMap<String, usize>,
+
     /// Role counts keyed by stable role label.
     pub role_counts: BTreeMap<String, usize>,
 
@@ -159,6 +184,7 @@ impl RepositoryInspectionSummary {
     /// Builds a renderable repository inspection summary from the domain model.
     #[must_use]
     pub fn from_inspection(inspection: &RepositoryInspection) -> Self {
+        let mut category_counts = BTreeMap::new();
         let mut role_counts = BTreeMap::new();
         let mut traversal_policy_counts = BTreeMap::new();
 
@@ -166,9 +192,11 @@ impl RepositoryInspectionSummary {
             .entries()
             .iter()
             .map(|entry| {
+                let category = entry.category().as_str().to_string();
                 let role = entry.role().as_str().to_string();
                 let traversal_policy = entry.traversal_policy().as_str().to_string();
 
+                *category_counts.entry(category.clone()).or_insert(0) += 1;
                 *role_counts.entry(role.clone()).or_insert(0) += 1;
                 *traversal_policy_counts
                     .entry(traversal_policy.clone())
@@ -177,11 +205,16 @@ impl RepositoryInspectionSummary {
                 RepositoryInspectionSummaryEntry {
                     path: entry.relative_path().display().to_string(),
                     kind: entry.kind().as_str().to_string(),
+                    category,
                     role,
                     traversal_policy,
                 }
             })
             .collect();
+
+        let unknown_entry_count =
+            count_entries_by_category(inspection, RepositoryEntryCategory::Other)
+                + count_entries_by_category(inspection, RepositoryEntryCategory::Hidden);
 
         Self {
             root: inspection.root().display().to_string(),
@@ -190,6 +223,25 @@ impl RepositoryInspectionSummary {
             directory_count: count_entries_by_kind(inspection, RepositoryEntryKind::Directory),
             symlink_count: count_entries_by_kind(inspection, RepositoryEntryKind::Symlink),
             other_count: count_entries_by_kind(inspection, RepositoryEntryKind::Other),
+            known_entry_count: inspection.entry_count().saturating_sub(unknown_entry_count),
+            unknown_entry_count,
+            generated_or_external_count: count_entries_by_category(
+                inspection,
+                RepositoryEntryCategory::GeneratedOrExternal,
+            ),
+            safe_for_future_traversal_count: count_entries_by_traversal_policy(
+                inspection,
+                RepositoryEntryTraversalPolicy::SafeForFutureTraversal,
+            ),
+            inspect_shallow_only_count: count_entries_by_traversal_policy(
+                inspection,
+                RepositoryEntryTraversalPolicy::InspectShallowOnly,
+            ),
+            skip_generated_or_external_count: count_entries_by_traversal_policy(
+                inspection,
+                RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal,
+            ),
+            category_counts,
             role_counts,
             traversal_policy_counts,
             entries,
@@ -203,6 +255,30 @@ fn count_entries_by_kind(inspection: &RepositoryInspection, kind: RepositoryEntr
         .entries()
         .iter()
         .filter(|entry| entry.kind() == kind)
+        .count()
+}
+
+/// Counts entries with a specific broad category.
+fn count_entries_by_category(
+    inspection: &RepositoryInspection,
+    category: RepositoryEntryCategory,
+) -> usize {
+    inspection
+        .entries()
+        .iter()
+        .filter(|entry| entry.category() == category)
+        .count()
+}
+
+/// Counts entries with a specific traversal policy.
+fn count_entries_by_traversal_policy(
+    inspection: &RepositoryInspection,
+    traversal_policy: RepositoryEntryTraversalPolicy,
+) -> usize {
+    inspection
+        .entries()
+        .iter()
+        .filter(|entry| entry.traversal_policy() == traversal_policy)
         .count()
 }
 
@@ -263,19 +339,19 @@ pub fn render_workspace_summary(summary: &WorkspaceSummary, format: OutputFormat
             "format": OutputFormat::Json.as_str(),
             "kind": "workspace_summary",
             "workspace": {
-                "root": summary.root,
+                "root": &summary.root,
             },
             "project": {
-                "display_name": summary.project_display_name,
-                "name": summary.project_name,
+                "display_name": &summary.project_display_name,
+                "name": &summary.project_name,
             },
             "manifest": {
-                "schema_version": summary.schema_version,
+                "schema_version": &summary.schema_version,
             },
             "runtime": {
-                "core_crate": summary.core_crate,
-                "cli_crate": summary.cli_crate,
-                "execution_model": summary.execution_model,
+                "core_crate": &summary.core_crate,
+                "cli_crate": &summary.cli_crate,
+                "execution_model": &summary.execution_model,
             },
         }))
         .expect("serializing workspace summary JSON should not fail"),
@@ -298,8 +374,33 @@ pub fn render_repository_inspection_summary(
                 format!("  directories: {}", summary.directory_count),
                 format!("  symlinks: {}", summary.symlink_count),
                 format!("  other: {}", summary.other_count),
-                "  roles:".to_string(),
+                "  metrics:".to_string(),
+                format!("    known_entries: {}", summary.known_entry_count),
+                format!("    unknown_entries: {}", summary.unknown_entry_count),
+                format!(
+                    "    generated_or_external_entries: {}",
+                    summary.generated_or_external_count
+                ),
+                format!(
+                    "    safe_for_future_traversal: {}",
+                    summary.safe_for_future_traversal_count
+                ),
+                format!(
+                    "    inspect_shallow_only: {}",
+                    summary.inspect_shallow_only_count
+                ),
+                format!(
+                    "    skip_generated_or_external: {}",
+                    summary.skip_generated_or_external_count
+                ),
+                "  categories:".to_string(),
             ];
+
+            for (category, count) in &summary.category_counts {
+                lines.push(format!("    {category}: {count}"));
+            }
+
+            lines.push("  roles:".to_string());
 
             for (role, count) in &summary.role_counts {
                 lines.push(format!("    {role}: {count}"));
@@ -315,8 +416,8 @@ pub fn render_repository_inspection_summary(
 
             for entry in &summary.entries {
                 lines.push(format!(
-                    "    - {} [{} role={} traversal={}]",
-                    entry.path, entry.kind, entry.role, entry.traversal_policy
+                    "    - {} [{} category={} role={} traversal={}]",
+                    entry.path, entry.kind, entry.category, entry.role, entry.traversal_policy
                 ));
             }
 
@@ -328,10 +429,11 @@ pub fn render_repository_inspection_summary(
                 .iter()
                 .map(|entry| {
                     json!({
-                        "path": entry.path,
-                        "kind": entry.kind,
-                        "role": entry.role,
-                        "traversal_policy": entry.traversal_policy,
+                        "path": &entry.path,
+                        "kind": &entry.kind,
+                        "category": &entry.category,
+                        "role": &entry.role,
+                        "traversal_policy": &entry.traversal_policy,
                     })
                 })
                 .collect::<Vec<_>>();
@@ -340,14 +442,23 @@ pub fn render_repository_inspection_summary(
                 "format": OutputFormat::Json.as_str(),
                 "kind": "repository_inspection_summary",
                 "repository": {
-                    "root": summary.root,
+                    "root": &summary.root,
                     "entry_count": summary.entry_count,
                     "file_count": summary.file_count,
                     "directory_count": summary.directory_count,
                     "symlink_count": summary.symlink_count,
                     "other_count": summary.other_count,
-                    "role_counts": summary.role_counts,
-                    "traversal_policy_counts": summary.traversal_policy_counts,
+                    "metrics": {
+                        "known_entry_count": summary.known_entry_count,
+                        "unknown_entry_count": summary.unknown_entry_count,
+                        "generated_or_external_count": summary.generated_or_external_count,
+                        "safe_for_future_traversal_count": summary.safe_for_future_traversal_count,
+                        "inspect_shallow_only_count": summary.inspect_shallow_only_count,
+                        "skip_generated_or_external_count": summary.skip_generated_or_external_count,
+                    },
+                    "category_counts": &summary.category_counts,
+                    "role_counts": &summary.role_counts,
+                    "traversal_policy_counts": &summary.traversal_policy_counts,
                     "entries": entries,
                 },
             }))
@@ -388,6 +499,7 @@ mod tests {
         fs::create_dir_all(root.join("work")).expect("work directory should be created");
         fs::create_dir_all(root.join(".monad")).expect(".monad directory should be created");
         fs::create_dir_all(root.join("crates")).expect("crates directory should be created");
+        fs::create_dir_all(root.join("tools")).expect("tools directory should be created");
         fs::create_dir_all(root.join("target")).expect("target directory should be created");
 
         fs::write(root.join("README.md"), "# Test\n").expect("README should be written");
@@ -498,8 +610,11 @@ mod tests {
         let rendered = render_repository_inspection_summary(&summary, OutputFormat::Text);
 
         assert!(rendered.contains("Monad repository inspection"));
+        assert!(rendered.contains("metrics:"));
+        assert!(rendered.contains("categories:"));
         assert!(rendered.contains("monad.toml"));
-        assert!(rendered.contains("monad_manifest"));
+        assert!(rendered.contains("category=monad_control"));
+        assert!(rendered.contains("role=monad_manifest"));
         assert!(rendered.contains("skip_generated_or_external"));
 
         fs::remove_dir_all(root).ok();
@@ -516,8 +631,11 @@ mod tests {
 
         assert!(rendered.contains(r#""format": "json""#));
         assert!(rendered.contains(r#""kind": "repository_inspection_summary""#));
+        assert!(rendered.contains(r#""metrics""#));
+        assert!(rendered.contains(r#""category_counts""#));
         assert!(rendered.contains(r#""entry_count""#));
         assert!(rendered.contains(r#""path": "monad.toml""#));
+        assert!(rendered.contains(r#""category": "monad_control""#));
         assert!(rendered.contains(r#""role": "monad_manifest""#));
 
         fs::remove_dir_all(root).ok();
@@ -535,6 +653,43 @@ mod tests {
         assert!(summary.directory_count >= 4);
         assert_eq!(summary.symlink_count, 0);
         assert_eq!(summary.other_count, 0);
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn repository_inspection_summary_counts_categories() {
+        let root = create_inspection_workspace("inspection-category-counts");
+        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
+        let inspection = inspect_workspace(&context).expect("workspace should inspect");
+        let summary = RepositoryInspectionSummary::from_inspection(&inspection);
+
+        assert!(summary.known_entry_count > 0);
+        assert!(summary.generated_or_external_count >= 1);
+        assert!(summary.safe_for_future_traversal_count >= 4);
+        assert!(summary.inspect_shallow_only_count >= 3);
+        assert!(summary.skip_generated_or_external_count >= 1);
+
+        assert!(
+            summary
+                .category_counts
+                .contains_key(RepositoryEntryCategory::MonadControl.as_str())
+        );
+        assert!(
+            summary
+                .category_counts
+                .contains_key(RepositoryEntryCategory::Source.as_str())
+        );
+        assert!(
+            summary
+                .category_counts
+                .contains_key(RepositoryEntryCategory::Tooling.as_str())
+        );
+        assert!(
+            summary
+                .category_counts
+                .contains_key(RepositoryEntryCategory::GeneratedOrExternal.as_str())
+        );
 
         fs::remove_dir_all(root).ok();
     }
