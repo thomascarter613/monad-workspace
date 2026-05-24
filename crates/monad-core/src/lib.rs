@@ -14,6 +14,7 @@ pub mod output;
 pub mod repo_contract;
 pub mod repository_graph;
 pub mod repository_inspection;
+pub mod toolchain_detection;
 pub mod workspace;
 
 pub use checks::run_workspace_checks;
@@ -24,8 +25,9 @@ pub use manifest::{
     ManifestWorkspace, MonadManifest,
 };
 pub use output::{
-    OutputFormat, RepositoryInspectionSummary, RepositoryInspectionSummaryEntry, WorkspaceSummary,
-    render_diagnostic_report, render_repository_inspection_summary, render_workspace_summary,
+    OutputFormat, RepositoryInspectionSummary, RepositoryInspectionSummaryEntry,
+    RepositoryToolchainSummaryEntry, WorkspaceSummary, render_diagnostic_report,
+    render_repository_inspection_summary, render_workspace_summary,
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
@@ -41,6 +43,10 @@ pub use repository_inspection::{
     RepositoryTraversalDecision, RepositoryTraversalEntry, RepositoryTraversalGuardrails,
     RepositoryTraversalMode, RepositoryTraversalPlan, RepositoryTraversalPlanEntry,
     build_traversal_plan, inspect_workspace, traverse_workspace_bounded,
+};
+pub use toolchain_detection::{
+    RepositoryToolchainDetection, RepositoryToolchainKind, RepositoryToolchainSignal,
+    RepositoryToolchainSignalKind, detect_repository_toolchains,
 };
 pub use workspace::{WorkspaceContext, discover_workspace_root, is_workspace_root};
 
@@ -122,12 +128,14 @@ pub fn repository_inspection_summary_from_workspace(
     let inspection = inspect_workspace(context)?;
     let bounded_traversal = traverse_workspace_bounded(&inspection)?;
     let graph = build_repository_graph(&bounded_traversal);
+    let toolchains = detect_repository_toolchains(&bounded_traversal);
 
     Ok(
-        RepositoryInspectionSummary::from_inspection_bounded_traversal_and_graph(
+        RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_and_toolchains(
             &inspection,
             &bounded_traversal,
             &graph,
+            &toolchains,
         ),
     )
 }
@@ -243,6 +251,20 @@ mod tests {
     }
 
     #[test]
+    fn repository_toolchain_detection_types_are_exported_from_core_root() {
+        assert_eq!(RepositoryToolchainKind::Rust.as_str(), "rust");
+        assert_eq!(
+            RepositoryToolchainSignalKind::SourceFile.as_str(),
+            "source_file"
+        );
+
+        let detection = RepositoryToolchainDetection::from_signals(Vec::new());
+
+        assert_eq!(detection.detected_toolchain_count(), 0);
+        assert_eq!(detection.signal_count(), 0);
+    }
+
+    #[test]
     fn repository_entry_category_is_exported_from_core_root() {
         assert_eq!(RepositoryEntryCategory::Source.as_str(), "source");
         assert_eq!(
@@ -286,5 +308,7 @@ mod tests {
         assert_eq!(summary.bounded_traversal_mode, "not_run");
         assert_eq!(summary.graph_node_count, 0);
         assert_eq!(summary.graph_edge_count, 0);
+        assert_eq!(summary.toolchain_count, 0);
+        assert_eq!(summary.toolchain_signal_count, 0);
     }
 }

@@ -10,8 +10,11 @@ use serde_json::json;
 
 use crate::repository_graph::{RepositoryGraph, build_repository_graph};
 use crate::repository_inspection::{
-    RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind,
+    RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
     RepositoryEntryTraversalPolicy, RepositoryInspection, build_traversal_plan,
+};
+use crate::toolchain_detection::{
+    RepositoryToolchainDetection, RepositoryToolchainKind, detect_repository_toolchains,
 };
 use crate::{DiagnosticReport, MonadError, MonadManifest, MonadResult, Severity, WorkspaceContext};
 
@@ -85,6 +88,13 @@ pub struct RepositoryInspectionSummaryEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepositoryToolchainSummaryEntry {
+    pub toolchain: String,
+    pub signal_count: usize,
+    pub signal_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepositoryInspectionSummary {
     pub root: String,
     pub entry_count: usize,
@@ -119,6 +129,11 @@ pub struct RepositoryInspectionSummary {
     pub graph_max_depth: usize,
     pub graph_category_counts: BTreeMap<String, usize>,
     pub graph_traversal_decision_counts: BTreeMap<String, usize>,
+    pub toolchain_count: usize,
+    pub toolchain_signal_count: usize,
+    pub toolchain_counts: BTreeMap<String, usize>,
+    pub toolchain_signal_kind_counts: BTreeMap<String, usize>,
+    pub toolchains: Vec<RepositoryToolchainSummaryEntry>,
     pub category_counts: BTreeMap<String, usize>,
     pub role_counts: BTreeMap<String, usize>,
     pub traversal_policy_counts: BTreeMap<String, usize>,
@@ -128,7 +143,7 @@ pub struct RepositoryInspectionSummary {
 impl RepositoryInspectionSummary {
     #[must_use]
     pub fn from_inspection(inspection: &RepositoryInspection) -> Self {
-        Self::from_parts(inspection, None, None)
+        Self::from_parts(inspection, None, None, None)
     }
 
     #[must_use]
@@ -137,8 +152,14 @@ impl RepositoryInspectionSummary {
         bounded_traversal: &RepositoryBoundedTraversal,
     ) -> Self {
         let graph = build_repository_graph(bounded_traversal);
+        let toolchain_detection = detect_repository_toolchains(bounded_traversal);
 
-        Self::from_parts(inspection, Some(bounded_traversal), Some(&graph))
+        Self::from_parts(
+            inspection,
+            Some(bounded_traversal),
+            Some(&graph),
+            Some(&toolchain_detection),
+        )
     }
 
     #[must_use]
@@ -147,13 +168,36 @@ impl RepositoryInspectionSummary {
         bounded_traversal: &RepositoryBoundedTraversal,
         graph: &RepositoryGraph,
     ) -> Self {
-        Self::from_parts(inspection, Some(bounded_traversal), Some(graph))
+        let toolchain_detection = detect_repository_toolchains(bounded_traversal);
+
+        Self::from_parts(
+            inspection,
+            Some(bounded_traversal),
+            Some(graph),
+            Some(&toolchain_detection),
+        )
+    }
+
+    #[must_use]
+    pub fn from_inspection_bounded_traversal_graph_and_toolchains(
+        inspection: &RepositoryInspection,
+        bounded_traversal: &RepositoryBoundedTraversal,
+        graph: &RepositoryGraph,
+        toolchain_detection: &RepositoryToolchainDetection,
+    ) -> Self {
+        Self::from_parts(
+            inspection,
+            Some(bounded_traversal),
+            Some(graph),
+            Some(toolchain_detection),
+        )
     }
 
     fn from_parts(
         inspection: &RepositoryInspection,
         bounded_traversal: Option<&RepositoryBoundedTraversal>,
         graph: Option<&RepositoryGraph>,
+        toolchain_detection: Option<&RepositoryToolchainDetection>,
     ) -> Self {
         let traversal_plan = build_traversal_plan(inspection);
         let guardrails = traversal_plan.guardrails();
@@ -192,6 +236,18 @@ impl RepositoryInspectionSummary {
         let unknown_entry_count =
             count_entries_by_category(inspection, RepositoryEntryCategory::Other)
                 + count_entries_by_category(inspection, RepositoryEntryCategory::Hidden);
+
+        let toolchain_counts = toolchain_detection
+            .map(RepositoryToolchainDetection::toolchain_counts)
+            .unwrap_or_default();
+
+        let toolchain_signal_kind_counts = toolchain_detection
+            .map(RepositoryToolchainDetection::signal_kind_counts)
+            .unwrap_or_default();
+
+        let toolchains = toolchain_detection
+            .map(build_toolchain_summary_entries)
+            .unwrap_or_default();
 
         Self {
             root: inspection.root().display().to_string(),
@@ -260,12 +316,39 @@ impl RepositoryInspectionSummary {
             graph_traversal_decision_counts: graph
                 .map(RepositoryGraph::traversal_decision_counts)
                 .unwrap_or_default(),
+            toolchain_count: toolchain_detection
+                .map(RepositoryToolchainDetection::detected_toolchain_count)
+                .unwrap_or(0),
+            toolchain_signal_count: toolchain_detection
+                .map(RepositoryToolchainDetection::signal_count)
+                .unwrap_or(0),
+            toolchain_counts,
+            toolchain_signal_kind_counts,
+            toolchains,
             category_counts,
             role_counts,
             traversal_policy_counts,
             entries,
         }
     }
+}
+
+fn build_toolchain_summary_entries(
+    detection: &RepositoryToolchainDetection,
+) -> Vec<RepositoryToolchainSummaryEntry> {
+    detection
+        .detected_toolchains()
+        .iter()
+        .map(|toolchain| {
+            let signal_paths = detection.signal_paths_for_toolchain(*toolchain);
+
+            RepositoryToolchainSummaryEntry {
+                toolchain: toolchain.as_str().to_string(),
+                signal_count: signal_paths.len(),
+                signal_paths,
+            }
+        })
+        .collect()
 }
 
 fn count_entries_by_kind(inspection: &RepositoryInspection, kind: RepositoryEntryKind) -> usize {
@@ -457,8 +540,36 @@ pub fn render_repository_inspection_summary(
                 format!("    nodes: {}", summary.graph_node_count),
                 format!("    edges: {}", summary.graph_edge_count),
                 format!("    max_depth: {}", summary.graph_max_depth),
-                "  graph_categories:".to_string(),
+                "  toolchains:".to_string(),
+                format!("    detected: {}", summary.toolchain_count),
+                format!("    signals: {}", summary.toolchain_signal_count),
+                "  toolchain_counts:".to_string(),
             ];
+
+            for (toolchain, count) in &summary.toolchain_counts {
+                lines.push(format!("    {toolchain}: {count}"));
+            }
+
+            lines.push("  toolchain_signal_kind_counts:".to_string());
+
+            for (signal_kind, count) in &summary.toolchain_signal_kind_counts {
+                lines.push(format!("    {signal_kind}: {count}"));
+            }
+
+            lines.push("  detected_toolchains:".to_string());
+
+            for toolchain in &summary.toolchains {
+                lines.push(format!(
+                    "    - {} signals={}",
+                    toolchain.toolchain, toolchain.signal_count
+                ));
+
+                for path in &toolchain.signal_paths {
+                    lines.push(format!("      - {path}"));
+                }
+            }
+
+            lines.push("  graph_categories:".to_string());
 
             for (category, count) in &summary.graph_category_counts {
                 lines.push(format!("    {category}: {count}"));
@@ -522,6 +633,18 @@ pub fn render_repository_inspection_summary(
                 })
                 .collect::<Vec<_>>();
 
+            let toolchains = summary
+                .toolchains
+                .iter()
+                .map(|toolchain| {
+                    json!({
+                        "toolchain": &toolchain.toolchain,
+                        "signal_count": toolchain.signal_count,
+                        "signal_paths": &toolchain.signal_paths,
+                    })
+                })
+                .collect::<Vec<_>>();
+
             serde_json::to_string_pretty(&json!({
                 "format": OutputFormat::Json.as_str(),
                 "kind": "repository_inspection_summary",
@@ -569,6 +692,13 @@ pub fn render_repository_inspection_summary(
                         "category_counts": &summary.graph_category_counts,
                         "traversal_decision_counts": &summary.graph_traversal_decision_counts,
                     },
+                    "toolchains": {
+                        "detected_toolchain_count": summary.toolchain_count,
+                        "signal_count": summary.toolchain_signal_count,
+                        "toolchain_counts": &summary.toolchain_counts,
+                        "signal_kind_counts": &summary.toolchain_signal_kind_counts,
+                        "detected": toolchains,
+                    },
                     "category_counts": &summary.category_counts,
                     "role_counts": &summary.role_counts,
                     "traversal_policy_counts": &summary.traversal_policy_counts,
@@ -592,7 +722,8 @@ mod tests {
         Diagnostic, ManifestProject, ManifestRuntime, ManifestSchemaVersion, ManifestWorkspace,
     };
     use crate::{
-        WorkspaceContext, build_repository_graph, inspect_workspace, traverse_workspace_bounded,
+        WorkspaceContext, build_repository_graph, detect_repository_toolchains, inspect_workspace,
+        traverse_workspace_bounded,
     };
 
     fn unique_temp_dir(test_name: &str) -> PathBuf {
@@ -615,19 +746,25 @@ mod tests {
         fs::create_dir_all(root.join(".monad")).expect(".monad directory should be created");
         fs::create_dir_all(root.join("crates/monad-core/src"))
             .expect("crates directory should be created");
+        fs::create_dir_all(root.join("apps/web/src")).expect("web directory should be created");
         fs::create_dir_all(root.join("tools")).expect("tools directory should be created");
         fs::create_dir_all(root.join("target")).expect("target directory should be created");
 
         fs::write(root.join("README.md"), "# Test\n").expect("README should be written");
         fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("Cargo.toml should be written");
+        fs::write(root.join("Cargo.lock"), "# lock\n").expect("Cargo.lock should be written");
         fs::write(root.join("monad.toml"), "schema_version = 1\n")
             .expect("monad.toml should be written");
+        fs::write(root.join("package.json"), "{}\n").expect("package.json should be written");
+        fs::write(root.join("tsconfig.json"), "{}\n").expect("tsconfig.json should be written");
         fs::write(root.join("docs/guide/intro.md"), "# Intro\n").expect("intro should be written");
         fs::write(
             root.join("crates/monad-core/src/lib.rs"),
             "pub fn test() {}\n",
         )
         .expect("lib should be written");
+        fs::write(root.join("apps/web/src/main.ts"), "export {}\n")
+            .expect("typescript should be written");
 
         root
     }
@@ -680,78 +817,95 @@ mod tests {
     }
 
     #[test]
-    fn repository_inspection_summary_includes_graph_metrics() {
-        let root = create_inspection_workspace("graph-summary");
+    fn repository_inspection_summary_includes_toolchain_metrics() {
+        let root = create_inspection_workspace("toolchain-summary");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
         let bounded =
             traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
         let graph = build_repository_graph(&bounded);
-        let summary = RepositoryInspectionSummary::from_inspection_bounded_traversal_and_graph(
-            &inspection,
-            &bounded,
-            &graph,
-        );
+        let toolchains = detect_repository_toolchains(&bounded);
 
-        assert!(summary.graph_node_count > 0);
-        assert!(summary.graph_edge_count > 0);
-        assert!(summary.graph_max_depth > 0);
-        assert!(summary.graph_category_counts.contains_key("source"));
+        let summary =
+            RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_and_toolchains(
+                &inspection,
+                &bounded,
+                &graph,
+                &toolchains,
+            );
+
+        assert!(summary.toolchain_count >= 3);
+        assert!(summary.toolchain_signal_count >= 3);
+        assert!(summary.toolchain_counts.contains_key("rust"));
+        assert!(summary.toolchain_counts.contains_key("javascript"));
+        assert!(summary.toolchain_counts.contains_key("typescript"));
         assert!(
             summary
-                .graph_traversal_decision_counts
-                .contains_key("candidate_for_future_traversal")
+                .toolchain_signal_kind_counts
+                .contains_key("manifest")
+        );
+        assert!(
+            summary
+                .toolchain_signal_kind_counts
+                .contains_key("source_file")
         );
 
         fs::remove_dir_all(root).ok();
     }
 
     #[test]
-    fn repository_inspection_summary_renders_graph_metrics_as_text() {
-        let root = create_inspection_workspace("graph-text");
+    fn repository_inspection_summary_renders_toolchains_as_text() {
+        let root = create_inspection_workspace("toolchain-text");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
         let bounded =
             traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
         let graph = build_repository_graph(&bounded);
-        let summary = RepositoryInspectionSummary::from_inspection_bounded_traversal_and_graph(
-            &inspection,
-            &bounded,
-            &graph,
-        );
+        let toolchains = detect_repository_toolchains(&bounded);
+
+        let summary =
+            RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_and_toolchains(
+                &inspection,
+                &bounded,
+                &graph,
+                &toolchains,
+            );
 
         let rendered = render_repository_inspection_summary(&summary, OutputFormat::Text);
 
-        assert!(rendered.contains("graph:"));
-        assert!(rendered.contains("nodes:"));
-        assert!(rendered.contains("edges:"));
-        assert!(rendered.contains("graph_categories:"));
-        assert!(rendered.contains("graph_traversal_decisions:"));
+        assert!(rendered.contains("toolchains:"));
+        assert!(rendered.contains("toolchain_counts:"));
+        assert!(rendered.contains("rust:"));
+        assert!(rendered.contains("typescript:"));
 
         fs::remove_dir_all(root).ok();
     }
 
     #[test]
-    fn repository_inspection_summary_renders_graph_metrics_as_json() {
-        let root = create_inspection_workspace("graph-json");
+    fn repository_inspection_summary_renders_toolchains_as_json() {
+        let root = create_inspection_workspace("toolchain-json");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
         let bounded =
             traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
         let graph = build_repository_graph(&bounded);
-        let summary = RepositoryInspectionSummary::from_inspection_bounded_traversal_and_graph(
-            &inspection,
-            &bounded,
-            &graph,
-        );
+        let toolchains = detect_repository_toolchains(&bounded);
+
+        let summary =
+            RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_and_toolchains(
+                &inspection,
+                &bounded,
+                &graph,
+                &toolchains,
+            );
 
         let rendered = render_repository_inspection_summary(&summary, OutputFormat::Json);
 
-        assert!(rendered.contains(r#""graph""#));
-        assert!(rendered.contains(r#""node_count""#));
-        assert!(rendered.contains(r#""edge_count""#));
-        assert!(rendered.contains(r#""category_counts""#));
-        assert!(rendered.contains(r#""traversal_decision_counts""#));
+        assert!(rendered.contains(r#""toolchains""#));
+        assert!(rendered.contains(r#""detected_toolchain_count""#));
+        assert!(rendered.contains(r#""toolchain_counts""#));
+        assert!(rendered.contains(r#""rust""#));
+        assert!(rendered.contains(r#""typescript""#));
 
         fs::remove_dir_all(root).ok();
     }
@@ -759,12 +913,13 @@ mod tests {
     #[test]
     fn repository_role_enum_is_still_available_for_future_output_work() {
         assert_eq!(
-            crate::repository_inspection::RepositoryEntryRole::MonadManifest.as_str(),
+            RepositoryEntryRole::MonadManifest.as_str(),
             "monad_manifest"
         );
         assert_eq!(
             RepositoryEntryTraversalPolicy::SafeForFutureTraversal.as_str(),
             "safe_for_future_traversal"
         );
+        assert_eq!(RepositoryToolchainKind::Rust.as_str(), "rust");
     }
 }
