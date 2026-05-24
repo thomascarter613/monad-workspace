@@ -41,7 +41,7 @@ Run from the repository root:
 
 ```bash
 tools/scripts/verify.sh
-````
+```
 
 ## 3. Current Checks
 

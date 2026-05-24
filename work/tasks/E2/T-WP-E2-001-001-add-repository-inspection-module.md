@@ -40,7 +40,7 @@ Run:
 ```bash
 cargo test -p monad-core
 tools/scripts/verify.sh
-````
+```
 
 ## Status
 

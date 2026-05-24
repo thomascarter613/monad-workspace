@@ -56,7 +56,7 @@ Run:
 
 ```bash
 tools/scripts/verify.sh
-````
+```
 
 Expected result:
 
