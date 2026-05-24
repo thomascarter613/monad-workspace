@@ -16,7 +16,7 @@ use serde_json::json;
 
 use crate::repository_inspection::{
     RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
-    RepositoryEntryTraversalPolicy, RepositoryInspection,
+    RepositoryEntryTraversalPolicy, RepositoryInspection, build_traversal_plan,
 };
 use crate::{DiagnosticReport, MonadError, MonadManifest, MonadResult, Severity, WorkspaceContext};
 
@@ -122,6 +122,12 @@ pub struct RepositoryInspectionSummaryEntry {
 
     /// Default future traversal policy as a stable label.
     pub traversal_policy: String,
+
+    /// Planned future traversal decision as a stable label.
+    pub traversal_decision: String,
+
+    /// Reason for the planned future traversal decision.
+    pub traversal_reason: String,
 }
 
 /// Renderable repository inspection summary for `monad inspect`.
@@ -167,6 +173,33 @@ pub struct RepositoryInspectionSummary {
     /// Entries that should be skipped during future deep traversal by default.
     pub skip_generated_or_external_count: usize,
 
+    /// Planned traversal mode.
+    pub future_traversal_mode: String,
+
+    /// Planned maximum traversal depth.
+    pub future_traversal_max_depth: usize,
+
+    /// Whether future traversal should follow symbolic links.
+    pub future_traversal_follow_symlinks: bool,
+
+    /// Whether future traversal should include generated/external directories.
+    pub future_traversal_include_generated_or_external: bool,
+
+    /// Whether future traversal should respect ignore files.
+    pub future_traversal_respect_ignore_files: bool,
+
+    /// Whether future traversal output must be deterministic.
+    pub future_traversal_deterministic_ordering: bool,
+
+    /// Count of future traversal candidates.
+    pub future_traversal_candidate_count: usize,
+
+    /// Count of shallow-only planned traversal entries.
+    pub future_traversal_shallow_only_count: usize,
+
+    /// Count of planned skip entries.
+    pub future_traversal_skip_count: usize,
+
     /// Category counts keyed by stable category label.
     pub category_counts: BTreeMap<String, usize>,
 
@@ -184,6 +217,9 @@ impl RepositoryInspectionSummary {
     /// Builds a renderable repository inspection summary from the domain model.
     #[must_use]
     pub fn from_inspection(inspection: &RepositoryInspection) -> Self {
+        let traversal_plan = build_traversal_plan(inspection);
+        let guardrails = traversal_plan.guardrails();
+
         let mut category_counts = BTreeMap::new();
         let mut role_counts = BTreeMap::new();
         let mut traversal_policy_counts = BTreeMap::new();
@@ -191,7 +227,8 @@ impl RepositoryInspectionSummary {
         let entries = inspection
             .entries()
             .iter()
-            .map(|entry| {
+            .zip(traversal_plan.entries().iter())
+            .map(|(entry, plan_entry)| {
                 let category = entry.category().as_str().to_string();
                 let role = entry.role().as_str().to_string();
                 let traversal_policy = entry.traversal_policy().as_str().to_string();
@@ -208,6 +245,8 @@ impl RepositoryInspectionSummary {
                     category,
                     role,
                     traversal_policy,
+                    traversal_decision: plan_entry.decision().as_str().to_string(),
+                    traversal_reason: plan_entry.reason().to_string(),
                 }
             })
             .collect();
@@ -241,6 +280,16 @@ impl RepositoryInspectionSummary {
                 inspection,
                 RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal,
             ),
+            future_traversal_mode: traversal_plan.mode().as_str().to_string(),
+            future_traversal_max_depth: guardrails.max_depth(),
+            future_traversal_follow_symlinks: guardrails.follow_symlinks(),
+            future_traversal_include_generated_or_external: guardrails
+                .include_generated_or_external(),
+            future_traversal_respect_ignore_files: guardrails.respect_ignore_files(),
+            future_traversal_deterministic_ordering: guardrails.deterministic_ordering(),
+            future_traversal_candidate_count: traversal_plan.candidate_for_future_traversal_count(),
+            future_traversal_shallow_only_count: traversal_plan.inspect_shallow_only_count(),
+            future_traversal_skip_count: traversal_plan.skip_by_default_count(),
             category_counts,
             role_counts,
             traversal_policy_counts,
@@ -393,6 +442,34 @@ pub fn render_repository_inspection_summary(
                     "    skip_generated_or_external: {}",
                     summary.skip_generated_or_external_count
                 ),
+                "  future_traversal_guardrails:".to_string(),
+                format!("    mode: {}", summary.future_traversal_mode),
+                format!("    max_depth: {}", summary.future_traversal_max_depth),
+                format!(
+                    "    follow_symlinks: {}",
+                    summary.future_traversal_follow_symlinks
+                ),
+                format!(
+                    "    include_generated_or_external: {}",
+                    summary.future_traversal_include_generated_or_external
+                ),
+                format!(
+                    "    respect_ignore_files: {}",
+                    summary.future_traversal_respect_ignore_files
+                ),
+                format!(
+                    "    deterministic_ordering: {}",
+                    summary.future_traversal_deterministic_ordering
+                ),
+                format!(
+                    "    candidate_entries: {}",
+                    summary.future_traversal_candidate_count
+                ),
+                format!(
+                    "    shallow_only_entries: {}",
+                    summary.future_traversal_shallow_only_count
+                ),
+                format!("    skip_entries: {}", summary.future_traversal_skip_count),
                 "  categories:".to_string(),
             ];
 
@@ -416,8 +493,14 @@ pub fn render_repository_inspection_summary(
 
             for entry in &summary.entries {
                 lines.push(format!(
-                    "    - {} [{} category={} role={} traversal={}]",
-                    entry.path, entry.kind, entry.category, entry.role, entry.traversal_policy
+                    "    - {} [{} category={} role={} traversal={} decision={} reason={}]",
+                    entry.path,
+                    entry.kind,
+                    entry.category,
+                    entry.role,
+                    entry.traversal_policy,
+                    entry.traversal_decision,
+                    entry.traversal_reason
                 ));
             }
 
@@ -434,6 +517,8 @@ pub fn render_repository_inspection_summary(
                         "category": &entry.category,
                         "role": &entry.role,
                         "traversal_policy": &entry.traversal_policy,
+                        "traversal_decision": &entry.traversal_decision,
+                        "traversal_reason": &entry.traversal_reason,
                     })
                 })
                 .collect::<Vec<_>>();
@@ -455,6 +540,19 @@ pub fn render_repository_inspection_summary(
                         "safe_for_future_traversal_count": summary.safe_for_future_traversal_count,
                         "inspect_shallow_only_count": summary.inspect_shallow_only_count,
                         "skip_generated_or_external_count": summary.skip_generated_or_external_count,
+                    },
+                    "future_traversal": {
+                        "mode": &summary.future_traversal_mode,
+                        "guardrails": {
+                            "max_depth": summary.future_traversal_max_depth,
+                            "follow_symlinks": summary.future_traversal_follow_symlinks,
+                            "include_generated_or_external": summary.future_traversal_include_generated_or_external,
+                            "respect_ignore_files": summary.future_traversal_respect_ignore_files,
+                            "deterministic_ordering": summary.future_traversal_deterministic_ordering,
+                        },
+                        "candidate_entry_count": summary.future_traversal_candidate_count,
+                        "shallow_only_entry_count": summary.future_traversal_shallow_only_count,
+                        "skip_entry_count": summary.future_traversal_skip_count,
                     },
                     "category_counts": &summary.category_counts,
                     "role_counts": &summary.role_counts,
@@ -611,10 +709,13 @@ mod tests {
 
         assert!(rendered.contains("Monad repository inspection"));
         assert!(rendered.contains("metrics:"));
+        assert!(rendered.contains("future_traversal_guardrails:"));
+        assert!(rendered.contains("max_depth: 3"));
         assert!(rendered.contains("categories:"));
         assert!(rendered.contains("monad.toml"));
         assert!(rendered.contains("category=monad_control"));
         assert!(rendered.contains("role=monad_manifest"));
+        assert!(rendered.contains("decision=inspect_shallow_only"));
         assert!(rendered.contains("skip_generated_or_external"));
 
         fs::remove_dir_all(root).ok();
@@ -632,11 +733,16 @@ mod tests {
         assert!(rendered.contains(r#""format": "json""#));
         assert!(rendered.contains(r#""kind": "repository_inspection_summary""#));
         assert!(rendered.contains(r#""metrics""#));
+        assert!(rendered.contains(r#""future_traversal""#));
+        assert!(rendered.contains(r#""max_depth": 3"#));
+        assert!(rendered.contains(r#""follow_symlinks": false"#));
+        assert!(rendered.contains(r#""respect_ignore_files": true"#));
         assert!(rendered.contains(r#""category_counts""#));
         assert!(rendered.contains(r#""entry_count""#));
         assert!(rendered.contains(r#""path": "monad.toml""#));
         assert!(rendered.contains(r#""category": "monad_control""#));
         assert!(rendered.contains(r#""role": "monad_manifest""#));
+        assert!(rendered.contains(r#""traversal_decision""#));
 
         fs::remove_dir_all(root).ok();
     }
@@ -690,6 +796,26 @@ mod tests {
                 .category_counts
                 .contains_key(RepositoryEntryCategory::GeneratedOrExternal.as_str())
         );
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn repository_inspection_summary_includes_future_traversal_plan_counts() {
+        let root = create_inspection_workspace("future-traversal-counts");
+        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
+        let inspection = inspect_workspace(&context).expect("workspace should inspect");
+        let summary = RepositoryInspectionSummary::from_inspection(&inspection);
+
+        assert_eq!(summary.future_traversal_mode, "future_recursive_limited");
+        assert_eq!(summary.future_traversal_max_depth, 3);
+        assert!(!summary.future_traversal_follow_symlinks);
+        assert!(!summary.future_traversal_include_generated_or_external);
+        assert!(summary.future_traversal_respect_ignore_files);
+        assert!(summary.future_traversal_deterministic_ordering);
+        assert!(summary.future_traversal_candidate_count > 0);
+        assert!(summary.future_traversal_shallow_only_count > 0);
+        assert!(summary.future_traversal_skip_count > 0);
 
         fs::remove_dir_all(root).ok();
     }

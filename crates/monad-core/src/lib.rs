@@ -31,7 +31,9 @@ pub use repo_contract::{
 };
 pub use repository_inspection::{
     RepositoryEntry, RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
-    RepositoryEntryTraversalPolicy, RepositoryInspection, inspect_workspace,
+    RepositoryEntryTraversalPolicy, RepositoryInspection, RepositoryTraversalDecision,
+    RepositoryTraversalGuardrails, RepositoryTraversalMode, RepositoryTraversalPlan,
+    RepositoryTraversalPlanEntry, build_traversal_plan, inspect_workspace,
 };
 pub use workspace::{WorkspaceContext, discover_workspace_root, is_workspace_root};
 
@@ -238,6 +240,24 @@ mod tests {
     }
 
     #[test]
+    fn traversal_planning_types_are_exported_from_core_root() {
+        assert_eq!(
+            RepositoryTraversalMode::FutureRecursiveLimited.as_str(),
+            "future_recursive_limited"
+        );
+        assert_eq!(
+            RepositoryTraversalDecision::SkipByDefault.as_str(),
+            "skip_by_default"
+        );
+
+        let guardrails = RepositoryTraversalGuardrails::default();
+
+        assert_eq!(guardrails.max_depth(), 3);
+        assert!(!guardrails.follow_symlinks());
+        assert!(guardrails.respect_ignore_files());
+    }
+
+    #[test]
     fn repository_inspection_summary_type_is_exported_from_core_root() {
         let inspection = RepositoryInspection::new(".", Vec::new());
         let summary = RepositoryInspectionSummary::from_inspection(&inspection);
@@ -246,5 +266,6 @@ mod tests {
         assert_eq!(summary.entry_count, 0);
         assert_eq!(summary.known_entry_count, 0);
         assert_eq!(summary.unknown_entry_count, 0);
+        assert_eq!(summary.future_traversal_mode, "future_recursive_limited");
     }
 }

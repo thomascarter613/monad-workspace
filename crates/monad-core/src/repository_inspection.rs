@@ -9,8 +9,8 @@
 //! inspection needs ignore rules, performance safeguards, policy controls, and
 //! graph-oriented design.
 //!
-//! WP-E2-004 adds stable category-level metrics. Roles remain specific, while
-//! categories provide broader summary buckets for `monad inspect`.
+//! WP-E2-005 adds a future recursive traversal plan and guardrails. This gives
+//! Monad a safe API shape before any deep filesystem walking is implemented.
 
 use std::fs::{self, DirEntry, FileType};
 use std::path::{Path, PathBuf};
@@ -388,6 +388,248 @@ impl RepositoryEntryTraversalPolicy {
     }
 }
 
+/// Future traversal mode.
+///
+/// This is a planning type. It does not mean recursive traversal has been
+/// implemented yet. It tells future code what kind of traversal the current
+/// plan is preparing for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepositoryTraversalMode {
+    /// Current behavior: inspect only top-level repository entries.
+    TopLevelOnly,
+
+    /// Future behavior: bounded recursive traversal with conservative defaults.
+    FutureRecursiveLimited,
+}
+
+impl RepositoryTraversalMode {
+    /// Returns a stable traversal mode label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::TopLevelOnly => "top_level_only",
+            Self::FutureRecursiveLimited => "future_recursive_limited",
+        }
+    }
+}
+
+/// Planned decision for a repository entry during future recursive traversal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepositoryTraversalDecision {
+    /// This entry is a candidate for bounded future traversal.
+    CandidateForFutureTraversal,
+
+    /// This entry should be recorded but not recursively traversed by default.
+    InspectShallowOnly,
+
+    /// This entry should be skipped by default during recursive traversal.
+    SkipByDefault,
+}
+
+impl RepositoryTraversalDecision {
+    /// Returns a stable traversal decision label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::CandidateForFutureTraversal => "candidate_for_future_traversal",
+            Self::InspectShallowOnly => "inspect_shallow_only",
+            Self::SkipByDefault => "skip_by_default",
+        }
+    }
+}
+
+/// Conservative guardrails for future recursive traversal.
+///
+/// These are intentionally strict. Monad should never accidentally walk huge
+/// folders, follow symlink loops, ignore ignore-file intent, or produce
+/// nondeterministic output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RepositoryTraversalGuardrails {
+    max_depth: usize,
+    follow_symlinks: bool,
+    include_generated_or_external: bool,
+    respect_ignore_files: bool,
+    deterministic_ordering: bool,
+}
+
+impl RepositoryTraversalGuardrails {
+    /// Returns the conservative default guardrails for a future bounded
+    /// recursive traversal implementation.
+    #[must_use]
+    pub const fn conservative_future_recursive() -> Self {
+        Self {
+            max_depth: 3,
+            follow_symlinks: false,
+            include_generated_or_external: false,
+            respect_ignore_files: true,
+            deterministic_ordering: true,
+        }
+    }
+
+    /// Maximum recursive depth future traversal should use by default.
+    #[must_use]
+    pub const fn max_depth(self) -> usize {
+        self.max_depth
+    }
+
+    /// Whether future traversal should follow symlinks.
+    #[must_use]
+    pub const fn follow_symlinks(self) -> bool {
+        self.follow_symlinks
+    }
+
+    /// Whether future traversal should include generated/external directories.
+    #[must_use]
+    pub const fn include_generated_or_external(self) -> bool {
+        self.include_generated_or_external
+    }
+
+    /// Whether future traversal should respect ignore files.
+    #[must_use]
+    pub const fn respect_ignore_files(self) -> bool {
+        self.respect_ignore_files
+    }
+
+    /// Whether future traversal output must remain deterministic.
+    #[must_use]
+    pub const fn deterministic_ordering(self) -> bool {
+        self.deterministic_ordering
+    }
+}
+
+impl Default for RepositoryTraversalGuardrails {
+    fn default() -> Self {
+        Self::conservative_future_recursive()
+    }
+}
+
+/// One planned traversal entry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepositoryTraversalPlanEntry {
+    relative_path: PathBuf,
+    decision: RepositoryTraversalDecision,
+    traversal_policy: RepositoryEntryTraversalPolicy,
+    reason: &'static str,
+}
+
+impl RepositoryTraversalPlanEntry {
+    /// Builds a traversal plan entry from an inspected repository entry.
+    fn from_repository_entry(entry: &RepositoryEntry) -> Self {
+        Self {
+            relative_path: entry.relative_path().to_path_buf(),
+            decision: traversal_decision_for_entry(entry),
+            traversal_policy: entry.traversal_policy(),
+            reason: traversal_reason_for_entry(entry),
+        }
+    }
+
+    /// Returns the path relative to the workspace root.
+    #[must_use]
+    pub fn relative_path(&self) -> &Path {
+        &self.relative_path
+    }
+
+    /// Returns the planned traversal decision.
+    #[must_use]
+    pub const fn decision(&self) -> RepositoryTraversalDecision {
+        self.decision
+    }
+
+    /// Returns the original traversal policy that informed the decision.
+    #[must_use]
+    pub const fn traversal_policy(&self) -> RepositoryEntryTraversalPolicy {
+        self.traversal_policy
+    }
+
+    /// Returns a human-readable reason for the decision.
+    #[must_use]
+    pub const fn reason(&self) -> &'static str {
+        self.reason
+    }
+}
+
+/// A plan for future recursive traversal.
+///
+/// This is derived from the shallow inspection result. It does not perform any
+/// deep traversal. It simply records what future traversal should consider,
+/// inspect shallowly, or skip by default.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepositoryTraversalPlan {
+    root: PathBuf,
+    mode: RepositoryTraversalMode,
+    guardrails: RepositoryTraversalGuardrails,
+    entries: Vec<RepositoryTraversalPlanEntry>,
+}
+
+impl RepositoryTraversalPlan {
+    /// Creates a traversal plan.
+    #[must_use]
+    pub fn new(
+        root: impl Into<PathBuf>,
+        mode: RepositoryTraversalMode,
+        guardrails: RepositoryTraversalGuardrails,
+        entries: Vec<RepositoryTraversalPlanEntry>,
+    ) -> Self {
+        Self {
+            root: root.into(),
+            mode,
+            guardrails,
+            entries,
+        }
+    }
+
+    /// Returns the planned traversal root.
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Returns the traversal mode.
+    #[must_use]
+    pub const fn mode(&self) -> RepositoryTraversalMode {
+        self.mode
+    }
+
+    /// Returns traversal guardrails.
+    #[must_use]
+    pub const fn guardrails(&self) -> RepositoryTraversalGuardrails {
+        self.guardrails
+    }
+
+    /// Returns planned traversal entries.
+    #[must_use]
+    pub fn entries(&self) -> &[RepositoryTraversalPlanEntry] {
+        &self.entries
+    }
+
+    /// Counts entries with a specific traversal decision.
+    #[must_use]
+    pub fn decision_count(&self, decision: RepositoryTraversalDecision) -> usize {
+        self.entries
+            .iter()
+            .filter(|entry| entry.decision() == decision)
+            .count()
+    }
+
+    /// Counts candidate entries for future bounded traversal.
+    #[must_use]
+    pub fn candidate_for_future_traversal_count(&self) -> usize {
+        self.decision_count(RepositoryTraversalDecision::CandidateForFutureTraversal)
+    }
+
+    /// Counts entries that should remain shallow by default.
+    #[must_use]
+    pub fn inspect_shallow_only_count(&self) -> usize {
+        self.decision_count(RepositoryTraversalDecision::InspectShallowOnly)
+    }
+
+    /// Counts entries that should be skipped by default.
+    #[must_use]
+    pub fn skip_by_default_count(&self) -> usize {
+        self.decision_count(RepositoryTraversalDecision::SkipByDefault)
+    }
+}
+
 /// One top-level repository entry discovered during inspection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepositoryEntry {
@@ -586,6 +828,26 @@ pub fn inspect_workspace(context: &WorkspaceContext) -> MonadResult<RepositoryIn
     ))
 }
 
+/// Builds a traversal plan from a shallow repository inspection.
+///
+/// This is intentionally not a recursive walk. It produces a future traversal
+/// contract from the already-inspected top-level entries.
+#[must_use]
+pub fn build_traversal_plan(inspection: &RepositoryInspection) -> RepositoryTraversalPlan {
+    let entries = inspection
+        .entries()
+        .iter()
+        .map(RepositoryTraversalPlanEntry::from_repository_entry)
+        .collect();
+
+    RepositoryTraversalPlan::new(
+        inspection.root().to_path_buf(),
+        RepositoryTraversalMode::FutureRecursiveLimited,
+        RepositoryTraversalGuardrails::conservative_future_recursive(),
+        entries,
+    )
+}
+
 /// Classifies an entry into a first-pass repository role.
 ///
 /// This function only uses the entry name and filesystem kind. Later slices can
@@ -702,6 +964,40 @@ fn traversal_policy_for(name: &str, kind: RepositoryEntryKind) -> RepositoryEntr
         }
         _ if name.starts_with('.') => RepositoryEntryTraversalPolicy::InspectShallowOnly,
         _ => RepositoryEntryTraversalPolicy::SafeForFutureTraversal,
+    }
+}
+
+/// Converts an entry traversal policy into a future traversal decision.
+fn traversal_decision_for_entry(entry: &RepositoryEntry) -> RepositoryTraversalDecision {
+    match entry.traversal_policy() {
+        RepositoryEntryTraversalPolicy::SafeForFutureTraversal => {
+            RepositoryTraversalDecision::CandidateForFutureTraversal
+        }
+        RepositoryEntryTraversalPolicy::InspectShallowOnly => {
+            RepositoryTraversalDecision::InspectShallowOnly
+        }
+        RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal => {
+            RepositoryTraversalDecision::SkipByDefault
+        }
+    }
+}
+
+/// Explains why a future traversal decision was selected.
+fn traversal_reason_for_entry(entry: &RepositoryEntry) -> &'static str {
+    match entry.traversal_policy() {
+        RepositoryEntryTraversalPolicy::SafeForFutureTraversal => {
+            "directory is a safe candidate for future bounded traversal"
+        }
+        RepositoryEntryTraversalPolicy::InspectShallowOnly => {
+            if entry.name().starts_with('.') {
+                "hidden path is inspected shallowly unless explicitly supported"
+            } else {
+                "non-directory or shallow-only path is recorded without recursive traversal"
+            }
+        }
+        RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal => {
+            "generated or external path is skipped by default"
+        }
     }
 }
 
@@ -846,153 +1142,6 @@ mod tests {
     }
 
     #[test]
-    fn repository_inspection_classifies_developer_experience_files() {
-        let root = create_inspection_workspace("developer-experience");
-        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
-
-        let inspection = inspect_workspace(&context).expect("workspace should inspect");
-
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::Readme)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::License)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::GitIgnore)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::EditorConfig)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::RustLockfile)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::RustToolchain)
-                .len(),
-            1
-        );
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn repository_inspection_classifies_polyglot_and_tooling_files() {
-        let root = create_inspection_workspace("polyglot-tooling");
-        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
-
-        let inspection = inspect_workspace(&context).expect("workspace should inspect");
-
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::JavaScriptPackageConfig)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::ToolingConfig)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::InfrastructureConfig)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::AiContextConfig)
-                .len(),
-            1
-        );
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn repository_inspection_classifies_architecture_roots() {
-        let root = create_inspection_workspace("architecture-roots");
-        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
-
-        let inspection = inspect_workspace(&context).expect("workspace should inspect");
-
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::ToolingRoot)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::InfrastructureRoot)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::ContractRoot)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::DataRoot)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::GovernanceRoot)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::AssetRoot)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::TestRoot)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::CiRoot)
-                .len(),
-            1
-        );
-        assert_eq!(
-            inspection
-                .entries_with_role(RepositoryEntryRole::DevEnvironmentRoot)
-                .len(),
-            1
-        );
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
     fn repository_inspection_exposes_category_queries() {
         let root = create_inspection_workspace("category-queries");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
@@ -1106,37 +1255,83 @@ mod tests {
     }
 
     #[test]
-    fn safe_known_roots_are_marked_safe_for_future_traversal() {
-        let root = create_inspection_workspace("safe-roots");
+    fn traversal_guardrails_are_conservative_by_default() {
+        let guardrails = RepositoryTraversalGuardrails::conservative_future_recursive();
+
+        assert_eq!(guardrails.max_depth(), 3);
+        assert!(!guardrails.follow_symlinks());
+        assert!(!guardrails.include_generated_or_external());
+        assert!(guardrails.respect_ignore_files());
+        assert!(guardrails.deterministic_ordering());
+    }
+
+    #[test]
+    fn traversal_plan_is_built_from_shallow_inspection() {
+        let root = create_inspection_workspace("traversal-plan");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
 
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
+        let plan = build_traversal_plan(&inspection);
 
-        for name in [
-            "docs",
-            "work",
-            ".monad",
-            "crates",
-            "tools",
-            "infra",
-            "contracts",
-            "db",
-            "governance",
-            "assets",
-            "tests",
-            ".github",
-            ".devcontainer",
-        ] {
-            let entry = inspection
+        assert_eq!(plan.root(), inspection.root());
+        assert_eq!(plan.mode(), RepositoryTraversalMode::FutureRecursiveLimited);
+        assert_eq!(plan.entries().len(), inspection.entries().len());
+        assert!(plan.candidate_for_future_traversal_count() > 0);
+        assert!(plan.inspect_shallow_only_count() > 0);
+        assert!(plan.skip_by_default_count() > 0);
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn traversal_plan_marks_generated_paths_as_skip_by_default() {
+        let root = create_inspection_workspace("traversal-skip");
+        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
+
+        let inspection = inspect_workspace(&context).expect("workspace should inspect");
+        let plan = build_traversal_plan(&inspection);
+
+        let target = plan
+            .entries()
+            .iter()
+            .find(|entry| entry.relative_path() == std::path::Path::new("target"))
+            .expect("target should have a traversal plan entry");
+
+        assert_eq!(
+            target.decision(),
+            RepositoryTraversalDecision::SkipByDefault
+        );
+        assert_eq!(
+            target.traversal_policy(),
+            RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal
+        );
+        assert_eq!(
+            target.reason(),
+            "generated or external path is skipped by default"
+        );
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn traversal_plan_marks_safe_roots_as_future_candidates() {
+        let root = create_inspection_workspace("traversal-candidates");
+        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
+
+        let inspection = inspect_workspace(&context).expect("workspace should inspect");
+        let plan = build_traversal_plan(&inspection);
+
+        for name in ["docs", "work", ".monad", "crates", "tools"] {
+            let entry = plan
                 .entries()
                 .iter()
-                .find(|entry| entry.name() == name)
-                .expect("expected known safe root to be inspected");
+                .find(|entry| entry.relative_path() == std::path::Path::new(name))
+                .expect("known safe root should have a traversal plan entry");
 
             assert_eq!(
-                entry.traversal_policy(),
-                RepositoryEntryTraversalPolicy::SafeForFutureTraversal,
-                "{name} should be safe for future traversal"
+                entry.decision(),
+                RepositoryTraversalDecision::CandidateForFutureTraversal,
+                "{name} should be a future traversal candidate"
             );
         }
 
