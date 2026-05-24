@@ -13,6 +13,7 @@ pub mod error;
 pub mod manifest;
 pub mod output;
 pub mod repo_contract;
+pub mod repository_context_pack;
 pub mod repository_graph;
 pub mod repository_inspection;
 pub mod repository_policy;
@@ -38,6 +39,12 @@ pub use output::{
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
+};
+pub use repository_context_pack::{
+    CURRENT_REPOSITORY_CONTEXT_PACK_SCHEMA_VERSION, RepositoryContextPack,
+    RepositoryContextPackFact, RepositoryContextPackRenderFormat, RepositoryContextPackSection,
+    RepositoryContextPackSectionKind, build_repository_context_pack,
+    render_repository_context_pack,
 };
 pub use repository_graph::{
     RepositoryGraph, RepositoryGraphEdge, RepositoryGraphEdgeKind, RepositoryGraphNode,
@@ -154,6 +161,27 @@ pub fn repository_inspection_summary_from_workspace(
             &policy,
         ),
     )
+}
+
+pub fn repository_context_pack_from_workspace(
+    context: &WorkspaceContext,
+) -> MonadResult<RepositoryContextPack> {
+    let inspection = inspect_workspace(context)?;
+    let bounded_traversal = traverse_workspace_bounded(&inspection)?;
+    let graph = build_repository_graph(&bounded_traversal);
+    let toolchains = detect_repository_toolchains(&bounded_traversal);
+    let dependencies = detect_repository_dependency_signals(&bounded_traversal);
+    let policy =
+        evaluate_repository_intelligence_policy(&inspection, &bounded_traversal, &dependencies);
+
+    Ok(build_repository_context_pack(
+        &inspection,
+        &bounded_traversal,
+        &graph,
+        &toolchains,
+        &dependencies,
+        &policy,
+    ))
 }
 
 #[cfg(test)]
@@ -307,6 +335,28 @@ mod tests {
 
         assert_eq!(report.diagnostic_count(), 0);
         assert!(!report.has_warnings());
+    }
+
+    #[test]
+    fn repository_context_pack_types_are_exported_from_core_root() {
+        assert_eq!(CURRENT_REPOSITORY_CONTEXT_PACK_SCHEMA_VERSION, 1);
+        assert_eq!(
+            RepositoryContextPackRenderFormat::Markdown.as_str(),
+            "markdown"
+        );
+        assert_eq!(RepositoryContextPackRenderFormat::Json.as_str(), "json");
+        assert_eq!(RepositoryContextPackSectionKind::Policy.as_str(), "policy");
+
+        let pack = RepositoryContextPack::new(
+            CURRENT_REPOSITORY_CONTEXT_PACK_SCHEMA_VERSION,
+            ".",
+            Vec::new(),
+        );
+
+        assert_eq!(pack.schema_version(), 1);
+        assert_eq!(pack.root(), ".");
+        assert_eq!(pack.section_count(), 0);
+        assert_eq!(pack.fact_count(), 0);
     }
 
     #[test]
