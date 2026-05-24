@@ -1,8 +1,8 @@
----
+
 title: "E0 Work Packets"
 document_type: "work-packet-index"
 status: "draft"
-version: "0.1.0"
+version: "0.2.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
@@ -28,7 +28,8 @@ This directory contains durable work packet records for E0 — Project Foundatio
 | WP-E0-003   | Establish context bridge foundation  | Complete    |
 | WP-E0-004   | Establish workflow standards         | Complete    |
 | WP-E0-005   | Establish verification baseline      | Complete    |
-| WP-E0-006   | Establish work packet records        | In Progress |
+| WP-E0-006   | Establish work packet records        | Complete    |
+| WP-E0-007   | Establish ADR verification           | In Progress |
 
 ## Maintenance Rules
 
@@ -39,3 +40,5 @@ Each work packet record must include:
 * Product Area before Objective;
 * Expected Result After Verification;
 * Priority and Size at the end of the record.
+
+When a new E0 work packet is added, update this index in the same atomic commit when practical.

@@ -2,10 +2,10 @@
 """
 Check that the required E0 foundation paths exist.
 
-This script is intentionally conservative. It verifies the files and directories
-that should exist after the repository foundation, documentation architecture,
-context bridge foundation, workflow standards, verification baseline, and work
-packet records slices.
+This script verifies the files and directories that should exist after the
+repository foundation, documentation architecture, context bridge foundation,
+workflow standards, verification baseline, work packet records, and ADR
+verification slices.
 """
 
 from pathlib import Path
@@ -72,6 +72,14 @@ REQUIRED_PATHS = [
     "work/packets/E0/WP-E0-005-establish-verification-baseline.md",
     "work/packets/E0/WP-E0-006-establish-work-packet-records.md",
     "tools/scripts/check-work-records.py",
+
+    # WP-E0-007 — ADR verification
+    "docs/06-adrs/README.md",
+    "docs/06-adrs/ADR-0000-template.md",
+    "docs/06-adrs/ADR-0001-use-rust-for-core-runtime.md",
+    "docs/06-adrs/ADR-0002-use-monad-as-unified-product-name.md",
+    "work/packets/E0/WP-E0-007-establish-adr-verification.md",
+    "tools/scripts/check-adr-records.py",
 ]
 
 

@@ -1,17 +1,20 @@
----
+
 title: "E0 — Project Foundation"
 document_type: "epic"
 status: "in-progress"
-version: "0.1.0"
+version: "0.2.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
 epic: "E0"
 tags:
-  - epic
-  - foundation
-  - workflow
-  - documentation
+
+* epic
+* foundation
+* workflow
+* documentation
+* verification
+
 ---
 
 # E0 — Project Foundation
@@ -22,7 +25,7 @@ Project Foundation
 
 ## Objective
 
-Establish the durable repository, documentation, workflow, verification, and context foundations required before Monad moves into core runtime implementation.
+Establish the durable repository, documentation, workflow, verification, ADR, and context foundations required before Monad moves into core runtime implementation.
 
 ## Rationale
 
@@ -34,40 +37,42 @@ E0 exists to make the repository itself understandable, verifiable, resumable, a
 
 E0 includes:
 
-- repository foundation files;
-- documentation architecture;
-- context bridge foundation;
-- workflow standards;
-- verification baseline;
-- work packet records;
-- initial project operating discipline.
+* repository foundation files;
+* documentation architecture;
+* context bridge foundation;
+* workflow standards;
+* verification baseline;
+* work packet records;
+* ADR verification;
+* initial project operating discipline.
 
 ## Out of Scope
 
 E0 does not include:
 
-- production CLI behavior;
-- Rust runtime implementation beyond initial workspace scaffolding;
-- provider integrations;
-- package publishing;
-- release automation;
-- advanced policy engine behavior;
-- full CI/CD maturity.
+* production CLI behavior;
+* Rust runtime implementation beyond initial workspace scaffolding;
+* provider integrations;
+* package publishing;
+* release automation;
+* advanced policy engine behavior;
+* full CI/CD maturity.
 
 ## Work Packets
 
-| Work Packet | Title | Status |
-|---|---|---|
-| WP-E0-001 | Establish repository foundation | Complete |
-| WP-E0-002 | Establish documentation architecture | Complete |
-| WP-E0-003 | Establish context bridge foundation | Complete |
-| WP-E0-004 | Establish workflow standards | Complete |
-| WP-E0-005 | Establish verification baseline | Complete |
-| WP-E0-006 | Establish work packet records | In Progress |
+| Work Packet | Title                                | Status      |
+| ----------- | ------------------------------------ | ----------- |
+| WP-E0-001   | Establish repository foundation      | Complete    |
+| WP-E0-002   | Establish documentation architecture | Complete    |
+| WP-E0-003   | Establish context bridge foundation  | Complete    |
+| WP-E0-004   | Establish workflow standards         | Complete    |
+| WP-E0-005   | Establish verification baseline      | Complete    |
+| WP-E0-006   | Establish work packet records        | Complete    |
+| WP-E0-007   | Establish ADR verification           | In Progress |
 
 ## Expected Result After Verification
 
-The repository contains durable E0 epic and work packet records, all work packet records follow the required field order, and the verification baseline passes.
+The repository contains durable E0 epic and work packet records, workflow standards, context bridge files, ADR records, and verification scripts. The verification baseline passes.
 
 ## Verification
 
@@ -75,7 +80,7 @@ Run:
 
 ```bash
 tools/scripts/verify.sh
-````
+```
 
 Expected result:
 
@@ -83,6 +88,7 @@ Expected result:
 All required E0 foundation paths exist.
 All docs/work/.monad Markdown files have YAML frontmatter.
 All work packet records satisfy the required structure.
+All ADR records satisfy the required baseline structure.
 Verification baseline passed.
 ```
 

@@ -20,6 +20,9 @@ python3 tools/scripts/check-markdown-frontmatter.py
 log "Checking work packet record structure"
 python3 tools/scripts/check-work-records.py
 
+log "Checking ADR record structure"
+python3 tools/scripts/check-adr-records.py
+
 log "Reporting working tree status"
 git status --short
 

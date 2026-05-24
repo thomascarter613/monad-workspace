@@ -2,18 +2,19 @@
 title: "Verification Baseline"
 document_type: "verification-standard"
 status: "draft"
-version: "0.2.0"
+version: "0.3.0"
 created: "2026-05-23"
 updated: "2026-05-23"
 owner: "Monad Project"
 epic: "E0"
-work_packet: "WP-E0-006"
+work_packet: "WP-E0-007"
 tags:
   - verification
   - quality
   - repository-contract
   - workflow
   - work-packets
+  - adrs
 ---
 
 # Verification Baseline
@@ -44,7 +45,8 @@ The baseline currently verifies:
    * `work/`
    * `.monad/`
 4. Work packet record structure.
-5. Current working tree status.
+5. ADR record structure.
+6. Current working tree status.
 
 ## 4. Scripts
 
@@ -54,6 +56,7 @@ The baseline currently verifies:
 | `tools/scripts/check-required-paths.py`       | Checks required E0 foundation files and directories |
 | `tools/scripts/check-markdown-frontmatter.py` | Checks Markdown YAML frontmatter presence           |
 | `tools/scripts/check-work-records.py`         | Checks work packet record structure                 |
+| `tools/scripts/check-adr-records.py`          | Checks ADR record structure                         |
 
 ## 5. Expected Successful Result
 
@@ -63,6 +66,7 @@ A successful run should include:
 All required E0 foundation paths exist.
 All docs/work/.monad Markdown files have YAML frontmatter.
 All work packet records satisfy the required structure.
+All ADR records satisfy the required baseline structure.
 Verification baseline passed.
 ```
 
@@ -81,6 +85,10 @@ Common causes include:
 * a work packet record has Product Area and Objective in the wrong order;
 * a work packet record does not include Expected Result After Verification;
 * a work packet record does not place Priority and Size at the end of the required planning fields;
+* an ADR file is missing;
+* an ADR filename does not follow the expected convention;
+* an ADR is missing required frontmatter;
+* a non-template ADR is missing Status, Context, Decision, or Consequences sections;
 * trailing whitespace or whitespace errors are present in the diff;
 * the script is being run from an unexpected repository state.
 
@@ -100,8 +108,7 @@ The baseline should remain small, readable, and portable during the E0 foundatio
 
 Future verification work should add checks for:
 
-* ADR structure;
-* epic records;
+* epic record structure;
 * task records;
 * Rust formatting;
 * Rust tests;
@@ -110,7 +117,9 @@ Future verification work should add checks for:
 * repository contract validation;
 * generated artifact drift;
 * CI parity;
-* security checks.
+* security checks;
+* ADR index consistency;
+* ADR status transition rules.
 
 ## 9. Maintenance Rules
 
