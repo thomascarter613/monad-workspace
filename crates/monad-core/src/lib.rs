@@ -12,6 +12,7 @@ pub mod error;
 pub mod manifest;
 pub mod output;
 pub mod repo_contract;
+pub mod repository_graph;
 pub mod repository_inspection;
 pub mod workspace;
 
@@ -28,6 +29,10 @@ pub use output::{
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
+};
+pub use repository_graph::{
+    RepositoryGraph, RepositoryGraphEdge, RepositoryGraphEdgeKind, RepositoryGraphNode,
+    RepositoryGraphNodeKind, build_repository_graph,
 };
 pub use repository_inspection::{
     RepositoryBoundedTraversal, RepositoryEntry, RepositoryEntryCategory, RepositoryEntryKind,
@@ -115,11 +120,13 @@ pub fn repository_inspection_summary_from_workspace(
 ) -> MonadResult<RepositoryInspectionSummary> {
     let inspection = inspect_workspace(context)?;
     let bounded_traversal = traverse_workspace_bounded(&inspection)?;
+    let graph = build_repository_graph(&bounded_traversal);
 
     Ok(
-        RepositoryInspectionSummary::from_inspection_and_bounded_traversal(
+        RepositoryInspectionSummary::from_inspection_bounded_traversal_and_graph(
             &inspection,
             &bounded_traversal,
+            &graph,
         ),
     )
 }
@@ -218,6 +225,15 @@ mod tests {
     }
 
     #[test]
+    fn repository_graph_types_are_exported_from_core_root() {
+        assert_eq!(
+            RepositoryGraphNodeKind::WorkspaceRoot.as_str(),
+            "workspace_root"
+        );
+        assert_eq!(RepositoryGraphEdgeKind::Contains.as_str(), "contains");
+    }
+
+    #[test]
     fn repository_entry_category_is_exported_from_core_root() {
         assert_eq!(RepositoryEntryCategory::Source.as_str(), "source");
         assert_eq!(
@@ -259,5 +275,7 @@ mod tests {
         assert_eq!(summary.unknown_entry_count, 0);
         assert_eq!(summary.future_traversal_mode, "future_recursive_limited");
         assert_eq!(summary.bounded_traversal_mode, "not_run");
+        assert_eq!(summary.graph_node_count, 0);
+        assert_eq!(summary.graph_edge_count, 0);
     }
 }

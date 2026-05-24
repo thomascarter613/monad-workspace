@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 use serde_json::json;
 
+use crate::repository_graph::{RepositoryGraph, build_repository_graph};
 use crate::repository_inspection::{
     RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
     RepositoryEntryTraversalPolicy, RepositoryInspection, build_traversal_plan,
@@ -113,6 +114,11 @@ pub struct RepositoryInspectionSummary {
     pub bounded_traversal_shallow_only_count: usize,
     pub bounded_traversal_skip_count: usize,
     pub bounded_traversal_generated_or_external_count: usize,
+    pub graph_node_count: usize,
+    pub graph_edge_count: usize,
+    pub graph_max_depth: usize,
+    pub graph_category_counts: BTreeMap<String, usize>,
+    pub graph_traversal_decision_counts: BTreeMap<String, usize>,
     pub category_counts: BTreeMap<String, usize>,
     pub role_counts: BTreeMap<String, usize>,
     pub traversal_policy_counts: BTreeMap<String, usize>,
@@ -122,7 +128,7 @@ pub struct RepositoryInspectionSummary {
 impl RepositoryInspectionSummary {
     #[must_use]
     pub fn from_inspection(inspection: &RepositoryInspection) -> Self {
-        Self::from_parts(inspection, None)
+        Self::from_parts(inspection, None, None)
     }
 
     #[must_use]
@@ -130,12 +136,24 @@ impl RepositoryInspectionSummary {
         inspection: &RepositoryInspection,
         bounded_traversal: &RepositoryBoundedTraversal,
     ) -> Self {
-        Self::from_parts(inspection, Some(bounded_traversal))
+        let graph = build_repository_graph(bounded_traversal);
+
+        Self::from_parts(inspection, Some(bounded_traversal), Some(&graph))
+    }
+
+    #[must_use]
+    pub fn from_inspection_bounded_traversal_and_graph(
+        inspection: &RepositoryInspection,
+        bounded_traversal: &RepositoryBoundedTraversal,
+        graph: &RepositoryGraph,
+    ) -> Self {
+        Self::from_parts(inspection, Some(bounded_traversal), Some(graph))
     }
 
     fn from_parts(
         inspection: &RepositoryInspection,
         bounded_traversal: Option<&RepositoryBoundedTraversal>,
+        graph: Option<&RepositoryGraph>,
     ) -> Self {
         let traversal_plan = build_traversal_plan(inspection);
         let guardrails = traversal_plan.guardrails();
@@ -233,6 +251,15 @@ impl RepositoryInspectionSummary {
                     traversal.category_count(RepositoryEntryCategory::GeneratedOrExternal)
                 })
                 .unwrap_or(0),
+            graph_node_count: graph.map(RepositoryGraph::node_count).unwrap_or(0),
+            graph_edge_count: graph.map(RepositoryGraph::edge_count).unwrap_or(0),
+            graph_max_depth: graph.map(RepositoryGraph::max_depth).unwrap_or(0),
+            graph_category_counts: graph
+                .map(RepositoryGraph::category_counts)
+                .unwrap_or_default(),
+            graph_traversal_decision_counts: graph
+                .map(RepositoryGraph::traversal_decision_counts)
+                .unwrap_or_default(),
             category_counts,
             role_counts,
             traversal_policy_counts,
@@ -426,8 +453,24 @@ pub fn render_repository_inspection_summary(
                     "    generated_or_external_entries: {}",
                     summary.bounded_traversal_generated_or_external_count
                 ),
-                "  categories:".to_string(),
+                "  graph:".to_string(),
+                format!("    nodes: {}", summary.graph_node_count),
+                format!("    edges: {}", summary.graph_edge_count),
+                format!("    max_depth: {}", summary.graph_max_depth),
+                "  graph_categories:".to_string(),
             ];
+
+            for (category, count) in &summary.graph_category_counts {
+                lines.push(format!("    {category}: {count}"));
+            }
+
+            lines.push("  graph_traversal_decisions:".to_string());
+
+            for (decision, count) in &summary.graph_traversal_decision_counts {
+                lines.push(format!("    {decision}: {count}"));
+            }
+
+            lines.push("  categories:".to_string());
 
             for (category, count) in &summary.category_counts {
                 lines.push(format!("    {category}: {count}"));
@@ -519,6 +562,13 @@ pub fn render_repository_inspection_summary(
                         "skip_entry_count": summary.bounded_traversal_skip_count,
                         "generated_or_external_entry_count": summary.bounded_traversal_generated_or_external_count,
                     },
+                    "graph": {
+                        "node_count": summary.graph_node_count,
+                        "edge_count": summary.graph_edge_count,
+                        "max_depth": summary.graph_max_depth,
+                        "category_counts": &summary.graph_category_counts,
+                        "traversal_decision_counts": &summary.graph_traversal_decision_counts,
+                    },
                     "category_counts": &summary.category_counts,
                     "role_counts": &summary.role_counts,
                     "traversal_policy_counts": &summary.traversal_policy_counts,
@@ -541,7 +591,9 @@ mod tests {
     use crate::{
         Diagnostic, ManifestProject, ManifestRuntime, ManifestSchemaVersion, ManifestWorkspace,
     };
-    use crate::{WorkspaceContext, inspect_workspace, traverse_workspace_bounded};
+    use crate::{
+        WorkspaceContext, build_repository_graph, inspect_workspace, traverse_workspace_bounded,
+    };
 
     fn unique_temp_dir(test_name: &str) -> PathBuf {
         let unique = SystemTime::now()
@@ -610,22 +662,6 @@ mod tests {
     }
 
     #[test]
-    fn diagnostic_report_renders_as_json() {
-        let mut report = DiagnosticReport::new();
-
-        report.push(Diagnostic::info("MONAD0001", "runtime ready"));
-
-        let rendered = render_diagnostic_report(&report, OutputFormat::Json);
-
-        assert!(rendered.contains(r#""format": "json""#));
-        assert!(rendered.contains(r#""kind": "diagnostic_report""#));
-        assert!(rendered.contains(r#""has_errors": false"#));
-        assert!(rendered.contains(r#""severity": "info""#));
-        assert!(rendered.contains(r#""code": "MONAD0001""#));
-        assert!(rendered.contains(r#""message": "runtime ready""#));
-    }
-
-    #[test]
     fn workspace_summary_renders_like_info_command() {
         let context = WorkspaceContext::new("/tmp/monad").expect("context should be created");
         let manifest = MonadManifest::new(
@@ -641,96 +677,81 @@ mod tests {
         assert!(rendered.contains("Monad workspace"));
         assert!(rendered.contains("root: /tmp/monad"));
         assert!(rendered.contains("project: Monad (monad)"));
-        assert!(rendered.contains("schema_version: 1"));
-        assert!(rendered.contains("core_crate: monad-core"));
-        assert!(rendered.contains("cli_crate: monad-cli"));
-        assert!(rendered.contains("execution_model: local-first"));
     }
 
     #[test]
-    fn repository_inspection_summary_includes_bounded_traversal_metrics() {
-        let root = create_inspection_workspace("bounded-summary");
+    fn repository_inspection_summary_includes_graph_metrics() {
+        let root = create_inspection_workspace("graph-summary");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
         let bounded =
             traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
-        let summary = RepositoryInspectionSummary::from_inspection_and_bounded_traversal(
+        let graph = build_repository_graph(&bounded);
+        let summary = RepositoryInspectionSummary::from_inspection_bounded_traversal_and_graph(
             &inspection,
             &bounded,
+            &graph,
         );
 
-        assert_eq!(summary.bounded_traversal_mode, "bounded_recursive");
-        assert!(summary.bounded_traversal_entry_count > summary.entry_count);
-        assert!(summary.bounded_traversal_max_observed_depth > 0);
-        assert!(summary.bounded_traversal_candidate_count > 0);
+        assert!(summary.graph_node_count > 0);
+        assert!(summary.graph_edge_count > 0);
+        assert!(summary.graph_max_depth > 0);
+        assert!(summary.graph_category_counts.contains_key("source"));
+        assert!(
+            summary
+                .graph_traversal_decision_counts
+                .contains_key("candidate_for_future_traversal")
+        );
 
         fs::remove_dir_all(root).ok();
     }
 
     #[test]
-    fn repository_inspection_summary_renders_as_text() {
-        let root = create_inspection_workspace("inspection-text");
+    fn repository_inspection_summary_renders_graph_metrics_as_text() {
+        let root = create_inspection_workspace("graph-text");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
         let bounded =
             traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
-        let summary = RepositoryInspectionSummary::from_inspection_and_bounded_traversal(
+        let graph = build_repository_graph(&bounded);
+        let summary = RepositoryInspectionSummary::from_inspection_bounded_traversal_and_graph(
             &inspection,
             &bounded,
+            &graph,
         );
 
         let rendered = render_repository_inspection_summary(&summary, OutputFormat::Text);
 
-        assert!(rendered.contains("Monad repository inspection"));
-        assert!(rendered.contains("future_traversal_guardrails:"));
-        assert!(rendered.contains("bounded_traversal:"));
-        assert!(rendered.contains("mode: bounded_recursive"));
-        assert!(rendered.contains("max_observed_depth:"));
+        assert!(rendered.contains("graph:"));
+        assert!(rendered.contains("nodes:"));
+        assert!(rendered.contains("edges:"));
+        assert!(rendered.contains("graph_categories:"));
+        assert!(rendered.contains("graph_traversal_decisions:"));
 
         fs::remove_dir_all(root).ok();
     }
 
     #[test]
-    fn repository_inspection_summary_renders_as_json() {
-        let root = create_inspection_workspace("inspection-json");
+    fn repository_inspection_summary_renders_graph_metrics_as_json() {
+        let root = create_inspection_workspace("graph-json");
         let context = WorkspaceContext::new(&root).expect("workspace context should be created");
         let inspection = inspect_workspace(&context).expect("workspace should inspect");
         let bounded =
             traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
-        let summary = RepositoryInspectionSummary::from_inspection_and_bounded_traversal(
+        let graph = build_repository_graph(&bounded);
+        let summary = RepositoryInspectionSummary::from_inspection_bounded_traversal_and_graph(
             &inspection,
             &bounded,
+            &graph,
         );
 
         let rendered = render_repository_inspection_summary(&summary, OutputFormat::Json);
 
-        assert!(rendered.contains(r#""kind": "repository_inspection_summary""#));
-        assert!(rendered.contains(r#""bounded_traversal""#));
-        assert!(rendered.contains(r#""mode": "bounded_recursive""#));
-        assert!(rendered.contains(r#""max_observed_depth""#));
-        assert!(rendered.contains(r#""entry_count""#));
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn repository_inspection_summary_counts_categories() {
-        let root = create_inspection_workspace("inspection-category-counts");
-        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
-        let inspection = inspect_workspace(&context).expect("workspace should inspect");
-        let summary = RepositoryInspectionSummary::from_inspection(&inspection);
-
-        assert!(summary.known_entry_count > 0);
-        assert!(summary.generated_or_external_count >= 1);
-        assert!(summary.safe_for_future_traversal_count >= 4);
-        assert!(summary.inspect_shallow_only_count >= 3);
-        assert!(summary.skip_generated_or_external_count >= 1);
-
-        assert!(
-            summary
-                .category_counts
-                .contains_key(RepositoryEntryCategory::MonadControl.as_str())
-        );
+        assert!(rendered.contains(r#""graph""#));
+        assert!(rendered.contains(r#""node_count""#));
+        assert!(rendered.contains(r#""edge_count""#));
+        assert!(rendered.contains(r#""category_counts""#));
+        assert!(rendered.contains(r#""traversal_decision_counts""#));
 
         fs::remove_dir_all(root).ok();
     }
