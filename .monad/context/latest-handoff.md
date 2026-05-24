@@ -2,17 +2,17 @@
 title: "Latest Handoff"
 document_type: "context-handoff"
 status: "current"
-version: "1.4.0"
+version: "1.5.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-005"
+work_packet: "WP-E1-006"
 tags:
 
 * handoff
 * e1
-* manifest-model
+* manifest-loading
 
 ---
 
@@ -30,15 +30,17 @@ WP-E1-003 — Establish Core Error Foundation is complete.
 
 WP-E1-004 — Establish Workspace Context Foundation is complete.
 
+WP-E1-005 — Establish Manifest Model Foundation is complete.
+
 ## Current
 
 E1 — Runtime Foundation
 
-WP-E1-005 — Establish Manifest Model Foundation
+WP-E1-006 — Establish Manifest Loading Foundation
 
-## Manifest Model
+## Manifest Loading
 
-The current slice adds root `monad.toml` and an in-memory manifest model to `monad-core`.
+The current slice adds TOML parsing and file loading for `monad.toml`.
 
 ## Verification
 

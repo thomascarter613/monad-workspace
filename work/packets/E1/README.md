@@ -2,7 +2,7 @@
 title: "E1 Work Packets"
 document_type: "work-packet-index"
 status: "draft"
-version: "0.6.0"
+version: "0.7.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
@@ -23,12 +23,13 @@ This directory contains durable work packet records for E1 — Runtime Foundatio
 ## Work Packets
 
 | Work Packet | Title                                       | Status      |
-| -------- | ---------------------- | -------- |
+| ----------- | ------------------------------------------- | ----------- |
 | WP-E1-001   | Establish Rust workspace runtime foundation | Complete    |
 | WP-E1-002   | Establish core diagnostics foundation       | Complete    |
 | WP-E1-003   | Establish core error foundation             | Complete    |
 | WP-E1-004   | Establish workspace context foundation      | Complete    |
-| WP-E1-005   | Establish manifest model foundation         | In Progress |
+| WP-E1-005   | Establish manifest model foundation         | Complete    |
+| WP-E1-006   | Establish manifest loading foundation       | In Progress |
 
 ## Maintenance Rules
 

@@ -1,25 +1,26 @@
-//! Manifest model types for Monad.
+//! Manifest model and loading support for Monad.
 //!
 //! Monad uses `monad.toml` as a repo-native intent file.
 //!
-//! This module defines the first in-memory model for that file. It does not
-//! parse TOML yet. Parsing will be a later slice after the stable data shape is
-//! in place.
+//! WP-E1-005 introduced the in-memory model.
+//! WP-E1-006 adds actual TOML parsing and file loading.
 
 use std::fmt;
+use std::fs;
+use std::path::Path;
 
+use serde::Deserialize;
+
+use crate::workspace::WorkspaceContext;
 use crate::{Diagnostic, DiagnosticReport, MonadError, MonadResult};
 
 /// Current supported manifest schema version.
-///
-/// A schema version lets Monad evolve `monad.toml` over time without guessing
-/// how to interpret old or future manifest files.
 pub const CURRENT_MANIFEST_SCHEMA_VERSION: u16 = 1;
 
 /// Manifest schema version wrapper.
 ///
-/// This is a tiny type around `u16`. Wrapping the number gives us a named domain
-/// concept instead of passing loose integers through the runtime.
+/// This newtype makes schema versions explicit instead of passing loose numbers
+/// through the runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ManifestSchemaVersion(u16);
 
@@ -62,7 +63,10 @@ impl fmt::Display for ManifestSchemaVersion {
 }
 
 /// Project identity from `monad.toml`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// `Deserialize` lets Serde build this struct from TOML data.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ManifestProject {
     /// Stable project name used by tools.
     pub name: String,
@@ -120,7 +124,8 @@ impl ManifestProject {
 }
 
 /// Workspace section from `monad.toml`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ManifestWorkspace {
     /// Files or directories that help identify the workspace root.
     pub root_markers: Vec<String>,
@@ -180,7 +185,8 @@ impl Default for ManifestWorkspace {
 }
 
 /// Runtime section from `monad.toml`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ManifestRuntime {
     /// Durable core runtime crate.
     pub core_crate: String,
@@ -237,6 +243,30 @@ impl ManifestRuntime {
     }
 }
 
+/// Raw TOML-deserializable manifest shape.
+///
+/// This type is private because callers should work with `MonadManifest`, which
+/// wraps the schema version in `ManifestSchemaVersion`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawMonadManifest {
+    schema_version: u16,
+    project: ManifestProject,
+    workspace: ManifestWorkspace,
+    runtime: ManifestRuntime,
+}
+
+impl RawMonadManifest {
+    fn into_manifest(self) -> MonadManifest {
+        MonadManifest::new(
+            ManifestSchemaVersion::new(self.schema_version),
+            self.project,
+            self.workspace,
+            self.runtime,
+        )
+    }
+}
+
 /// In-memory model of `monad.toml`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MonadManifest {
@@ -285,6 +315,34 @@ impl MonadManifest {
         )
     }
 
+    /// Parses and validates a manifest from TOML text.
+    pub fn from_toml_str(input: &str) -> MonadResult<Self> {
+        let raw: RawMonadManifest = toml::from_str(input).map_err(|error| {
+            MonadError::invalid_input(format!("failed to parse monad.toml: {error}"))
+        })?;
+
+        let manifest = raw.into_manifest();
+        manifest.validate()?;
+
+        Ok(manifest)
+    }
+
+    /// Loads, parses, and validates a manifest from a file path.
+    pub fn load_from_path(path: impl AsRef<Path>) -> MonadResult<Self> {
+        let path = path.as_ref();
+
+        let text = fs::read_to_string(path).map_err(|error| {
+            MonadError::not_found(format!("monad manifest at {} ({error})", path.display()))
+        })?;
+
+        Self::from_toml_str(&text)
+    }
+
+    /// Loads a manifest using a workspace context.
+    pub fn load_from_workspace(context: &WorkspaceContext) -> MonadResult<Self> {
+        Self::load_from_path(context.monad_manifest_path())
+    }
+
     /// Returns all diagnostics for this manifest.
     #[must_use]
     pub fn diagnostics(&self) -> DiagnosticReport {
@@ -308,9 +366,6 @@ impl MonadManifest {
     }
 
     /// Validates this manifest.
-    ///
-    /// The first version returns one structured error when any diagnostic has
-    /// error severity. Later slices can return richer multi-diagnostic failures.
     pub fn validate(&self) -> MonadResult<()> {
         let diagnostics = self.diagnostics();
 
@@ -340,6 +395,39 @@ impl Default for MonadManifest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    const VALID_MANIFEST_TOML: &str = r#"
+schema_version = 1
+
+[project]
+name = "monad"
+display_name = "Monad"
+description = "AI-native, repo-native, local-first Software Foundry OS."
+
+[workspace]
+root_markers = ["monad.toml", "Cargo.toml", ".monad", "work"]
+
+[runtime]
+core_crate = "monad-core"
+cli_crate = "monad-cli"
+execution_model = "local-first"
+"#;
+
+    fn unique_temp_dir(test_name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after Unix epoch")
+            .as_nanos();
+
+        std::env::temp_dir().join(format!(
+            "monad-manifest-{test_name}-{}-{unique}",
+            std::process::id()
+        ))
+    }
 
     #[test]
     fn current_schema_version_is_supported() {
@@ -385,24 +473,34 @@ mod tests {
     }
 
     #[test]
+    fn manifest_parses_from_toml_string() {
+        let manifest =
+            MonadManifest::from_toml_str(VALID_MANIFEST_TOML).expect("manifest should parse");
+
+        assert_eq!(manifest.schema_version.as_u16(), 1);
+        assert_eq!(manifest.project.name, "monad");
+        assert_eq!(manifest.runtime.core_crate, "monad-core");
+        assert_eq!(manifest.runtime.cli_crate, "monad-cli");
+        assert!(manifest.validate().is_ok());
+    }
+
+    #[test]
+    fn invalid_toml_returns_invalid_input_error() {
+        let error = MonadManifest::from_toml_str("not valid toml =").expect_err("TOML should fail");
+
+        assert_eq!(error.code(), "MONAD2001");
+        assert!(error.message().contains("failed to parse monad.toml"));
+    }
+
+    #[test]
     fn unsupported_schema_version_fails_validation() {
-        let manifest = MonadManifest::new(
-            ManifestSchemaVersion::new(999),
-            ManifestProject::new("monad", "Monad", "test"),
-            ManifestWorkspace::default(),
-            ManifestRuntime::new("monad-core", "monad-cli", "local-first"),
-        );
+        let manifest_text =
+            VALID_MANIFEST_TOML.replace("schema_version = 1", "schema_version = 999");
 
-        let diagnostics = manifest.diagnostics();
+        let error = MonadManifest::from_toml_str(&manifest_text)
+            .expect_err("unsupported schema should fail validation");
 
-        assert!(diagnostics.has_errors());
-        assert!(
-            diagnostics
-                .render_lines()
-                .iter()
-                .any(|line| line.contains("MONAD3000"))
-        );
-        assert!(manifest.validate().is_err());
+        assert_eq!(error.code(), "MONAD2003");
     }
 
     #[test]
@@ -416,5 +514,47 @@ mod tests {
 
         assert!(manifest.diagnostics().has_errors());
         assert!(manifest.validate().is_err());
+    }
+
+    #[test]
+    fn manifest_loads_from_path() {
+        let root = unique_temp_dir("load-from-path");
+        fs::create_dir_all(&root).expect("test directory should be created");
+
+        let manifest_path = root.join("monad.toml");
+        fs::write(&manifest_path, VALID_MANIFEST_TOML).expect("manifest should be written");
+
+        let manifest =
+            MonadManifest::load_from_path(&manifest_path).expect("manifest should load from path");
+
+        assert_eq!(manifest.project.name, "monad");
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn manifest_loads_from_workspace_context() {
+        let root = unique_temp_dir("load-from-workspace");
+        fs::create_dir_all(&root).expect("test directory should be created");
+
+        fs::write(root.join("monad.toml"), VALID_MANIFEST_TOML)
+            .expect("manifest should be written");
+
+        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
+        let manifest = MonadManifest::load_from_workspace(&context)
+            .expect("manifest should load from workspace context");
+
+        assert_eq!(manifest.project.display_name, "Monad");
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn missing_manifest_path_returns_not_found_error() {
+        let root = unique_temp_dir("missing-path");
+        let error = MonadManifest::load_from_path(root.join("monad.toml"))
+            .expect_err("missing manifest should fail");
+
+        assert_eq!(error.code(), "MONAD2002");
     }
 }

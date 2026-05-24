@@ -2,18 +2,18 @@
 title: "Latest Context Pack"
 document_type: "context-pack"
 status: "current"
-version: "1.4.0"
+version: "1.5.0"
 created: "2026-05-23"
 updated: "2026-05-24"
 owner: "Monad Project"
 epic: "E1"
-work_packet: "WP-E1-005"
+work_packet: "WP-E1-006"
 tags:
 
 * context-pack
 * e1
 * runtime-foundation
-* manifest-model
+* manifest-loading
 
 ---
 
@@ -35,13 +35,15 @@ WP-E1-003 — Establish Core Error Foundation is complete.
 
 WP-E1-004 — Establish Workspace Context Foundation is complete.
 
+WP-E1-005 — Establish Manifest Model Foundation is complete.
+
 ## Current Epic
 
 E1 — Runtime Foundation
 
 ## Current Work Packet
 
-WP-E1-005 — Establish Manifest Model Foundation
+WP-E1-006 — Establish Manifest Loading Foundation
 
 ## Runtime Foundation State
 
@@ -53,27 +55,7 @@ crates/
   monad-core/
 ```
 
-Core Diagnostics added:
-
-* `Severity`;
-* `Diagnostic`;
-* `DiagnosticReport`.
-
-Core Error added:
-
-* `MonadError`;
-* `MonadResult<T>`;
-* stable error codes;
-* conversion to diagnostics.
-
-Workspace Context added:
-
-* `WorkspaceContext`;
-* `discover_workspace_root`;
-* `is_workspace_root`;
-* canonical path helpers.
-
-Manifest Model adds:
+Manifest Model added:
 
 * root `monad.toml`;
 * `ManifestSchemaVersion`;
@@ -81,6 +63,14 @@ Manifest Model adds:
 * `ManifestWorkspace`;
 * `ManifestRuntime`;
 * `MonadManifest`.
+
+Manifest Loading adds:
+
+* `serde`;
+* `toml`;
+* `MonadManifest::from_toml_str`;
+* `MonadManifest::load_from_path`;
+* `MonadManifest::load_from_workspace`.
 
 ## Verification
 

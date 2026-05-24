@@ -91,6 +91,14 @@ pub fn checked_runtime_identity() -> MonadResult<RuntimeIdentity> {
     Ok(runtime_identity())
 }
 
+/// Loads `monad.toml` from a workspace context.
+///
+/// This is a small convenience wrapper that keeps callers from needing to know
+/// which module owns manifest loading.
+pub fn load_manifest_from_workspace(context: &WorkspaceContext) -> MonadResult<MonadManifest> {
+    MonadManifest::load_from_workspace(context)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
