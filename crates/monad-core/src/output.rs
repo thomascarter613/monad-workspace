@@ -10,7 +10,7 @@ use serde_json::json;
 
 use crate::repository_graph::{RepositoryGraph, build_repository_graph};
 use crate::repository_inspection::{
-    RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
+    RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind,
     RepositoryEntryTraversalPolicy, RepositoryInspection, build_traversal_plan,
 };
 use crate::{DiagnosticReport, MonadError, MonadManifest, MonadResult, Severity, WorkspaceContext};
@@ -759,7 +759,7 @@ mod tests {
     #[test]
     fn repository_role_enum_is_still_available_for_future_output_work() {
         assert_eq!(
-            RepositoryEntryRole::MonadManifest.as_str(),
+            crate::repository_inspection::RepositoryEntryRole::MonadManifest.as_str(),
             "monad_manifest"
         );
         assert_eq!(

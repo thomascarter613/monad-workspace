@@ -645,7 +645,7 @@ mod tests {
 
     fn unique_temp_dir(test_name: &str) -> PathBuf {
         let unique = SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+            .duration_since(UNIX_EPOCH)
             .expect("system clock should be after Unix epoch")
             .as_nanos();
 

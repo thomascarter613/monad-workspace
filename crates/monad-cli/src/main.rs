@@ -198,6 +198,18 @@ fn help_text() -> String {
     .join("\n")
 }
 
+/// Discovers the current Monad workspace from the process working directory.
+///
+/// `WorkspaceContext` currently exposes `discover_from(...)`, not a zero-argument
+/// `discover()` constructor. Keeping this helper in the CLI preserves thin CLI
+/// behavior while matching the current `monad-core` API.
+fn discover_workspace_context() -> Result<WorkspaceContext, String> {
+    let current_dir =
+        env::current_dir().map_err(|error| format!("failed to read current directory: {error}"))?;
+
+    WorkspaceContext::discover_from(current_dir).map_err(|error| error.to_string())
+}
+
 /// Renders runtime identity.
 fn render_version() -> Result<String, String> {
     let identity = checked_runtime_identity().map_err(|error| error.to_string())?;
@@ -207,7 +219,7 @@ fn render_version() -> Result<String, String> {
 
 /// Renders workspace info.
 fn render_info(output_format: OutputFormat) -> Result<String, String> {
-    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let context = discover_workspace_context()?;
     let manifest = load_manifest_from_workspace(&context).map_err(|error| error.to_string())?;
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
@@ -216,7 +228,7 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
 
 /// Renders workspace checks.
 fn render_check(output_format: OutputFormat) -> Result<String, String> {
-    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let context = discover_workspace_context()?;
     let report = run_workspace_checks(&context);
 
     Ok(render_diagnostic_report(&report, output_format))
@@ -224,7 +236,7 @@ fn render_check(output_format: OutputFormat) -> Result<String, String> {
 
 /// Renders repository inspection.
 fn render_inspect(output_format: OutputFormat) -> Result<String, String> {
-    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let context = discover_workspace_context()?;
     let summary = repository_inspection_summary_from_workspace(&context)
         .map_err(|error| error.to_string())?;
 
@@ -236,7 +248,7 @@ fn render_inspect(output_format: OutputFormat) -> Result<String, String> {
 
 /// Renders repository graph.
 fn render_graph(graph_format: RepositoryGraphRenderFormat) -> Result<String, String> {
-    let context = WorkspaceContext::discover().map_err(|error| error.to_string())?;
+    let context = discover_workspace_context()?;
     let inspection = inspect_workspace(&context).map_err(|error| error.to_string())?;
     let bounded_traversal =
         traverse_workspace_bounded(&inspection).map_err(|error| error.to_string())?;
@@ -388,7 +400,7 @@ mod tests {
         let error = parse_arguments(&["monad", "graph", "--format=svg"])
             .expect_err("svg should not be supported yet");
 
-        assert!(error.contains("unsupported output format"));
+        assert!(error.contains("unsupported repository graph render format"));
     }
 
     #[test]
