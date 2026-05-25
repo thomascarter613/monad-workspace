@@ -361,7 +361,7 @@ mod tests {
     use super::*;
 
     use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::SystemTime;
 
     use crate::{WorkspaceContext, inspect_workspace, traverse_workspace_bounded};
 

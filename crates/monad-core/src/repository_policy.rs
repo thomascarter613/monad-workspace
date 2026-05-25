@@ -375,7 +375,7 @@ mod tests {
 
     use std::fs;
     use std::path::{Path, PathBuf};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::SystemTime;
 
     use crate::{
         WorkspaceContext, detect_repository_dependency_signals, inspect_workspace,

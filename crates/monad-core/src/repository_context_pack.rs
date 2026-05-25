@@ -28,8 +28,18 @@ use std::path::{Path, PathBuf};
 use serde_json::json;
 
 use crate::{
-    MonadError, MonadResult, RepositoryBoundedTraversal, RepositoryDependencyDetection,
-    RepositoryGraph, RepositoryInspection, RepositoryPolicyReport, RepositoryToolchainDetection,
+    WorkspaceContext, build_repository_graph, detect_repository_dependency_signals,
+    detect_repository_toolchains, evaluate_repository_intelligence_policy, inspect_workspace,
+    traverse_workspace_bounded,
+};
+
+use crate::{
+    MonadError, MonadResult,
+    dependency_detection::RepositoryDependencyDetection,
+    repository_graph::RepositoryGraph,
+    repository_inspection::{RepositoryBoundedTraversal, RepositoryInspection},
+    repository_policy::RepositoryPolicyReport,
+    toolchain_detection::RepositoryToolchainDetection,
 };
 
 /// Current context-pack schema version.
@@ -438,6 +448,36 @@ pub fn build_repository_context_pack(
     )
 }
 
+/// Builds an AI-readable repository context pack directly from a workspace context.
+///
+/// This helper is the high-level construction path used by CLI commands. It gathers
+/// the repository intelligence inputs first, then assembles the final context pack.
+pub fn repository_context_pack_from_workspace(
+    context: &WorkspaceContext,
+) -> MonadResult<RepositoryContextPack> {
+    let inspection = inspect_workspace(context)?;
+
+    let bounded_traversal = traverse_workspace_bounded(&inspection)?;
+
+    let graph = build_repository_graph(&bounded_traversal);
+
+    let toolchains = detect_repository_toolchains(&bounded_traversal);
+
+    let dependencies = detect_repository_dependency_signals(&bounded_traversal);
+
+    let policy =
+        evaluate_repository_intelligence_policy(&inspection, &bounded_traversal, &dependencies);
+
+    Ok(build_repository_context_pack(
+        &inspection,
+        &bounded_traversal,
+        &graph,
+        &toolchains,
+        &dependencies,
+        &policy,
+    ))
+}
+
 /// Renders a repository context pack.
 #[must_use]
 pub fn render_repository_context_pack(
@@ -494,6 +534,37 @@ pub fn export_repository_context_pack(
             ),
         ],
     ))
+}
+
+/// Builds and exports an AI-readable repository context pack from a workspace context.
+pub fn export_repository_context_pack_from_workspace(
+    context: &WorkspaceContext,
+) -> MonadResult<RepositoryContextPackExportResult> {
+    let inspection = inspect_workspace(context)?;
+
+    let bounded_traversal = traverse_workspace_bounded(&inspection)?;
+
+    let graph = build_repository_graph(&bounded_traversal);
+
+    let toolchains = detect_repository_toolchains(&bounded_traversal);
+
+    let dependencies = detect_repository_dependency_signals(&bounded_traversal);
+
+    let policy =
+        evaluate_repository_intelligence_policy(&inspection, &bounded_traversal, &dependencies);
+
+    let context_pack = build_repository_context_pack(
+        &inspection,
+        &bounded_traversal,
+        &graph,
+        &toolchains,
+        &dependencies,
+        &policy,
+    );
+
+    let output_dir = default_repository_context_pack_export_dir(inspection.root());
+
+    export_repository_context_pack(&context_pack, output_dir)
 }
 
 fn write_context_pack_file(path: &Path, contents: &str) -> MonadResult<()> {
@@ -815,12 +886,14 @@ mod tests {
 
     use std::fs;
     use std::path::{Path, PathBuf};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::SystemTime;
 
     use crate::{
-        WorkspaceContext, build_repository_graph, detect_repository_dependency_signals,
-        detect_repository_toolchains, evaluate_repository_intelligence_policy, inspect_workspace,
-        traverse_workspace_bounded,
+        dependency_detection::detect_repository_dependency_signals,
+        repository_graph::build_repository_graph, repository_inspection::inspect_workspace,
+        repository_policy::evaluate_repository_intelligence_policy,
+        toolchain_detection::detect_repository_toolchains, traverse_workspace_bounded,
+        workspace::WorkspaceContext,
     };
 
     fn unique_temp_dir(test_name: &str) -> PathBuf {

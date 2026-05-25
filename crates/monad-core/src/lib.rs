@@ -5,19 +5,24 @@
 //!
 //! Monad's architecture keeps durable product logic here, while the CLI crate
 //! stays thin and delegates to this library.
-
 pub mod checks;
+pub mod dependency_detection;
 pub mod diagnostics;
 pub mod error;
 pub mod manifest;
 pub mod output;
 pub mod repo_contract;
+pub mod repository_context_pack;
 pub mod repository_graph;
 pub mod repository_inspection;
+pub mod repository_policy;
 pub mod toolchain_detection;
 pub mod workspace;
-
 pub use checks::run_workspace_checks;
+pub use dependency_detection::{
+    RepositoryDependencyDetection, RepositoryDependencySignal, RepositoryDependencySignalKind,
+    detect_repository_dependency_signals,
+};
 pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
 pub use error::{MonadError, MonadResult};
 pub use manifest::{
@@ -32,6 +37,13 @@ pub use output::{
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
 };
+pub use repository_context_pack::{
+    RepositoryContextPack, RepositoryContextPackExportResult, RepositoryContextPackExportedFile,
+    RepositoryContextPackFact, RepositoryContextPackRenderFormat, RepositoryContextPackSection,
+    RepositoryContextPackSectionKind, build_repository_context_pack,
+    export_repository_context_pack, export_repository_context_pack_from_workspace,
+    render_repository_context_pack, repository_context_pack_from_workspace,
+};
 pub use repository_graph::{
     RepositoryGraph, RepositoryGraphEdge, RepositoryGraphEdgeKind, RepositoryGraphNode,
     RepositoryGraphNodeKind, RepositoryGraphRenderFormat, build_repository_graph,
@@ -43,6 +55,10 @@ pub use repository_inspection::{
     RepositoryTraversalDecision, RepositoryTraversalEntry, RepositoryTraversalGuardrails,
     RepositoryTraversalMode, RepositoryTraversalPlan, RepositoryTraversalPlanEntry,
     build_traversal_plan, inspect_workspace, traverse_workspace_bounded,
+};
+pub use repository_policy::{
+    RepositoryPolicyDiagnostic, RepositoryPolicyReport, RepositoryPolicySeverity,
+    evaluate_repository_intelligence_policy,
 };
 pub use toolchain_detection::{
     RepositoryToolchainDetection, RepositoryToolchainKind, RepositoryToolchainSignal,

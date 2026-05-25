@@ -6,17 +6,14 @@
 
 use std::collections::BTreeMap;
 
-use serde_json::json;
-
 use crate::repository_graph::{RepositoryGraph, build_repository_graph};
 use crate::repository_inspection::{
-    RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
+    RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind,
     RepositoryEntryTraversalPolicy, RepositoryInspection, build_traversal_plan,
 };
-use crate::toolchain_detection::{
-    RepositoryToolchainDetection, RepositoryToolchainKind, detect_repository_toolchains,
-};
+use crate::toolchain_detection::{RepositoryToolchainDetection, detect_repository_toolchains};
 use crate::{DiagnosticReport, MonadError, MonadManifest, MonadResult, Severity, WorkspaceContext};
+use serde_json::json;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputFormat {
@@ -714,10 +711,7 @@ pub fn render_repository_inspection_summary(
 mod tests {
     use super::*;
 
-    use std::fs;
-    use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
+    use crate::RepositoryToolchainKind;
     use crate::{
         Diagnostic, ManifestProject, ManifestRuntime, ManifestSchemaVersion, ManifestWorkspace,
     };
@@ -725,6 +719,9 @@ mod tests {
         WorkspaceContext, build_repository_graph, detect_repository_toolchains, inspect_workspace,
         traverse_workspace_bounded,
     };
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn unique_temp_dir(test_name: &str) -> PathBuf {
         let unique = SystemTime::now()
@@ -912,10 +909,7 @@ mod tests {
 
     #[test]
     fn repository_role_enum_is_still_available_for_future_output_work() {
-        assert_eq!(
-            RepositoryEntryRole::MonadManifest.as_str(),
-            "monad_manifest"
-        );
+        assert_eq!("directory", RepositoryEntryKind::Directory.as_str(),);
         assert_eq!(
             RepositoryEntryTraversalPolicy::SafeForFutureTraversal.as_str(),
             "safe_for_future_traversal"

@@ -13,9 +13,10 @@ use std::process::ExitCode;
 use monad_core::{
     OutputFormat, RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
     RepositoryGraphRenderFormat, WorkspaceContext, build_repository_graph,
-    checked_runtime_identity, export_repository_context_pack_from_workspace, inspect_workspace,
-    load_manifest_from_workspace, render_diagnostic_report, render_repository_context_pack,
-    render_repository_graph, render_repository_inspection_summary, render_workspace_summary,
+    checked_runtime_identity, 
+    export_repository_context_pack_from_workspace, inspect_workspace, load_manifest_from_workspace,
+    render_diagnostic_report, render_repository_context_pack, render_repository_graph,
+    render_repository_inspection_summary, render_workspace_summary,
     repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
     run_workspace_checks, traverse_workspace_bounded, workspace_summary_from_manifest,
 };
@@ -327,6 +328,15 @@ fn render_context(
 ) -> Result<String, String> {
     let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
 
+    //    let context_pack = build_repository_context_pack(
+    //        &inspection,
+    //        &bounded_traversal,
+    //        &graph,
+    //        &toolchains,
+    //        &dependencies,
+    //        &policy,
+    //    );
+
     if write {
         let export_result = export_repository_context_pack_from_workspace(&context)
             .map_err(|error| error.to_string())?;
@@ -335,7 +345,6 @@ fn render_context(
     } else {
         let pack =
             repository_context_pack_from_workspace(&context).map_err(|error| error.to_string())?;
-
         Ok(render_repository_context_pack(&pack, context_format))
     }
 }
