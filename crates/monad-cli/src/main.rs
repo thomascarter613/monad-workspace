@@ -7,19 +7,17 @@
 //! rendering, context-pack generation, and context-pack export belong in
 //! `monad-core`.
 
-use std::env;
-use std::process::ExitCode;
-
 use monad_core::{
     OutputFormat, RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
     RepositoryGraphRenderFormat, WorkspaceContext, build_repository_graph,
-    checked_runtime_identity, 
-    export_repository_context_pack_from_workspace, inspect_workspace, load_manifest_from_workspace,
-    render_diagnostic_report, render_repository_context_pack, render_repository_graph,
-    render_repository_inspection_summary, render_workspace_summary,
+    checked_runtime_identity, export_repository_context_pack_from_workspace, inspect_workspace,
+    load_manifest_from_workspace, render_diagnostic_report, render_repository_context_pack,
+    render_repository_graph, render_repository_inspection_summary, render_workspace_summary,
     repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
     run_workspace_checks, traverse_workspace_bounded, workspace_summary_from_manifest,
 };
+use std::env;
+use std::process::ExitCode;
 
 /// Parsed CLI command.
 ///
