@@ -1,7 +1,6 @@
 //! Repository intelligence policy checks for Monad.
 //!
-//! WP-E2-012 introduced advisory repository-intelligence policy diagnostics.
-//! WP-E2-017 adds generated context artifact policy diagnostics.
+//! WP-E2-012 introduces advisory repository-intelligence policy diagnostics.
 //!
 //! These checks are intentionally non-blocking for now. They provide a durable
 //! policy layer that can later be surfaced through `monad check` as warnings,
@@ -11,26 +10,14 @@
 //!
 //! - shallow inspection;
 //! - bounded traversal;
-//! - dependency signal detection;
-//! - repository-local generated context artifact state.
+//! - dependency signal detection.
 //!
 //! They do not invoke external tools and do not parse dependency contents.
-
-use std::fs;
 
 use crate::{
     RepositoryBoundedTraversal, RepositoryDependencyDetection, RepositoryDependencySignalKind,
     RepositoryEntryCategory, RepositoryEntryRole, RepositoryInspection, RepositoryToolchainKind,
 };
-
-/// Repository-local generated context artifact directory.
-///
-/// Monad treats this path as generated output. It is deterministic and
-/// reviewable, but it should not be committed by default.
-pub const GENERATED_CONTEXT_ARTIFACT_DIR: &str = ".monad/context/generated";
-
-/// Repository-local generated context artifact ignore rule.
-pub const GENERATED_CONTEXT_ARTIFACT_IGNORE_RULE: &str = ".monad/context/generated/";
 
 /// Severity for repository intelligence policy diagnostics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -177,7 +164,7 @@ impl RepositoryPolicyReport {
 
 /// Evaluates repository intelligence policy diagnostics.
 ///
-/// This function is advisory-only in WP-E2-017.
+/// This function is advisory-only in WP-E2-012.
 #[must_use]
 pub fn evaluate_repository_intelligence_policy(
     inspection: &RepositoryInspection,
@@ -189,7 +176,6 @@ pub fn evaluate_repository_intelligence_policy(
     evaluate_basic_repository_presence_policy(inspection, &mut diagnostics);
     evaluate_dependency_lockfile_policy(dependencies, &mut diagnostics);
     evaluate_traversal_safety_policy(bounded_traversal, &mut diagnostics);
-    evaluate_generated_context_artifact_policy(inspection, &mut diagnostics);
 
     RepositoryPolicyReport::new(diagnostics)
 }
@@ -316,66 +302,13 @@ fn evaluate_traversal_safety_policy(
     }
 }
 
-/// Checks generated context artifact handling.
-fn evaluate_generated_context_artifact_policy(
-    inspection: &RepositoryInspection,
-    diagnostics: &mut Vec<RepositoryPolicyDiagnostic>,
-) {
-    let generated_dir = inspection.root().join(GENERATED_CONTEXT_ARTIFACT_DIR);
-
-    if generated_dir.exists() {
-        diagnostics.push(RepositoryPolicyDiagnostic::new(
-            "MONAD-RI-0300",
-            RepositoryPolicySeverity::Info,
-            "generated repository context artifact directory exists and should remain ignored by default",
-            vec![GENERATED_CONTEXT_ARTIFACT_DIR.to_string()],
-        ));
-    }
-
-    if repository_gitignore_contains_generated_context_rule(inspection) {
-        diagnostics.push(RepositoryPolicyDiagnostic::new(
-            "MONAD-RI-0302",
-            RepositoryPolicySeverity::Info,
-            "generated repository context artifacts are ignored by default",
-            vec![
-                ".gitignore".to_string(),
-                GENERATED_CONTEXT_ARTIFACT_IGNORE_RULE.to_string(),
-            ],
-        ));
-    } else {
-        diagnostics.push(RepositoryPolicyDiagnostic::new(
-            "MONAD-RI-0301",
-            RepositoryPolicySeverity::Advisory,
-            "generated repository context artifacts should be ignored by default",
-            vec![
-                ".gitignore".to_string(),
-                GENERATED_CONTEXT_ARTIFACT_IGNORE_RULE.to_string(),
-            ],
-        ));
-    }
-}
-
-/// Returns true when the repository `.gitignore` includes the generated context rule.
-fn repository_gitignore_contains_generated_context_rule(inspection: &RepositoryInspection) -> bool {
-    let gitignore_path = inspection.root().join(".gitignore");
-
-    let Ok(contents) = fs::read_to_string(gitignore_path) else {
-        return false;
-    };
-
-    contents
-        .lines()
-        .map(str::trim)
-        .any(|line| line == GENERATED_CONTEXT_ARTIFACT_IGNORE_RULE)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use std::fs;
     use std::path::{Path, PathBuf};
-    use std::time::SystemTime;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use crate::{
         WorkspaceContext, detect_repository_dependency_signals, inspect_workspace,
@@ -488,88 +421,14 @@ mod tests {
     }
 
     #[test]
-    fn policy_advises_generated_context_artifact_ignore_rule_when_missing() {
-        let root = create_policy_workspace("missing-generated-ignore");
-
-        let report = evaluate_from_workspace(&root);
-
-        assert!(
-            report
-                .diagnostics()
-                .iter()
-                .any(|diagnostic| diagnostic.code() == "MONAD-RI-0301")
-        );
-        assert!(
-            report
-                .diagnostics()
-                .iter()
-                .all(|diagnostic| diagnostic.code() != "MONAD-RI-0302")
-        );
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn policy_reports_generated_context_artifact_ignore_rule_when_present() {
-        let root = create_policy_workspace("generated-ignore-present");
-
-        fs::write(
-            root.join(".gitignore"),
-            format!("{GENERATED_CONTEXT_ARTIFACT_IGNORE_RULE}\n"),
-        )
-        .expect(".gitignore should be written");
-
-        let report = evaluate_from_workspace(&root);
-
-        assert!(
-            report
-                .diagnostics()
-                .iter()
-                .any(|diagnostic| diagnostic.code() == "MONAD-RI-0302")
-        );
-        assert!(
-            report
-                .diagnostics()
-                .iter()
-                .all(|diagnostic| diagnostic.code() != "MONAD-RI-0301")
-        );
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
-    fn policy_reports_generated_context_artifact_directory_when_present() {
-        let root = create_policy_workspace("generated-dir-present");
-        let generated_dir = root.join(GENERATED_CONTEXT_ARTIFACT_DIR);
-
-        fs::create_dir_all(&generated_dir).expect("generated context directory should be created");
-        fs::write(
-            generated_dir.join("repository-context-pack.md"),
-            "# Monad Repository Context Pack\n",
-        )
-        .expect("generated context file should be written");
-
-        let report = evaluate_from_workspace(&root);
-
-        assert!(
-            report
-                .diagnostics()
-                .iter()
-                .any(|diagnostic| diagnostic.code() == "MONAD-RI-0300")
-        );
-
-        fs::remove_dir_all(root).ok();
-    }
-
-    #[test]
     fn policy_report_counts_by_severity() {
         let root = create_policy_workspace("severity-counts");
 
         let report = evaluate_from_workspace(&root);
 
-        assert!(report.diagnostic_count() >= 5);
+        assert!(report.diagnostic_count() >= 4);
         assert!(report.info_count() >= 1);
-        assert!(report.advisory_count() >= 3);
+        assert!(report.advisory_count() >= 2);
         assert!(report.warning_count() >= 1);
 
         fs::remove_dir_all(root).ok();

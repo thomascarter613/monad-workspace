@@ -14,10 +14,15 @@ use crate::dependency_detection::{
 };
 use crate::repository_graph::{RepositoryGraph, build_repository_graph};
 use crate::repository_inspection::{
-    RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind,
+    RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
     RepositoryEntryTraversalPolicy, RepositoryInspection, build_traversal_plan,
 };
-use crate::toolchain_detection::{RepositoryToolchainDetection, detect_repository_toolchains};
+use crate::repository_policy::{
+    RepositoryPolicyReport, RepositoryPolicySeverity, evaluate_repository_intelligence_policy,
+};
+use crate::toolchain_detection::{
+    RepositoryToolchainDetection, RepositoryToolchainKind, detect_repository_toolchains,
+};
 use crate::{DiagnosticReport, MonadError, MonadManifest, MonadResult, Severity, WorkspaceContext};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,6 +113,14 @@ pub struct RepositoryDependencySummaryEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepositoryPolicySummaryDiagnostic {
+    pub code: String,
+    pub severity: String,
+    pub message: String,
+    pub related_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepositoryInspectionSummary {
     pub root: String,
     pub entry_count: usize,
@@ -115,12 +128,14 @@ pub struct RepositoryInspectionSummary {
     pub directory_count: usize,
     pub symlink_count: usize,
     pub other_count: usize,
+
     pub known_entry_count: usize,
     pub unknown_entry_count: usize,
     pub generated_or_external_count: usize,
     pub safe_for_future_traversal_count: usize,
     pub inspect_shallow_only_count: usize,
     pub skip_generated_or_external_count: usize,
+
     pub future_traversal_mode: String,
     pub future_traversal_max_depth: usize,
     pub future_traversal_follow_symlinks: bool,
@@ -130,6 +145,7 @@ pub struct RepositoryInspectionSummary {
     pub future_traversal_candidate_count: usize,
     pub future_traversal_shallow_only_count: usize,
     pub future_traversal_skip_count: usize,
+
     pub bounded_traversal_mode: String,
     pub bounded_traversal_entry_count: usize,
     pub bounded_traversal_max_observed_depth: usize,
@@ -137,16 +153,19 @@ pub struct RepositoryInspectionSummary {
     pub bounded_traversal_shallow_only_count: usize,
     pub bounded_traversal_skip_count: usize,
     pub bounded_traversal_generated_or_external_count: usize,
+
     pub graph_node_count: usize,
     pub graph_edge_count: usize,
     pub graph_max_depth: usize,
     pub graph_category_counts: BTreeMap<String, usize>,
     pub graph_traversal_decision_counts: BTreeMap<String, usize>,
+
     pub toolchain_count: usize,
     pub toolchain_signal_count: usize,
     pub toolchain_counts: BTreeMap<String, usize>,
     pub toolchain_signal_kind_counts: BTreeMap<String, usize>,
     pub toolchains: Vec<RepositoryToolchainSummaryEntry>,
+
     pub dependency_toolchain_count: usize,
     pub dependency_signal_count: usize,
     pub dependency_manifest_count: usize,
@@ -156,6 +175,14 @@ pub struct RepositoryInspectionSummary {
     pub dependency_toolchain_counts: BTreeMap<String, usize>,
     pub dependency_signal_kind_counts: BTreeMap<String, usize>,
     pub dependencies: Vec<RepositoryDependencySummaryEntry>,
+
+    pub policy_diagnostic_count: usize,
+    pub policy_info_count: usize,
+    pub policy_advisory_count: usize,
+    pub policy_warning_count: usize,
+    pub policy_has_warnings: bool,
+    pub policy_diagnostics: Vec<RepositoryPolicySummaryDiagnostic>,
+
     pub category_counts: BTreeMap<String, usize>,
     pub role_counts: BTreeMap<String, usize>,
     pub traversal_policy_counts: BTreeMap<String, usize>,
@@ -165,7 +192,7 @@ pub struct RepositoryInspectionSummary {
 impl RepositoryInspectionSummary {
     #[must_use]
     pub fn from_inspection(inspection: &RepositoryInspection) -> Self {
-        Self::from_parts(inspection, None, None, None, None)
+        Self::from_parts(inspection, None, None, None, None, None)
     }
 
     #[must_use]
@@ -174,15 +201,18 @@ impl RepositoryInspectionSummary {
         bounded_traversal: &RepositoryBoundedTraversal,
     ) -> Self {
         let graph = build_repository_graph(bounded_traversal);
-        let toolchain_detection = detect_repository_toolchains(bounded_traversal);
-        let dependency_detection = detect_repository_dependency_signals(bounded_traversal);
+        let toolchains = detect_repository_toolchains(bounded_traversal);
+        let dependencies = detect_repository_dependency_signals(bounded_traversal);
+        let policy =
+            evaluate_repository_intelligence_policy(inspection, bounded_traversal, &dependencies);
 
         Self::from_parts(
             inspection,
             Some(bounded_traversal),
             Some(&graph),
-            Some(&toolchain_detection),
-            Some(&dependency_detection),
+            Some(&toolchains),
+            Some(&dependencies),
+            Some(&policy),
         )
     }
 
@@ -192,15 +222,18 @@ impl RepositoryInspectionSummary {
         bounded_traversal: &RepositoryBoundedTraversal,
         graph: &RepositoryGraph,
     ) -> Self {
-        let toolchain_detection = detect_repository_toolchains(bounded_traversal);
-        let dependency_detection = detect_repository_dependency_signals(bounded_traversal);
+        let toolchains = detect_repository_toolchains(bounded_traversal);
+        let dependencies = detect_repository_dependency_signals(bounded_traversal);
+        let policy =
+            evaluate_repository_intelligence_policy(inspection, bounded_traversal, &dependencies);
 
         Self::from_parts(
             inspection,
             Some(bounded_traversal),
             Some(graph),
-            Some(&toolchain_detection),
-            Some(&dependency_detection),
+            Some(&toolchains),
+            Some(&dependencies),
+            Some(&policy),
         )
     }
 
@@ -211,14 +244,17 @@ impl RepositoryInspectionSummary {
         graph: &RepositoryGraph,
         toolchain_detection: &RepositoryToolchainDetection,
     ) -> Self {
-        let dependency_detection = detect_repository_dependency_signals(bounded_traversal);
+        let dependencies = detect_repository_dependency_signals(bounded_traversal);
+        let policy =
+            evaluate_repository_intelligence_policy(inspection, bounded_traversal, &dependencies);
 
         Self::from_parts(
             inspection,
             Some(bounded_traversal),
             Some(graph),
             Some(toolchain_detection),
-            Some(&dependency_detection),
+            Some(&dependencies),
+            Some(&policy),
         )
     }
 
@@ -230,12 +266,38 @@ impl RepositoryInspectionSummary {
         toolchain_detection: &RepositoryToolchainDetection,
         dependency_detection: &RepositoryDependencyDetection,
     ) -> Self {
+        let policy = evaluate_repository_intelligence_policy(
+            inspection,
+            bounded_traversal,
+            dependency_detection,
+        );
+
         Self::from_parts(
             inspection,
             Some(bounded_traversal),
             Some(graph),
             Some(toolchain_detection),
             Some(dependency_detection),
+            Some(&policy),
+        )
+    }
+
+    #[must_use]
+    pub fn from_inspection_bounded_traversal_graph_toolchains_dependencies_and_policy(
+        inspection: &RepositoryInspection,
+        bounded_traversal: &RepositoryBoundedTraversal,
+        graph: &RepositoryGraph,
+        toolchain_detection: &RepositoryToolchainDetection,
+        dependency_detection: &RepositoryDependencyDetection,
+        policy_report: &RepositoryPolicyReport,
+    ) -> Self {
+        Self::from_parts(
+            inspection,
+            Some(bounded_traversal),
+            Some(graph),
+            Some(toolchain_detection),
+            Some(dependency_detection),
+            Some(policy_report),
         )
     }
 
@@ -245,6 +307,7 @@ impl RepositoryInspectionSummary {
         graph: Option<&RepositoryGraph>,
         toolchain_detection: Option<&RepositoryToolchainDetection>,
         dependency_detection: Option<&RepositoryDependencyDetection>,
+        policy_report: Option<&RepositoryPolicyReport>,
     ) -> Self {
         let traversal_plan = build_traversal_plan(inspection);
         let guardrails = traversal_plan.guardrails();
@@ -308,6 +371,10 @@ impl RepositoryInspectionSummary {
             .map(build_dependency_summary_entries)
             .unwrap_or_default();
 
+        let policy_diagnostics = policy_report
+            .map(build_policy_summary_diagnostics)
+            .unwrap_or_default();
+
         Self {
             root: inspection.root().display().to_string(),
             entry_count: inspection.entry_count(),
@@ -315,6 +382,7 @@ impl RepositoryInspectionSummary {
             directory_count: count_entries_by_kind(inspection, RepositoryEntryKind::Directory),
             symlink_count: count_entries_by_kind(inspection, RepositoryEntryKind::Symlink),
             other_count: count_entries_by_kind(inspection, RepositoryEntryKind::Other),
+
             known_entry_count: inspection.entry_count().saturating_sub(unknown_entry_count),
             unknown_entry_count,
             generated_or_external_count: count_entries_by_category(
@@ -333,6 +401,7 @@ impl RepositoryInspectionSummary {
                 inspection,
                 RepositoryEntryTraversalPolicy::SkipGeneratedOrExternal,
             ),
+
             future_traversal_mode: traversal_plan.mode().as_str().to_string(),
             future_traversal_max_depth: guardrails.max_depth(),
             future_traversal_follow_symlinks: guardrails.follow_symlinks(),
@@ -343,6 +412,7 @@ impl RepositoryInspectionSummary {
             future_traversal_candidate_count: traversal_plan.candidate_for_future_traversal_count(),
             future_traversal_shallow_only_count: traversal_plan.inspect_shallow_only_count(),
             future_traversal_skip_count: traversal_plan.skip_by_default_count(),
+
             bounded_traversal_mode: bounded_traversal
                 .map(|traversal| traversal.mode().as_str().to_string())
                 .unwrap_or_else(|| "not_run".to_string()),
@@ -366,6 +436,7 @@ impl RepositoryInspectionSummary {
                     traversal.category_count(RepositoryEntryCategory::GeneratedOrExternal)
                 })
                 .unwrap_or(0),
+
             graph_node_count: graph.map(RepositoryGraph::node_count).unwrap_or(0),
             graph_edge_count: graph.map(RepositoryGraph::edge_count).unwrap_or(0),
             graph_max_depth: graph.map(RepositoryGraph::max_depth).unwrap_or(0),
@@ -375,6 +446,7 @@ impl RepositoryInspectionSummary {
             graph_traversal_decision_counts: graph
                 .map(RepositoryGraph::traversal_decision_counts)
                 .unwrap_or_default(),
+
             toolchain_count: toolchain_detection
                 .map(RepositoryToolchainDetection::detected_toolchain_count)
                 .unwrap_or(0),
@@ -384,6 +456,7 @@ impl RepositoryInspectionSummary {
             toolchain_counts,
             toolchain_signal_kind_counts,
             toolchains,
+
             dependency_toolchain_count: dependency_detection
                 .map(RepositoryDependencyDetection::detected_toolchain_count)
                 .unwrap_or(0),
@@ -405,6 +478,24 @@ impl RepositoryInspectionSummary {
             dependency_toolchain_counts,
             dependency_signal_kind_counts,
             dependencies,
+
+            policy_diagnostic_count: policy_report
+                .map(RepositoryPolicyReport::diagnostic_count)
+                .unwrap_or(0),
+            policy_info_count: policy_report
+                .map(RepositoryPolicyReport::info_count)
+                .unwrap_or(0),
+            policy_advisory_count: policy_report
+                .map(RepositoryPolicyReport::advisory_count)
+                .unwrap_or(0),
+            policy_warning_count: policy_report
+                .map(RepositoryPolicyReport::warning_count)
+                .unwrap_or(0),
+            policy_has_warnings: policy_report
+                .map(RepositoryPolicyReport::has_warnings)
+                .unwrap_or(false),
+            policy_diagnostics,
+
             category_counts,
             role_counts,
             traversal_policy_counts,
@@ -461,6 +552,21 @@ fn build_dependency_summary_entries(
                 ),
                 signal_paths,
             }
+        })
+        .collect()
+}
+
+fn build_policy_summary_diagnostics(
+    report: &RepositoryPolicyReport,
+) -> Vec<RepositoryPolicySummaryDiagnostic> {
+    report
+        .diagnostics()
+        .iter()
+        .map(|diagnostic| RepositoryPolicySummaryDiagnostic {
+            code: diagnostic.code().to_string(),
+            severity: diagnostic.severity().as_str().to_string(),
+            message: diagnostic.message().to_string(),
+            related_paths: diagnostic.related_paths().to_vec(),
         })
         .collect()
 }
@@ -588,6 +694,27 @@ fn render_repository_inspection_summary_text(summary: &RepositoryInspectionSumma
         format!("  directories: {}", summary.directory_count),
         format!("  symlinks: {}", summary.symlink_count),
         format!("  other: {}", summary.other_count),
+        "  policy:".to_string(),
+        format!("    diagnostics: {}", summary.policy_diagnostic_count),
+        format!("    info: {}", summary.policy_info_count),
+        format!("    advisory: {}", summary.policy_advisory_count),
+        format!("    warnings: {}", summary.policy_warning_count),
+        format!("    has_warnings: {}", summary.policy_has_warnings),
+        "  policy_diagnostics:".to_string(),
+    ];
+
+    for diagnostic in &summary.policy_diagnostics {
+        lines.push(format!(
+            "    - {} [{}] {}",
+            diagnostic.code, diagnostic.severity, diagnostic.message
+        ));
+
+        for path in &diagnostic.related_paths {
+            lines.push(format!("      - {path}"));
+        }
+    }
+
+    lines.extend([
         "  metrics:".to_string(),
         format!("    known_entries: {}", summary.known_entry_count),
         format!("    unknown_entries: {}", summary.unknown_entry_count),
@@ -651,7 +778,7 @@ fn render_repository_inspection_summary_text(summary: &RepositoryInspectionSumma
         ),
         format!("    build_files: {}", summary.dependency_build_file_count),
         "  dependency_toolchain_counts:".to_string(),
-    ];
+    ]);
 
     for (toolchain, count) in &summary.dependency_toolchain_counts {
         lines.push(format!("    {toolchain}: {count}"));
@@ -799,6 +926,19 @@ fn render_repository_inspection_summary_json(summary: &RepositoryInspectionSumma
         })
         .collect::<Vec<_>>();
 
+    let policy_diagnostics = summary
+        .policy_diagnostics
+        .iter()
+        .map(|diagnostic| {
+            json!({
+                "code": &diagnostic.code,
+                "severity": &diagnostic.severity,
+                "message": &diagnostic.message,
+                "related_paths": &diagnostic.related_paths,
+            })
+        })
+        .collect::<Vec<_>>();
+
     serde_json::to_string_pretty(&json!({
         "format": OutputFormat::Json.as_str(),
         "kind": "repository_inspection_summary",
@@ -809,6 +949,14 @@ fn render_repository_inspection_summary_json(summary: &RepositoryInspectionSumma
             "directory_count": summary.directory_count,
             "symlink_count": summary.symlink_count,
             "other_count": summary.other_count,
+            "policy": {
+                "diagnostic_count": summary.policy_diagnostic_count,
+                "info_count": summary.policy_info_count,
+                "advisory_count": summary.policy_advisory_count,
+                "warning_count": summary.policy_warning_count,
+                "has_warnings": summary.policy_has_warnings,
+                "diagnostics": policy_diagnostics,
+            },
             "metrics": {
                 "known_entry_count": summary.known_entry_count,
                 "unknown_entry_count": summary.unknown_entry_count,
@@ -876,8 +1024,7 @@ fn render_repository_inspection_summary_json(summary: &RepositoryInspectionSumma
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::RepositoryEntryRole;
-    use crate::RepositoryToolchainKind;
+
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -887,7 +1034,8 @@ mod tests {
     };
     use crate::{
         WorkspaceContext, build_repository_graph, detect_repository_dependency_signals,
-        detect_repository_toolchains, inspect_workspace, traverse_workspace_bounded,
+        detect_repository_toolchains, evaluate_repository_intelligence_policy, inspect_workspace,
+        traverse_workspace_bounded,
     };
 
     fn unique_temp_dir(test_name: &str) -> PathBuf {
@@ -902,40 +1050,36 @@ mod tests {
         ))
     }
 
-    fn create_inspection_workspace(test_name: &str) -> PathBuf {
+    fn create_policy_workspace(test_name: &str) -> PathBuf {
         let root = unique_temp_dir(test_name);
 
-        fs::create_dir_all(root.join("docs/guide")).expect("docs directory should be created");
-        fs::create_dir_all(root.join("work")).expect("work directory should be created");
-        fs::create_dir_all(root.join(".monad")).expect(".monad directory should be created");
-        fs::create_dir_all(root.join("crates/monad-core/src"))
-            .expect("crates directory should be created");
         fs::create_dir_all(root.join("apps/web")).expect("web directory should be created");
-        fs::create_dir_all(root.join("services/python"))
-            .expect("python directory should be created");
-        fs::create_dir_all(root.join("tools")).expect("tools directory should be created");
-        fs::create_dir_all(root.join("target")).expect("target directory should be created");
+        fs::create_dir_all(root.join("target/debug")).expect("target directory should be created");
 
-        fs::write(root.join("README.md"), "# Test\n").expect("README should be written");
-        fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("Cargo.toml should be written");
-        fs::write(root.join("Cargo.lock"), "# lock\n").expect("Cargo.lock should be written");
-        fs::write(root.join("monad.toml"), "schema_version = 1\n")
-            .expect("monad.toml should be written");
-        fs::write(root.join("apps/web/package.json"), "{}\n")
-            .expect("package.json should be written");
-        fs::write(root.join("apps/web/bun.lock"), "# lock\n").expect("bun.lock should be written");
-        fs::write(root.join("services/python/pyproject.toml"), "[project]\n")
-            .expect("pyproject.toml should be written");
-        fs::write(root.join("services/python/poetry.lock"), "# lock\n")
-            .expect("poetry.lock should be written");
-        fs::write(root.join("docs/guide/intro.md"), "# Intro\n").expect("intro should be written");
-        fs::write(
-            root.join("crates/monad-core/src/lib.rs"),
-            "pub fn test() {}\n",
-        )
-        .expect("lib should be written");
+        fs::write(root.join("package.json"), "{}\n").expect("package.json should be written");
+        fs::write(root.join("target/debug/cache.bin"), "cache\n").expect("cache should be written");
 
         root
+    }
+
+    fn create_summary(root: &std::path::Path) -> RepositoryInspectionSummary {
+        let context = WorkspaceContext::new(root).expect("workspace context should be created");
+        let inspection = inspect_workspace(&context).expect("workspace should inspect");
+        let bounded =
+            traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
+        let graph = build_repository_graph(&bounded);
+        let toolchains = detect_repository_toolchains(&bounded);
+        let dependencies = detect_repository_dependency_signals(&bounded);
+        let policy = evaluate_repository_intelligence_policy(&inspection, &bounded, &dependencies);
+
+        RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_toolchains_dependencies_and_policy(
+            &inspection,
+            &bounded,
+            &graph,
+            &toolchains,
+            &dependencies,
+            &policy,
+        )
     }
 
     #[test]
@@ -986,102 +1130,66 @@ mod tests {
     }
 
     #[test]
-    fn repository_inspection_summary_includes_dependency_metrics() {
-        let root = create_inspection_workspace("dependency-summary");
-        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
-        let inspection = inspect_workspace(&context).expect("workspace should inspect");
-        let bounded =
-            traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
-        let graph = build_repository_graph(&bounded);
-        let toolchains = detect_repository_toolchains(&bounded);
-        let dependencies = detect_repository_dependency_signals(&bounded);
+    fn repository_inspection_summary_includes_policy_metrics() {
+        let root = create_policy_workspace("policy-summary");
+        let summary = create_summary(&root);
 
-        let summary =
-            RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_toolchains_and_dependencies(
-                &inspection,
-                &bounded,
-                &graph,
-                &toolchains,
-                &dependencies,
-            );
-
-        assert!(summary.dependency_toolchain_count >= 3);
-        assert!(summary.dependency_signal_count >= 6);
-        assert!(summary.dependency_manifest_count >= 3);
-        assert!(summary.dependency_lockfile_count >= 3);
-        assert!(summary.dependency_toolchain_counts.contains_key("rust"));
+        assert!(summary.policy_diagnostic_count >= 4);
+        assert!(summary.policy_info_count >= 1);
+        assert!(summary.policy_advisory_count >= 2);
+        assert!(summary.policy_warning_count >= 1);
+        assert!(summary.policy_has_warnings);
         assert!(
             summary
-                .dependency_toolchain_counts
-                .contains_key("javascript")
+                .policy_diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "MONAD-RI-0100")
         );
-        assert!(summary.dependency_toolchain_counts.contains_key("python"));
 
         fs::remove_dir_all(root).ok();
     }
 
     #[test]
-    fn repository_inspection_summary_renders_dependencies_as_text() {
-        let root = create_inspection_workspace("dependency-text");
-        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
-        let inspection = inspect_workspace(&context).expect("workspace should inspect");
-        let bounded =
-            traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
-        let graph = build_repository_graph(&bounded);
-        let toolchains = detect_repository_toolchains(&bounded);
-        let dependencies = detect_repository_dependency_signals(&bounded);
-
-        let summary =
-            RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_toolchains_and_dependencies(
-                &inspection,
-                &bounded,
-                &graph,
-                &toolchains,
-                &dependencies,
-            );
+    fn repository_inspection_summary_renders_policy_as_text() {
+        let root = create_policy_workspace("policy-text");
+        let summary = create_summary(&root);
 
         let rendered = render_repository_inspection_summary(&summary, OutputFormat::Text);
 
-        assert!(rendered.contains("dependencies:"));
-        assert!(rendered.contains("dependency_toolchain_counts:"));
-        assert!(rendered.contains("dependency_signal_kind_counts:"));
-        assert!(rendered.contains("dependency_signals:"));
-        assert!(rendered.contains("rust:"));
-        assert!(rendered.contains("javascript:"));
+        assert!(rendered.contains("policy:"));
+        assert!(rendered.contains("policy_diagnostics:"));
+        assert!(rendered.contains("MONAD-RI-0001"));
+        assert!(rendered.contains("MONAD-RI-0100"));
 
         fs::remove_dir_all(root).ok();
     }
 
     #[test]
-    fn repository_inspection_summary_renders_dependencies_as_json() {
-        let root = create_inspection_workspace("dependency-json");
-        let context = WorkspaceContext::new(&root).expect("workspace context should be created");
-        let inspection = inspect_workspace(&context).expect("workspace should inspect");
-        let bounded =
-            traverse_workspace_bounded(&inspection).expect("bounded traversal should run");
-        let graph = build_repository_graph(&bounded);
-        let toolchains = detect_repository_toolchains(&bounded);
-        let dependencies = detect_repository_dependency_signals(&bounded);
-
-        let summary =
-            RepositoryInspectionSummary::from_inspection_bounded_traversal_graph_toolchains_and_dependencies(
-                &inspection,
-                &bounded,
-                &graph,
-                &toolchains,
-                &dependencies,
-            );
+    fn repository_inspection_summary_renders_policy_as_json() {
+        let root = create_policy_workspace("policy-json");
+        let summary = create_summary(&root);
 
         let rendered = render_repository_inspection_summary(&summary, OutputFormat::Json);
 
-        assert!(rendered.contains(r#""dependencies""#));
-        assert!(rendered.contains(r#""manifest_count""#));
-        assert!(rendered.contains(r#""lockfile_count""#));
-        assert!(rendered.contains(r#""toolchain_counts""#));
-        assert!(rendered.contains(r#""rust""#));
-        assert!(rendered.contains(r#""javascript""#));
+        assert!(rendered.contains(r#""policy""#));
+        assert!(rendered.contains(r#""diagnostic_count""#));
+        assert!(rendered.contains(r#""warning_count""#));
+        assert!(rendered.contains(r#""MONAD-RI-0100""#));
 
         fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn repository_inspection_summary_type_defaults_policy_to_empty() {
+        let inspection = RepositoryInspection::new(".", Vec::new());
+        let summary = RepositoryInspectionSummary::from_inspection(&inspection);
+
+        assert_eq!(summary.policy_diagnostic_count, 0);
+        assert_eq!(summary.policy_info_count, 0);
+        assert_eq!(summary.policy_advisory_count, 0);
+        assert_eq!(summary.policy_warning_count, 0);
+        assert!(!summary.policy_has_warnings);
+        assert!(summary.policy_diagnostics.is_empty());
     }
 
     #[test]
@@ -1095,5 +1203,6 @@ mod tests {
             "safe_for_future_traversal"
         );
         assert_eq!(RepositoryToolchainKind::Rust.as_str(), "rust");
+        assert_eq!(RepositoryPolicySeverity::Warning.as_str(), "warning");
     }
 }
