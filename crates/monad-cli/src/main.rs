@@ -8,15 +8,16 @@
 //! artifact generation belong in `monad-core`.
 
 use monad_core::{
-    CurrentStateArtifact, HandoffArtifact, OutputFormat, RepositoryContextPackExportResult,
-    RepositoryContextPackRenderFormat, RepositoryGraphRenderFormat, WorkspaceContext,
-    build_repository_graph, checked_runtime_identity,
-    export_repository_context_pack_from_workspace, generate_current_state, generate_handoff,
-    inspect_workspace, load_manifest_from_workspace, render_diagnostic_report,
-    render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
-    render_workspace_summary, repository_context_pack_from_workspace,
-    repository_inspection_summary_from_workspace, run_workspace_checks, traverse_workspace_bounded,
-    workspace_summary_from_manifest, write_current_state_artifact, write_handoff_artifact,
+    ContextPackArtifact, CurrentStateArtifact, HandoffArtifact, OutputFormat,
+    RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
+    RepositoryGraphRenderFormat, WorkspaceContext, build_repository_graph,
+    checked_runtime_identity, export_repository_context_pack_from_workspace, generate_context_pack,
+    generate_current_state, generate_handoff, inspect_workspace, load_manifest_from_workspace,
+    render_diagnostic_report, render_repository_context_pack, render_repository_graph,
+    render_repository_inspection_summary, render_workspace_summary,
+    repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
+    run_workspace_checks, traverse_workspace_bounded, workspace_summary_from_manifest,
+    write_context_pack_artifact, write_current_state_artifact, write_handoff_artifact,
 };
 use std::env;
 use std::process::ExitCode;
@@ -71,6 +72,9 @@ enum CliCommand {
         /// Which context artifact to generate.
         artifact: ContextArtifactKind,
     },
+
+    /// Assemble and write a project-level context pack.
+    ContextPack,
 }
 
 /// Supported context artifact kinds for `context generate`.
@@ -167,6 +171,10 @@ impl CliCommand {
                     write,
                 })
             }
+            ["context", "pack"] => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::ContextPack)
+            }
             ["context", "generate", "current-state"] => {
                 reject_write_for_non_context(write)?;
                 Ok(Self::ContextGenerate {
@@ -226,6 +234,7 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             write,
         } => render_context(context_format, write),
         CliCommand::ContextGenerate { artifact } => render_context_generate(artifact),
+        CliCommand::ContextPack => render_context_pack(),
     }
 }
 
@@ -294,6 +303,7 @@ fn help_text() -> String {
         "  context                           Render AI-readable repository context pack",
         "  context generate current-state    Generate current-state artifact",
         "  context generate handoff          Generate latest handoff artifact",
+        "  context pack                      Assemble project-level context pack",
         "  version                           Show runtime version",
         "  help                              Show this help",
         "",
@@ -319,6 +329,7 @@ fn help_text() -> String {
         "Context generation:",
         "  monad context generate current-state",
         "  monad context generate handoff",
+        "  monad context pack",
     ]
     .join("\n")
 }
@@ -463,6 +474,45 @@ fn render_handoff_summary(context: &WorkspaceContext, artifact: &HandoffArtifact
 
     let completed_packets = artifact.completed_work_packets().len();
     lines.push(format!("  completed_work_packets: {completed_packets}"));
+
+    lines.join("\n")
+}
+
+/// Assembles and writes a project-level context pack.
+fn render_context_pack() -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+
+    let artifact = generate_context_pack(&context).map_err(|error| error.to_string())?;
+
+    write_context_pack_artifact(&context, &artifact).map_err(|error| error.to_string())?;
+
+    Ok(render_context_pack_summary(&context, &artifact))
+}
+
+/// Renders a concise context pack assembly summary.
+fn render_context_pack_summary(
+    context: &WorkspaceContext,
+    artifact: &ContextPackArtifact,
+) -> String {
+    let output_path = context.context_dir().join("latest-context-pack.md");
+
+    let mut lines = vec![
+        "Monad context pack assembled".to_string(),
+        format!("  output: {}", output_path.display()),
+        format!("  project: {}", artifact.project_name),
+        format!("  epics: {}", artifact.current_state.epics.len()),
+        format!("  work_packets: {}", artifact.handoff.work_packets.len()),
+        format!("  decisions: {}", artifact.accepted_decisions.len()),
+        format!("  documents: {}", artifact.important_documents.len()),
+        format!("  source_files: {}", artifact.source_files.len()),
+    ];
+
+    if let Some(active_wp) = artifact.handoff.active_work_packet() {
+        lines.push(format!(
+            "  active_work_packet: {} — {}",
+            active_wp.id, active_wp.title
+        ));
+    }
 
     lines.join("\n")
 }
@@ -717,6 +767,14 @@ mod tests {
     }
 
     #[test]
+    fn context_pack_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "context", "pack"]).expect("context pack should parse"),
+            CliCommand::ContextPack
+        );
+    }
+
+    #[test]
     fn context_generate_without_artifact_returns_error() {
         let error = parse_arguments(&["monad", "context", "generate"])
             .expect_err("context generate without artifact should fail");
@@ -838,5 +896,12 @@ mod tests {
         let text = help_text();
 
         assert!(text.contains("context generate handoff"));
+    }
+
+    #[test]
+    fn help_text_mentions_context_pack() {
+        let text = help_text();
+
+        assert!(text.contains("context pack"));
     }
 }
