@@ -20,6 +20,7 @@ pub mod repository_context_pack;
 pub mod repository_graph;
 pub mod repository_inspection;
 pub mod repository_policy;
+pub mod templates;
 pub mod toolchain_detection;
 pub mod workspace;
 
@@ -88,6 +89,10 @@ pub use repository_inspection::{
 pub use repository_policy::{
     RepositoryPolicyDiagnostic, RepositoryPolicyReport, RepositoryPolicySeverity,
     evaluate_repository_intelligence_policy,
+};
+pub use templates::{
+    TemplateDefinition, TemplateId, TemplateMetadata, TemplateRegistry, TemplateSourceKind,
+    initial_template_registry,
 };
 pub use toolchain_detection::{
     RepositoryToolchainDetection, RepositoryToolchainKind, RepositoryToolchainSignal,
