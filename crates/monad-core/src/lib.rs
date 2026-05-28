@@ -14,6 +14,7 @@ pub mod error;
 pub mod manifest;
 pub mod output;
 pub mod repo_contract;
+pub mod repository_context_pack;
 pub mod repository_graph;
 pub mod repository_inspection;
 pub mod repository_policy;
@@ -48,6 +49,13 @@ pub use output::{
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
+};
+pub use repository_context_pack::{
+    RepositoryContextPack, RepositoryContextPackExportResult, RepositoryContextPackExportedFile,
+    RepositoryContextPackFact, RepositoryContextPackRenderFormat, RepositoryContextPackSection,
+    RepositoryContextPackSectionKind, build_repository_context_pack,
+    export_repository_context_pack, export_repository_context_pack_from_workspace,
+    render_repository_context_pack, repository_context_pack_from_workspace,
 };
 pub use repository_graph::{
     RepositoryGraph, RepositoryGraphEdge, RepositoryGraphEdgeKind, RepositoryGraphNode,

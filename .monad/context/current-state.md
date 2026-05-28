@@ -1,62 +1,61 @@
 ---
-title: "Monad Context Current State"
-document_type: "context-current-state"
+title: "Current State"
+document_type: "context-artifact"
+artifact_type: "current-state"
 status: "current"
-version: "2.1.0"
-created: "2026-05-23"
-updated: "2026-05-24"
-owner: "Monad Project"
+generated: true
+reviewed: false
 epic: "E2"
-work_packet: "WP-E2-001"
-tags:
-
-* context
-* current-state
-* e2
-* repository-intelligence
-* repository-inspection
-
+source_files:
+  - "crates/monad-core/src/lib.rs"
+  - "monad.toml"
+  - "work/epics/"
 ---
 
-# Monad Context Current State
+# Current State
+
+## Project
+
+Monad is AI-native, repo-native, local-first Software Foundry OS for understanding, verifying, and safely evolving software repositories.
+
+## Completed Epics
 
 E0 — Project Foundation is complete.
-
 E1 — Runtime Foundation is complete.
 
-The current epic is E2 — Repository Intelligence Foundation.
+## Current Epic
 
-The current work packet is WP-E2-001 — Establish Repository Inspection Foundation.
+E2 — Repository Intelligence Foundation
 
 ## Active Focus
 
-Repository Inspection.
+The current focus is E2 — Repository Intelligence Foundation.
 
-## Runtime Foundation Available
+## Runtime Capabilities
 
-E1 produced:
+Public modules in `monad-core`:
 
-* `WorkspaceContext`;
-* `DiagnosticReport`;
-* `MonadError`;
-* `MonadManifest`;
-* `RepositoryContract`;
-* `OutputFormat`;
-* `monad info`;
-* `monad check`;
-* JSON Output.
-
-## Current E2 Runtime Files
-
-* `crates/monad-core/src/repository_inspection.rs`
-* `crates/monad-core/src/checks.rs`
-* `crates/monad-core/src/lib.rs`
+- `checks`
+- `context`
+- `dependency_detection`
+- `diagnostics`
+- `error`
+- `manifest`
+- `output`
+- `repo_contract`
+- `repository_context_pack`
+- `repository_graph`
+- `repository_inspection`
+- `repository_policy`
+- `toolchain_detection`
+- `workspace`
 
 ## Verification
 
 Run:
 
 ```bash
-tools/scripts/verify.sh
+cargo fmt --check
+cargo test
+cargo clippy --all-targets --all-features -- -D warnings
 ```
-
