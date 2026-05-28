@@ -205,6 +205,12 @@ pub fn repository_inspection_summary_from_workspace(
     )
 }
 
+pub use agents::{
+    AgentPlan, AgentPlanStep, MockModelProvider, ModelMessage, ModelMessageRole, ModelProvider,
+    ModelProviderCapabilities, ModelProviderMetadata, ModelRequest, ModelResponse,
+    build_agent_plan_with_provider, build_local_agent_plan, render_agent_plan,
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -409,8 +415,3 @@ mod tests {
         assert_eq!(summary.policy_diagnostic_count, 0);
     }
 }
-
-pub use agents::{
-    MockModelProvider, ModelMessage, ModelMessageRole, ModelProvider, ModelProviderCapabilities,
-    ModelProviderMetadata, ModelRequest, ModelResponse,
-};

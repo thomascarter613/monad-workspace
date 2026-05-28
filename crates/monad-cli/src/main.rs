@@ -10,10 +10,10 @@
 use monad_core::{
     BootstrapPromptArtifact, ContextPackArtifact, CurrentStateArtifact, HandoffArtifact,
     OutputFormat, RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
-    RepositoryGraphRenderFormat, WorkspaceContext, build_repository_graph,
+    RepositoryGraphRenderFormat, WorkspaceContext, build_local_agent_plan, build_repository_graph,
     checked_runtime_identity, export_repository_context_pack_from_workspace,
     generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
-    inspect_workspace, load_manifest_from_workspace, render_check_run_report,
+    inspect_workspace, load_manifest_from_workspace, render_agent_plan, render_check_run_report,
     render_check_run_report_json, render_context_baseline_dry_run, render_context_verify_summary,
     render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
     render_verify_baseline_dry_run, render_workspace_summary,
@@ -92,6 +92,12 @@ enum CliCommand {
     EvolveContextBaseline {
         /// Whether to run in dry-run mode.
         dry_run: bool,
+    },
+
+    /// Produce a supervised plan from a user intent.
+    Plan {
+        /// User intent to plan from.
+        intent: String,
     },
 }
 
@@ -251,6 +257,13 @@ impl CliCommand {
             }
             ["evolve"] => Err("missing evolve subcommand: try 'evolve verify-baseline --dry-run' or 'evolve context-baseline --dry-run'".to_string()),
             ["evolve", other, ..] => Err(format!("unknown evolve subcommand: {other}")),
+            ["plan"] => Err(r#"missing plan intent: try 'plan "explain this repository"'"#.to_string()),
+            ["plan", intent_parts @ ..] => {
+                reject_write_for_non_context(write)?;
+                reject_format_for_plan(requested_format.as_deref())?;
+                let intent = intent_parts.join(" ");
+                Ok(Self::Plan { intent })
+            }
             [single] => {
                 reject_write_for_non_context(write)?;
                 Err(format!("unknown command: {single}"))
@@ -297,6 +310,7 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
         CliCommand::ContextVerify => render_context_verify(),
         CliCommand::EvolveVerifyBaseline { dry_run } => render_evolve_verify_baseline(dry_run),
         CliCommand::EvolveContextBaseline { dry_run } => render_evolve_context_baseline(dry_run),
+        CliCommand::Plan { intent } => render_plan(intent),
     }
 }
 
@@ -323,7 +337,16 @@ fn require_dry_run_for_evolve(dry_run: bool) -> Result<(), String> {
 /// Rejects output-format flags for early evolution commands.
 fn reject_format_for_evolve(requested_format: Option<&str>) -> Result<(), String> {
     if requested_format.is_some() {
-        Err("--format is not supported for evolve verify-baseline yet".to_string())
+        Err("--format is not supported for evolve commands yet".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+/// Rejects output-format flags for the initial plan command.
+fn reject_format_for_plan(requested_format: Option<&str>) -> Result<(), String> {
+    if requested_format.is_some() {
+        Err("--format is not supported for plan yet".to_string())
     } else {
         Ok(())
     }
@@ -477,6 +500,13 @@ fn render_evolve_context_baseline(dry_run: bool) -> Result<String, String> {
     let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
 
     render_context_baseline_dry_run(&context).map_err(|error| error.to_string())
+}
+
+/// Renders a supervised, no-write plan from a user intent.
+fn render_plan(intent: String) -> Result<String, String> {
+    let plan = build_local_agent_plan(&intent).map_err(|error| error.to_string())?;
+
+    Ok(render_agent_plan(&plan))
 }
 
 /// Renders repository inspection.
