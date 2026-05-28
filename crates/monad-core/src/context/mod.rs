@@ -7,9 +7,15 @@
 //! This module is the root of the context subsystem. Individual artifact
 //! generators live in submodules.
 
+pub mod bootstrap;
 pub mod current_state;
 pub mod handoff;
 pub mod pack;
+
+pub use bootstrap::{
+    BootstrapPromptArtifact, generate_bootstrap_prompt, render_bootstrap_prompt_markdown,
+    write_bootstrap_prompt_artifact,
+};
 
 pub use current_state::{
     CurrentStateArtifact, CurrentStateEpicEntry, generate_current_state,

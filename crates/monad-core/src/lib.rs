@@ -23,10 +23,11 @@ pub mod workspace;
 
 pub use checks::run_workspace_checks;
 pub use context::{
-    ContextPackArtifact, CurrentStateArtifact, CurrentStateEpicEntry, HandoffArtifact,
-    HandoffWorkPacketEntry, generate_context_pack, generate_current_state, generate_handoff,
-    render_context_pack_markdown, write_context_pack_artifact, write_current_state_artifact,
-    write_handoff_artifact,
+    BootstrapPromptArtifact, ContextPackArtifact, CurrentStateArtifact, CurrentStateEpicEntry,
+    HandoffArtifact, HandoffWorkPacketEntry, generate_bootstrap_prompt, generate_context_pack,
+    generate_current_state, generate_handoff, render_bootstrap_prompt_markdown,
+    render_context_pack_markdown, write_bootstrap_prompt_artifact, write_context_pack_artifact,
+    write_current_state_artifact, write_handoff_artifact,
 };
 pub use dependency_detection::{
     RepositoryDependencyDetection, RepositoryDependencySignal, RepositoryDependencySignalKind,
