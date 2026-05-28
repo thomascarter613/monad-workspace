@@ -8,8 +8,13 @@
 //! generators live in submodules.
 
 pub mod current_state;
+pub mod handoff;
 
 pub use current_state::{
     CurrentStateArtifact, CurrentStateEpicEntry, generate_current_state,
     write_current_state_artifact,
+};
+
+pub use handoff::{
+    HandoffArtifact, HandoffWorkPacketEntry, generate_handoff, write_handoff_artifact,
 };

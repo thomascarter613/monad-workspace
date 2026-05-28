@@ -8,15 +8,15 @@
 //! artifact generation belong in `monad-core`.
 
 use monad_core::{
-    CurrentStateArtifact, OutputFormat, RepositoryContextPackExportResult,
+    CurrentStateArtifact, HandoffArtifact, OutputFormat, RepositoryContextPackExportResult,
     RepositoryContextPackRenderFormat, RepositoryGraphRenderFormat, WorkspaceContext,
     build_repository_graph, checked_runtime_identity,
-    export_repository_context_pack_from_workspace, generate_current_state, inspect_workspace,
-    load_manifest_from_workspace, render_diagnostic_report, render_repository_context_pack,
-    render_repository_graph, render_repository_inspection_summary, render_workspace_summary,
-    repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
-    run_workspace_checks, traverse_workspace_bounded, workspace_summary_from_manifest,
-    write_current_state_artifact,
+    export_repository_context_pack_from_workspace, generate_current_state, generate_handoff,
+    inspect_workspace, load_manifest_from_workspace, render_diagnostic_report,
+    render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
+    render_workspace_summary, repository_context_pack_from_workspace,
+    repository_inspection_summary_from_workspace, run_workspace_checks, traverse_workspace_bounded,
+    workspace_summary_from_manifest, write_current_state_artifact, write_handoff_artifact,
 };
 use std::env;
 use std::process::ExitCode;
@@ -78,6 +78,9 @@ enum CliCommand {
 enum ContextArtifactKind {
     /// Generate `.monad/context/current-state.md`.
     CurrentState,
+
+    /// Generate `.monad/context/latest-handoff.md`.
+    Handoff,
 }
 
 impl CliCommand {
@@ -170,8 +173,14 @@ impl CliCommand {
                     artifact: ContextArtifactKind::CurrentState,
                 })
             }
+            ["context", "generate", "handoff"] => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::ContextGenerate {
+                    artifact: ContextArtifactKind::Handoff,
+                })
+            }
             ["context", "generate"] => {
-                Err("missing artifact kind: try 'context generate current-state'".to_string())
+                Err("missing artifact kind: try 'context generate current-state' or 'context generate handoff'".to_string())
             }
             ["context", "generate", other] => Err(format!("unknown context artifact: {other}")),
             ["context", other, ..] => Err(format!("unknown context subcommand: {other}")),
@@ -284,6 +293,7 @@ fn help_text() -> String {
         "  graph                             Render repository graph",
         "  context                           Render AI-readable repository context pack",
         "  context generate current-state    Generate current-state artifact",
+        "  context generate handoff          Generate latest handoff artifact",
         "  version                           Show runtime version",
         "  help                              Show this help",
         "",
@@ -308,6 +318,7 @@ fn help_text() -> String {
         "",
         "Context generation:",
         "  monad context generate current-state",
+        "  monad context generate handoff",
     ]
     .join("\n")
 }
@@ -392,6 +403,13 @@ fn render_context_generate(artifact: ContextArtifactKind) -> Result<String, Stri
 
             Ok(render_current_state_summary(&context, &current_state))
         }
+        ContextArtifactKind::Handoff => {
+            let handoff = generate_handoff(&context).map_err(|error| error.to_string())?;
+
+            write_handoff_artifact(&context, &handoff).map_err(|error| error.to_string())?;
+
+            Ok(render_handoff_summary(&context, &handoff))
+        }
     }
 }
 
@@ -416,6 +434,35 @@ fn render_current_state_summary(
 
     let completed_count = artifact.completed_epics().len();
     lines.push(format!("  completed_epics: {completed_count}"));
+
+    lines.join("\n")
+}
+
+/// Renders a concise handoff generation summary.
+fn render_handoff_summary(context: &WorkspaceContext, artifact: &HandoffArtifact) -> String {
+    let output_path = context.context_dir().join("latest-handoff.md");
+
+    let mut lines = vec![
+        "Monad handoff artifact generated".to_string(),
+        format!("  output: {}", output_path.display()),
+        format!("  project: {}", artifact.current_state.project_name),
+        format!("  epics: {}", artifact.current_state.epics.len()),
+        format!("  work_packets: {}", artifact.work_packets.len()),
+    ];
+
+    if let Some(active) = artifact.current_state.active_epic() {
+        lines.push(format!("  active_epic: {} — {}", active.id, active.title));
+    }
+
+    if let Some(active_wp) = artifact.active_work_packet() {
+        lines.push(format!(
+            "  active_work_packet: {} — {}",
+            active_wp.id, active_wp.title
+        ));
+    }
+
+    let completed_packets = artifact.completed_work_packets().len();
+    lines.push(format!("  completed_work_packets: {completed_packets}"));
 
     lines.join("\n")
 }
@@ -659,6 +706,17 @@ mod tests {
     }
 
     #[test]
+    fn context_generate_handoff_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "context", "generate", "handoff"])
+                .expect("context generate handoff should parse"),
+            CliCommand::ContextGenerate {
+                artifact: ContextArtifactKind::Handoff
+            }
+        );
+    }
+
+    #[test]
     fn context_generate_without_artifact_returns_error() {
         let error = parse_arguments(&["monad", "context", "generate"])
             .expect_err("context generate without artifact should fail");
@@ -773,5 +831,12 @@ mod tests {
         let text = help_text();
 
         assert!(text.contains("context generate current-state"));
+    }
+
+    #[test]
+    fn help_text_mentions_context_generate_handoff() {
+        let text = help_text();
+
+        assert!(text.contains("context generate handoff"));
     }
 }
