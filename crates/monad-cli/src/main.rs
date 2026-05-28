@@ -13,10 +13,11 @@ use monad_core::{
     RepositoryGraphRenderFormat, WorkspaceContext, build_repository_graph,
     checked_runtime_identity, export_repository_context_pack_from_workspace,
     generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
-    inspect_workspace, load_manifest_from_workspace, render_diagnostic_report,
-    render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
-    render_workspace_summary, repository_context_pack_from_workspace,
-    repository_inspection_summary_from_workspace, run_workspace_checks, traverse_workspace_bounded,
+    inspect_workspace, load_manifest_from_workspace, render_context_verify_summary,
+    render_diagnostic_report, render_repository_context_pack, render_repository_graph,
+    render_repository_inspection_summary, render_workspace_summary,
+    repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
+    run_workspace_checks, traverse_workspace_bounded, verify_context,
     workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_context_pack_artifact,
     write_current_state_artifact, write_handoff_artifact,
 };
@@ -76,6 +77,9 @@ enum CliCommand {
 
     /// Assemble and write a project-level context pack.
     ContextPack,
+
+    /// Verify context files exist and meet structural expectations.
+    ContextVerify,
 }
 
 /// Supported context artifact kinds for `context generate`.
@@ -179,6 +183,10 @@ impl CliCommand {
                 reject_write_for_non_context(write)?;
                 Ok(Self::ContextPack)
             }
+            ["context", "verify"] => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::ContextVerify)
+            }
             ["context", "generate", "current-state"] => {
                 reject_write_for_non_context(write)?;
                 Ok(Self::ContextGenerate {
@@ -245,6 +253,7 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
         } => render_context(context_format, write),
         CliCommand::ContextGenerate { artifact } => render_context_generate(artifact),
         CliCommand::ContextPack => render_context_pack(),
+        CliCommand::ContextVerify => render_context_verify(),
     }
 }
 
@@ -315,6 +324,7 @@ fn help_text() -> String {
         "  context generate handoff          Generate latest handoff artifact",
         "  context generate bootstrap        Generate bootstrap prompt for AI sessions",
         "  context pack                      Assemble project-level context pack",
+        "  context verify                    Verify context files exist and are well-formed",
         "  version                           Show runtime version",
         "  help                              Show this help",
         "",
@@ -342,6 +352,9 @@ fn help_text() -> String {
         "  monad context generate handoff",
         "  monad context generate bootstrap",
         "  monad context pack",
+        "",
+        "Context verification:",
+        "  monad context verify",
     ]
     .join("\n")
 }
@@ -569,6 +582,19 @@ fn render_context_pack_summary(
     }
 
     lines.join("\n")
+}
+
+/// Verifies context files and renders the result.
+fn render_context_verify() -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+    let report = verify_context(&context);
+    let summary = render_context_verify_summary(&report);
+
+    if report.has_errors() {
+        Err(summary)
+    } else {
+        Ok(summary)
+    }
 }
 
 /// Renders a concise context-pack export summary.
@@ -975,5 +1001,20 @@ mod tests {
         let text = help_text();
 
         assert!(text.contains("context generate bootstrap"));
+    }
+
+    #[test]
+    fn context_verify_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "context", "verify"]).expect("context verify should parse"),
+            CliCommand::ContextVerify
+        );
+    }
+
+    #[test]
+    fn help_text_mentions_context_verify() {
+        let text = help_text();
+
+        assert!(text.contains("context verify"));
     }
 }

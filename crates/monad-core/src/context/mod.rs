@@ -11,6 +11,7 @@ pub mod bootstrap;
 pub mod current_state;
 pub mod handoff;
 pub mod pack;
+pub mod verify;
 
 pub use bootstrap::{
     BootstrapPromptArtifact, generate_bootstrap_prompt, render_bootstrap_prompt_markdown,
@@ -29,4 +30,9 @@ pub use handoff::{
 pub use pack::{
     ContextPackArtifact, generate_context_pack, render_context_pack_markdown,
     write_context_pack_artifact,
+};
+
+pub use verify::{
+    ContextFileCheckResult, ContextFileRequirement, ContextVerificationReport, ExpectedContextFile,
+    render_context_verify_summary, verify_context,
 };
