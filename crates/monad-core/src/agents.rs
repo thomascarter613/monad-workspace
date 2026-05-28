@@ -14,10 +14,14 @@
 //! - no provider marketplace;
 //! - no cloud service.
 
+pub mod draft;
 pub mod model;
 pub mod plan;
 pub mod provider;
 
+pub use draft::{
+    DraftFileOperation, DraftId, DraftSandbox, DraftSandboxKind, DraftState, render_draft_sandbox,
+};
 pub use model::{ModelMessage, ModelMessageRole, ModelRequest, ModelResponse};
 pub use plan::{
     AgentPlan, AgentPlanStep, build_agent_plan_with_provider, build_local_agent_plan,

@@ -206,9 +206,11 @@ pub fn repository_inspection_summary_from_workspace(
 }
 
 pub use agents::{
-    AgentPlan, AgentPlanStep, MockModelProvider, ModelMessage, ModelMessageRole, ModelProvider,
+    AgentPlan, AgentPlanStep, DraftFileOperation, DraftId, DraftSandbox, DraftSandboxKind,
+    DraftState, MockModelProvider, ModelMessage, ModelMessageRole, ModelProvider,
     ModelProviderCapabilities, ModelProviderMetadata, ModelRequest, ModelResponse,
     build_agent_plan_with_provider, build_local_agent_plan, render_agent_plan,
+    render_draft_sandbox,
 };
 
 #[cfg(test)]
