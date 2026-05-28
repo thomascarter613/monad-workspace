@@ -11,6 +11,7 @@ pub mod context;
 pub mod dependency_detection;
 pub mod diagnostics;
 pub mod error;
+pub mod exec;
 pub mod manifest;
 pub mod output;
 pub mod repo_contract;
@@ -37,6 +38,7 @@ pub use dependency_detection::{
 };
 pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
 pub use error::{MonadError, MonadResult};
+pub use exec::{CommandResult, CommandSpec, run_command};
 pub use manifest::{
     CURRENT_MANIFEST_SCHEMA_VERSION, ManifestProject, ManifestRuntime, ManifestSchemaVersion,
     ManifestWorkspace, MonadManifest,
