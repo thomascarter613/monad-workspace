@@ -7,6 +7,7 @@
 //! stays thin and delegates to this library.
 
 pub mod checks;
+pub mod context;
 pub mod dependency_detection;
 pub mod diagnostics;
 pub mod error;
@@ -21,6 +22,10 @@ pub mod toolchain_detection;
 pub mod workspace;
 
 pub use checks::run_workspace_checks;
+pub use context::{
+    CurrentStateArtifact, CurrentStateEpicEntry, generate_current_state,
+    write_current_state_artifact,
+};
 pub use dependency_detection::{
     RepositoryDependencyDetection, RepositoryDependencySignal, RepositoryDependencySignalKind,
     detect_repository_dependency_signals,

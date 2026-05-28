@@ -4,17 +4,19 @@
 //! `monad-core`, and print the result.
 //!
 //! Durable repository intelligence, inspection, graph construction, graph
-//! rendering, context-pack generation, and context-pack export belong in
-//! `monad-core`.
+//! rendering, context-pack generation, context-pack export, and context
+//! artifact generation belong in `monad-core`.
 
 use monad_core::{
-    OutputFormat, RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
-    RepositoryGraphRenderFormat, WorkspaceContext, build_repository_graph,
-    checked_runtime_identity, export_repository_context_pack_from_workspace, inspect_workspace,
+    CurrentStateArtifact, OutputFormat, RepositoryContextPackExportResult,
+    RepositoryContextPackRenderFormat, RepositoryGraphRenderFormat, WorkspaceContext,
+    build_repository_graph, checked_runtime_identity,
+    export_repository_context_pack_from_workspace, generate_current_state, inspect_workspace,
     load_manifest_from_workspace, render_diagnostic_report, render_repository_context_pack,
     render_repository_graph, render_repository_inspection_summary, render_workspace_summary,
     repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
     run_workspace_checks, traverse_workspace_bounded, workspace_summary_from_manifest,
+    write_current_state_artifact,
 };
 use std::env;
 use std::process::ExitCode;
@@ -63,13 +65,29 @@ enum CliCommand {
         /// Whether to write generated context-pack files.
         write: bool,
     },
+
+    /// Generate a context artifact and write it to the repository.
+    ContextGenerate {
+        /// Which context artifact to generate.
+        artifact: ContextArtifactKind,
+    },
+}
+
+/// Supported context artifact kinds for `context generate`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ContextArtifactKind {
+    /// Generate `.monad/context/current-state.md`.
+    CurrentState,
 }
 
 impl CliCommand {
     /// Parses CLI arguments into a command.
+    ///
+    /// Supports both single-word commands like `monad info` and multi-word
+    /// subcommands like `monad context generate current-state`.
     fn parse(args: impl IntoIterator<Item = String>) -> Result<Self, String> {
         let mut requested_format: Option<String> = None;
-        let mut command: Option<String> = None;
+        let mut positional: Vec<String> = Vec::new();
         let mut write = false;
 
         for argument in args.into_iter().skip(1) {
@@ -99,55 +117,72 @@ impl CliCommand {
                 return Err(format!("unsupported argument: {argument}"));
             }
 
-            if command.is_some() {
-                return Err(format!("unexpected extra command argument: {argument}"));
-            }
-
-            command = Some(argument);
+            positional.push(argument);
         }
 
-        match command.as_deref() {
-            None => {
+        // Convert positional args to string slices for pattern matching.
+        let parts: Vec<&str> = positional.iter().map(|s| s.as_str()).collect();
+
+        match parts.as_slice() {
+            [] => {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Info { output_format })
             }
-            Some("help") => {
+            ["help"] => {
                 reject_write_for_non_context(write)?;
                 Ok(Self::Help)
             }
-            Some("version") => {
+            ["version"] => {
                 reject_write_for_non_context(write)?;
                 Ok(Self::Version)
             }
-            Some("info") => {
+            ["info"] => {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Info { output_format })
             }
-            Some("check") => {
+            ["check"] => {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Check { output_format })
             }
-            Some("inspect") => {
+            ["inspect"] => {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Inspect { output_format })
             }
-            Some("graph") => {
+            ["graph"] => {
                 reject_write_for_non_context(write)?;
                 let graph_format = parse_graph_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Graph { graph_format })
             }
-            Some("context") => {
+            ["context"] => {
                 let context_format = parse_context_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Context {
                     context_format,
                     write,
                 })
             }
-            Some(other) => Err(format!("unknown command: {other}")),
+            ["context", "generate", "current-state"] => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::ContextGenerate {
+                    artifact: ContextArtifactKind::CurrentState,
+                })
+            }
+            ["context", "generate"] => {
+                Err("missing artifact kind: try 'context generate current-state'".to_string())
+            }
+            ["context", "generate", other] => Err(format!("unknown context artifact: {other}")),
+            ["context", other, ..] => Err(format!("unknown context subcommand: {other}")),
+            [single] => {
+                reject_write_for_non_context(write)?;
+                Err(format!("unknown command: {single}"))
+            }
+            [first, ..] => {
+                reject_write_for_non_context(write)?;
+                Err(format!("unknown command: {first}"))
+            }
         }
     }
 }
@@ -181,6 +216,7 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             context_format,
             write,
         } => render_context(context_format, write),
+        CliCommand::ContextGenerate { artifact } => render_context_generate(artifact),
     }
 }
 
@@ -242,13 +278,14 @@ fn help_text() -> String {
         "  monad [command] [--format=<format>] [--write]",
         "",
         "Commands:",
-        "  info      Show workspace summary",
-        "  check     Run workspace checks",
-        "  inspect   Inspect repository structure",
-        "  graph     Render repository graph",
-        "  context   Render AI-readable repository context pack",
-        "  version   Show runtime version",
-        "  help      Show this help",
+        "  info                              Show workspace summary",
+        "  check                             Run workspace checks",
+        "  inspect                           Inspect repository structure",
+        "  graph                             Render repository graph",
+        "  context                           Render AI-readable repository context pack",
+        "  context generate current-state    Generate current-state artifact",
+        "  version                           Show runtime version",
+        "  help                              Show this help",
         "",
         "General formats:",
         "  text",
@@ -268,6 +305,9 @@ fn help_text() -> String {
         "",
         "Context write mode:",
         "  monad context --write",
+        "",
+        "Context generation:",
+        "  monad context generate current-state",
     ]
     .join("\n")
 }
@@ -326,15 +366,6 @@ fn render_context(
 ) -> Result<String, String> {
     let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
 
-    //    let context_pack = build_repository_context_pack(
-    //        &inspection,
-    //        &bounded_traversal,
-    //        &graph,
-    //        &toolchains,
-    //        &dependencies,
-    //        &policy,
-    //    );
-
     if write {
         let export_result = export_repository_context_pack_from_workspace(&context)
             .map_err(|error| error.to_string())?;
@@ -345,6 +376,48 @@ fn render_context(
             repository_context_pack_from_workspace(&context).map_err(|error| error.to_string())?;
         Ok(render_repository_context_pack(&pack, context_format))
     }
+}
+
+/// Generates a context artifact and writes it to the repository.
+fn render_context_generate(artifact: ContextArtifactKind) -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+
+    match artifact {
+        ContextArtifactKind::CurrentState => {
+            let current_state =
+                generate_current_state(&context).map_err(|error| error.to_string())?;
+
+            write_current_state_artifact(&context, &current_state)
+                .map_err(|error| error.to_string())?;
+
+            Ok(render_current_state_summary(&context, &current_state))
+        }
+    }
+}
+
+/// Renders a concise current-state generation summary.
+fn render_current_state_summary(
+    context: &WorkspaceContext,
+    artifact: &CurrentStateArtifact,
+) -> String {
+    let output_path = context.context_dir().join("current-state.md");
+
+    let mut lines = vec![
+        "Monad current-state artifact generated".to_string(),
+        format!("  output: {}", output_path.display()),
+        format!("  project: {}", artifact.project_name),
+        format!("  epics: {}", artifact.epics.len()),
+        format!("  runtime_modules: {}", artifact.runtime_modules.len()),
+    ];
+
+    if let Some(active) = artifact.active_epic() {
+        lines.push(format!("  active_epic: {} — {}", active.id, active.title));
+    }
+
+    let completed_count = artifact.completed_epics().len();
+    lines.push(format!("  completed_epics: {completed_count}"));
+
+    lines.join("\n")
 }
 
 /// Renders a concise context-pack export summary.
@@ -575,6 +648,43 @@ mod tests {
     }
 
     #[test]
+    fn context_generate_current_state_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "context", "generate", "current-state"])
+                .expect("context generate current-state should parse"),
+            CliCommand::ContextGenerate {
+                artifact: ContextArtifactKind::CurrentState
+            }
+        );
+    }
+
+    #[test]
+    fn context_generate_without_artifact_returns_error() {
+        let error = parse_arguments(&["monad", "context", "generate"])
+            .expect_err("context generate without artifact should fail");
+
+        assert!(error.contains("missing artifact kind"));
+        assert!(error.contains("current-state"));
+    }
+
+    #[test]
+    fn context_generate_unknown_artifact_returns_error() {
+        let error = parse_arguments(&["monad", "context", "generate", "foobar"])
+            .expect_err("unknown artifact should fail");
+
+        assert!(error.contains("unknown context artifact"));
+        assert!(error.contains("foobar"));
+    }
+
+    #[test]
+    fn context_unknown_subcommand_returns_error() {
+        let error = parse_arguments(&["monad", "context", "foobar"])
+            .expect_err("unknown subcommand should fail");
+
+        assert!(error.contains("unknown context subcommand"));
+    }
+
+    #[test]
     fn format_can_appear_before_command() {
         assert_eq!(
             parse_arguments(&["monad", "--format=json", "context"])
@@ -640,14 +750,6 @@ mod tests {
     }
 
     #[test]
-    fn unexpected_extra_command_argument_returns_error() {
-        let error = parse_arguments(&["monad", "info", "extra"])
-            .expect_err("extra command argument should fail");
-
-        assert_eq!(error, "unexpected extra command argument: extra");
-    }
-
-    #[test]
     fn help_text_mentions_context_command_formats_and_write_mode() {
         let text = help_text();
 
@@ -664,5 +766,12 @@ mod tests {
         assert!(text.contains("graph"));
         assert!(text.contains("mermaid"));
         assert!(text.contains("dot"));
+    }
+
+    #[test]
+    fn help_text_mentions_context_generate_current_state() {
+        let text = help_text();
+
+        assert!(text.contains("context generate current-state"));
     }
 }
