@@ -14,13 +14,13 @@ use monad_core::{
     checked_runtime_identity, export_repository_context_pack_from_workspace,
     generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
     inspect_workspace, load_manifest_from_workspace, render_check_run_report,
-    render_check_run_report_json, render_context_verify_summary, render_repository_context_pack,
-    render_repository_graph, render_repository_inspection_summary, render_verify_baseline_dry_run,
-    render_workspace_summary, repository_context_pack_from_workspace,
-    repository_inspection_summary_from_workspace, run_monad_workspace_checks,
-    traverse_workspace_bounded, verify_context, workspace_summary_from_manifest,
-    write_bootstrap_prompt_artifact, write_check_evidence_packet, write_context_pack_artifact,
-    write_current_state_artifact, write_handoff_artifact,
+    render_check_run_report_json, render_context_baseline_dry_run, render_context_verify_summary,
+    render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
+    render_verify_baseline_dry_run, render_workspace_summary,
+    repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
+    run_monad_workspace_checks, traverse_workspace_bounded, verify_context,
+    workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_check_evidence_packet,
+    write_context_pack_artifact, write_current_state_artifact, write_handoff_artifact,
 };
 use std::env;
 use std::process::ExitCode;
@@ -84,6 +84,12 @@ enum CliCommand {
 
     /// Plan verification baseline evolution.
     EvolveVerifyBaseline {
+        /// Whether to run in dry-run mode.
+        dry_run: bool,
+    },
+
+    /// Plan context baseline evolution.
+    EvolveContextBaseline {
         /// Whether to run in dry-run mode.
         dry_run: bool,
     },
@@ -233,7 +239,17 @@ impl CliCommand {
                 reject_write_for_non_context(write)?;
                 Err(format!("unknown evolve verify-baseline argument: {other}"))
             }
-            ["evolve"] => Err("missing evolve subcommand: try 'evolve verify-baseline --dry-run'".to_string()),
+            ["evolve", "context-baseline"] => {
+                reject_write_for_non_context(write)?;
+                require_dry_run_for_evolve(dry_run)?;
+                reject_format_for_evolve(requested_format.as_deref())?;
+                Ok(Self::EvolveContextBaseline { dry_run })
+            }
+            ["evolve", "context-baseline", other] => {
+                reject_write_for_non_context(write)?;
+                Err(format!("unknown evolve context-baseline argument: {other}"))
+            }
+            ["evolve"] => Err("missing evolve subcommand: try 'evolve verify-baseline --dry-run' or 'evolve context-baseline --dry-run'".to_string()),
             ["evolve", other, ..] => Err(format!("unknown evolve subcommand: {other}")),
             [single] => {
                 reject_write_for_non_context(write)?;
@@ -280,6 +296,7 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
         CliCommand::ContextPack => render_context_pack(),
         CliCommand::ContextVerify => render_context_verify(),
         CliCommand::EvolveVerifyBaseline { dry_run } => render_evolve_verify_baseline(dry_run),
+        CliCommand::EvolveContextBaseline { dry_run } => render_evolve_context_baseline(dry_run),
     }
 }
 
@@ -449,6 +466,17 @@ fn render_evolve_verify_baseline(dry_run: bool) -> Result<String, String> {
     let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
 
     render_verify_baseline_dry_run(&context).map_err(|error| error.to_string())
+}
+
+/// Renders context baseline evolution dry-run output.
+fn render_evolve_context_baseline(dry_run: bool) -> Result<String, String> {
+    if !dry_run {
+        return Err("evolve context-baseline currently requires --dry-run".to_string());
+    }
+
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+
+    render_context_baseline_dry_run(&context).map_err(|error| error.to_string())
 }
 
 /// Renders repository inspection.
