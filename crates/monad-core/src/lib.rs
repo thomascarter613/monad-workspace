@@ -11,6 +11,7 @@ pub mod context;
 pub mod dependency_detection;
 pub mod diagnostics;
 pub mod error;
+pub mod evolution;
 pub mod exec;
 pub mod file_ops;
 pub mod manifest;
@@ -48,6 +49,7 @@ pub use dependency_detection::{
 };
 pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
 pub use error::{MonadError, MonadResult};
+pub use evolution::{build_verify_baseline_plan, render_verify_baseline_dry_run};
 pub use exec::{CommandResult, CommandSpec, run_command};
 pub use file_ops::{
     DryRunFileOperation, DryRunOperationKind, DryRunPlan, DryRunSummary, FileOperationKind,

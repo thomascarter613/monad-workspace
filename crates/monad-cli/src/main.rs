@@ -15,11 +15,12 @@ use monad_core::{
     generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
     inspect_workspace, load_manifest_from_workspace, render_check_run_report,
     render_check_run_report_json, render_context_verify_summary, render_repository_context_pack,
-    render_repository_graph, render_repository_inspection_summary, render_workspace_summary,
-    repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
-    run_monad_workspace_checks, traverse_workspace_bounded, verify_context,
-    workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_check_evidence_packet,
-    write_context_pack_artifact, write_current_state_artifact, write_handoff_artifact,
+    render_repository_graph, render_repository_inspection_summary, render_verify_baseline_dry_run,
+    render_workspace_summary, repository_context_pack_from_workspace,
+    repository_inspection_summary_from_workspace, run_monad_workspace_checks,
+    traverse_workspace_bounded, verify_context, workspace_summary_from_manifest,
+    write_bootstrap_prompt_artifact, write_check_evidence_packet, write_context_pack_artifact,
+    write_current_state_artifact, write_handoff_artifact,
 };
 use std::env;
 use std::process::ExitCode;
@@ -80,6 +81,12 @@ enum CliCommand {
 
     /// Verify context files exist and meet structural expectations.
     ContextVerify,
+
+    /// Plan verification baseline evolution.
+    EvolveVerifyBaseline {
+        /// Whether to run in dry-run mode.
+        dry_run: bool,
+    },
 }
 
 /// Supported context artifact kinds for `context generate`.
@@ -104,6 +111,7 @@ impl CliCommand {
         let mut requested_format: Option<String> = None;
         let mut positional: Vec<String> = Vec::new();
         let mut write = false;
+        let mut dry_run = false;
 
         for argument in args.into_iter().skip(1) {
             if argument == "--help" || argument == "-h" {
@@ -116,6 +124,11 @@ impl CliCommand {
 
             if argument == "--write" {
                 write = true;
+                continue;
+            }
+
+            if argument == "--dry-run" {
+                dry_run = true;
                 continue;
             }
 
@@ -210,6 +223,18 @@ impl CliCommand {
             }
             ["context", "generate", other] => Err(format!("unknown context artifact: {other}")),
             ["context", other, ..] => Err(format!("unknown context subcommand: {other}")),
+            ["evolve", "verify-baseline"] => {
+                reject_write_for_non_context(write)?;
+                require_dry_run_for_evolve(dry_run)?;
+                reject_format_for_evolve(requested_format.as_deref())?;
+                Ok(Self::EvolveVerifyBaseline { dry_run })
+            }
+            ["evolve", "verify-baseline", other] => {
+                reject_write_for_non_context(write)?;
+                Err(format!("unknown evolve verify-baseline argument: {other}"))
+            }
+            ["evolve"] => Err("missing evolve subcommand: try 'evolve verify-baseline --dry-run'".to_string()),
+            ["evolve", other, ..] => Err(format!("unknown evolve subcommand: {other}")),
             [single] => {
                 reject_write_for_non_context(write)?;
                 Err(format!("unknown command: {single}"))
@@ -254,6 +279,7 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
         CliCommand::ContextGenerate { artifact } => render_context_generate(artifact),
         CliCommand::ContextPack => render_context_pack(),
         CliCommand::ContextVerify => render_context_verify(),
+        CliCommand::EvolveVerifyBaseline { dry_run } => render_evolve_verify_baseline(dry_run),
     }
 }
 
@@ -261,6 +287,26 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
 fn reject_write_for_non_context(write: bool) -> Result<(), String> {
     if write {
         Err("--write is only supported for the context command".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+/// Requires dry-run mode for early evolution commands.
+///
+/// WP-E5-004 intentionally does not add apply/write behavior.
+fn require_dry_run_for_evolve(dry_run: bool) -> Result<(), String> {
+    if dry_run {
+        Ok(())
+    } else {
+        Err("evolve verify-baseline currently requires --dry-run".to_string())
+    }
+}
+
+/// Rejects output-format flags for early evolution commands.
+fn reject_format_for_evolve(requested_format: Option<&str>) -> Result<(), String> {
+    if requested_format.is_some() {
+        Err("--format is not supported for evolve verify-baseline yet".to_string())
     } else {
         Ok(())
     }
@@ -392,6 +438,17 @@ fn render_check(output_format: OutputFormat) -> Result<String, String> {
         }
         OutputFormat::Json => Ok(render_check_run_report_json(&report)),
     }
+}
+
+/// Renders verification baseline evolution dry-run output.
+fn render_evolve_verify_baseline(dry_run: bool) -> Result<String, String> {
+    if !dry_run {
+        return Err("evolve verify-baseline currently requires --dry-run".to_string());
+    }
+
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+
+    render_verify_baseline_dry_run(&context).map_err(|error| error.to_string())
 }
 
 /// Renders repository inspection.
