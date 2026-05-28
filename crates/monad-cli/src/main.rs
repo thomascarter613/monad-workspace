@@ -14,8 +14,8 @@ use monad_core::{
     checked_runtime_identity, export_repository_context_pack_from_workspace,
     generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
     inspect_workspace, load_manifest_from_workspace, render_check_run_report,
-    render_context_verify_summary, render_repository_context_pack, render_repository_graph,
-    render_repository_inspection_summary, render_workspace_summary,
+    render_check_run_report_json, render_context_verify_summary, render_repository_context_pack,
+    render_repository_graph, render_repository_inspection_summary, render_workspace_summary,
     repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
     run_monad_workspace_checks, traverse_workspace_bounded, verify_context,
     workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_check_evidence_packet,
@@ -390,10 +390,7 @@ fn render_check(output_format: OutputFormat) -> Result<String, String> {
                 evidence_path.display()
             ))
         }
-        OutputFormat::Json => Err(
-            "JSON check output is not implemented yet; use text output for this work packet"
-                .to_string(),
-        ),
+        OutputFormat::Json => Ok(render_check_run_report_json(&report)),
     }
 }
 
