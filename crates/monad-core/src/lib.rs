@@ -6,6 +6,7 @@
 //! Monad's architecture keeps durable product logic here, while the CLI crate
 //! stays thin and delegates to this library.
 
+pub mod agents;
 pub mod checks;
 pub mod context;
 pub mod dependency_detection;
@@ -408,3 +409,8 @@ mod tests {
         assert_eq!(summary.policy_diagnostic_count, 0);
     }
 }
+
+pub use agents::{
+    MockModelProvider, ModelMessage, ModelMessageRole, ModelProvider, ModelProviderCapabilities,
+    ModelProviderMetadata, ModelRequest, ModelResponse,
+};
