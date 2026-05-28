@@ -14,6 +14,7 @@ pub mod error;
 pub mod evolution;
 pub mod exec;
 pub mod file_ops;
+pub mod git;
 pub mod manifest;
 pub mod output;
 pub mod repo_contract;
@@ -58,6 +59,9 @@ pub use file_ops::{
     DryRunFileOperation, DryRunOperationKind, DryRunPlan, DryRunSummary, FileOperationKind,
     FileOperationPlan, FileOperationSummary, FileOperationTarget, PlannedFileOperation,
     evaluate_file_operation_plan, render_dry_run_plan,
+};
+pub use git::{
+    GitEvolutionSafety, GitWorkingTreeStatus, inspect_git_working_tree, parse_git_status_porcelain,
 };
 pub use manifest::{
     CURRENT_MANIFEST_SCHEMA_VERSION, ManifestProject, ManifestRuntime, ManifestSchemaVersion,
