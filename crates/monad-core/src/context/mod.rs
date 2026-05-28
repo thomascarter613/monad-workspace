@@ -9,6 +9,7 @@
 
 pub mod current_state;
 pub mod handoff;
+pub mod pack;
 
 pub use current_state::{
     CurrentStateArtifact, CurrentStateEpicEntry, generate_current_state,
@@ -17,4 +18,9 @@ pub use current_state::{
 
 pub use handoff::{
     HandoffArtifact, HandoffWorkPacketEntry, generate_handoff, write_handoff_artifact,
+};
+
+pub use pack::{
+    ContextPackArtifact, generate_context_pack, render_context_pack_markdown,
+    write_context_pack_artifact,
 };

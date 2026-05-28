@@ -1,79 +1,110 @@
 ---
 title: "Latest Context Pack"
 document_type: "context-pack"
+artifact_type: "context-pack"
 status: "current"
-version: "2.1.0"
-created: "2026-05-23"
-updated: "2026-05-24"
-owner: "Monad Project"
-epic: "E2"
-work_packet: "WP-E2-001"
-tags:
-
-* context-pack
-* e2
-* repository-intelligence
-* repository-inspection
-
+generated: true
+reviewed: false
+project: "Monad"
+source: "repository"
+source_files:
+  - ".monad/context/current-state.md"
+  - ".monad/context/latest-handoff.md"
+  - "README.md"
+  - "crates/monad-core/src/lib.rs"
+  - "docs/01-project/01-charter/PRODUCT-CHARTER.md"
+  - "docs/05-architecture/SYSTEM-OVERVIEW.md"
+  - "docs/06-adrs/"
+  - "docs/07-workflow/OPERATING-MODEL.md"
+  - "docs/08-context/CONTEXT-BRIDGE.md"
+  - "monad.toml"
+  - "work/epics/"
+  - "work/packets/"
 ---
 
 # Latest Context Pack
 
-## Identity
+## Project Identity
 
-Monad is an AI-native, repo-native, local-first Software Foundry OS.
+Monad is AI-native, repo-native, local-first Software Foundry OS for understanding, verifying, and safely evolving software repositories.
 
-## Completed
+## Current Status
 
-E0 — Project Foundation is complete.
+2 of 3 epics completed.
+Active epic: E2 — Repository Intelligence Foundation.
+35 of 41 work packets completed.
 
-E1 — Runtime Foundation is complete.
+## Active Work
 
-## Current Epic
+- Active epic: E2 — Repository Intelligence Foundation
+- Active work packet: WP-E2-001 — Establish Repository Inspection Foundation
 
-E2 — Repository Intelligence Foundation
+## Accepted Decisions
 
-## Current Work Packet
+- ADR 0001: Use Rust for Core Runtime
+- ADR 0002: Use Monad as Unified Product Name
+- ADR 0003: Use Repo Native Context As Source Of Truth
+- ADR 0004: Use Work Packets As Primary Delivery Unit
+- ADR 0005: Use Multi Crate Rust Workspace
+- ADR 0006: Keep Cli Thin And Core Durable
+- ADR 0007: Use Supervised Autonomy For Agent Workflows
+- ADR 0008: Coordinate Native Tools Rather Than Replace Them
 
-WP-E2-001 — Establish Repository Inspection Foundation
+## Important Documents
 
-## E1 Runtime Foundation Summary
+- `monad.toml`
+- `README.md`
+- `docs/01-project/01-charter/PRODUCT-CHARTER.md`
+- `docs/05-architecture/SYSTEM-OVERVIEW.md`
+- `docs/07-workflow/OPERATING-MODEL.md`
+- `docs/08-context/CONTEXT-BRIDGE.md`
+- `.monad/context/current-state.md`
+- `.monad/context/latest-handoff.md`
 
-Monad currently has:
+## Architecture Summary
 
-* Rust workspace foundation;
-* Core Diagnostics;
-* Core Error;
-* Workspace Context;
-* Manifest Model;
-* Manifest Loading;
-* CLI Info;
-* CLI Check;
-* Repository Contract;
-* Output Formatting;
-* Output Format Argument;
-* JSON Output.
+This document defines the initial system overview for Monad.
 
-## E2 Repository Inspection
+## Workflow Summary
 
-WP-E2-001 adds:
+This document defines how Monad work is planned, executed, verified, committed, and handed off.
 
-* `RepositoryEntryKind`;
-* `RepositoryEntryRole`;
-* `RepositoryEntryTraversalPolicy`;
-* `RepositoryEntry`;
-* `RepositoryInspection`;
-* `inspect_workspace`;
-* `MONAD4600`.
-
-## Verification
+## Verification Summary
 
 Run:
 
 ```bash
 cargo fmt --check
 cargo test
-cargo run --quiet -p monad-cli -- check
-tools/scripts/verify.sh
+cargo clippy --all-targets --all-features -- -D warnings
 ```
 
+## Risks and Blockers
+
+No known blockers.
+
+## Next Recommended Action
+
+Continue WP-E2-001 — Establish Repository Inspection Foundation.
+
+## Source Files Used
+
+- `.monad/context/current-state.md`
+- `.monad/context/latest-handoff.md`
+- `README.md`
+- `crates/monad-core/src/lib.rs`
+- `docs/01-project/01-charter/PRODUCT-CHARTER.md`
+- `docs/05-architecture/SYSTEM-OVERVIEW.md`
+- `docs/06-adrs/`
+- `docs/07-workflow/OPERATING-MODEL.md`
+- `docs/08-context/CONTEXT-BRIDGE.md`
+- `monad.toml`
+- `work/epics/`
+- `work/packets/`
+
+## Trust Notes
+
+- This context pack is *generated*, not human-authored.
+- It has *not* been reviewed.
+- All data comes from repository files.
+- Verify critical facts before acting on them.
