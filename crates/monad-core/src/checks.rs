@@ -6,12 +6,14 @@
 //! into a reusable verification model with check definitions, statuses,
 //! results, and a registry.
 
+pub mod adapters;
 pub mod evidence;
 pub mod model;
 pub mod registry;
 pub mod report;
 pub mod run;
 
+pub use adapters::{AdapterCheckRun, select_adapter_checks};
 pub use evidence::{EvidenceCheckResult, EvidenceCommandSummary, EvidencePacket, EvidenceSummary};
 pub use model::{CheckDefinition, CheckId, CheckResult, CheckSeverity, CheckStatus};
 pub use registry::CheckRegistry;

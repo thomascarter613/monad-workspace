@@ -7,6 +7,11 @@
 use std::path::Path;
 
 use crate::{
+    AdapterCheckRun, detect_repository_toolchains, inspect_workspace, select_adapter_checks,
+    traverse_workspace_bounded,
+};
+
+use crate::{
     CheckDefinition, CheckId, CheckRegistry, CheckResult, CheckSeverity, CheckStatus,
     CommandResult, CommandSpec, WorkspaceContext,
 };
@@ -137,7 +142,7 @@ pub fn initial_workspace_check_registry() -> CheckRegistry {
 /// Runs the initial Monad workspace checks.
 #[must_use]
 pub fn run_monad_workspace_checks(context: &WorkspaceContext) -> CheckRunReport {
-    let registry = initial_workspace_check_registry();
+    let mut registry = initial_workspace_check_registry();
     let root = context.root();
 
     let cargo_check = check_cargo_available(root);
@@ -147,11 +152,20 @@ pub fn run_monad_workspace_checks(context: &WorkspaceContext) -> CheckRunReport 
         command_results.push(command_result);
     }
 
-    let results = vec![
+    let mut results = vec![
         check_required_file(root, "monad.toml", "MONAD-CHECK-0001"),
         check_required_file(root, "Cargo.toml", "MONAD-CHECK-0002"),
         cargo_check.result,
     ];
+
+    let adapter_run = run_adapter_checks(context);
+
+    for definition in adapter_run.definitions() {
+        registry.register(definition.clone());
+    }
+
+    results.extend(adapter_run.results().iter().cloned());
+    command_results.extend(adapter_run.command_results().iter().cloned());
 
     CheckRunReport::with_command_results(registry, results, command_results)
 }
@@ -203,6 +217,28 @@ fn check_required_file(root: &Path, file_name: &str, check_id: &str) -> CheckRes
             CheckId::new(check_id),
             format!("required file is missing: {file_name}"),
         )
+    }
+}
+
+fn run_adapter_checks(context: &WorkspaceContext) -> AdapterCheckRun {
+    match inspect_workspace(context)
+        .and_then(|inspection| traverse_workspace_bounded(&inspection))
+        .map(|traversal| detect_repository_toolchains(&traversal))
+    {
+        Ok(detection) => select_adapter_checks(context, &detection),
+        Err(error) => AdapterCheckRun::from_parts(
+            vec![CheckDefinition::new(
+                CheckId::new("MONAD-CHECK-ADAPTER-0001"),
+                "Adapter check selection",
+                CheckSeverity::Warning,
+                "Selects adapter-specific checks from repository intelligence.",
+            )],
+            vec![CheckResult::warning(
+                CheckId::new("MONAD-CHECK-ADAPTER-0001"),
+                format!("adapter checks could not be selected: {}", error.message()),
+            )],
+            Vec::new(),
+        ),
     }
 }
 

@@ -23,11 +23,12 @@ pub mod toolchain_detection;
 pub mod workspace;
 
 pub use checks::{
-    CheckDefinition, CheckId, CheckRegistry, CheckResult, CheckRunReport, CheckSeverity,
-    CheckStatus, DEFAULT_EVIDENCE_REPORT_PATH, EvidenceCheckResult, EvidenceCommandSummary,
-    EvidencePacket, EvidenceSummary, evidence_packet_from_check_run_report,
+    AdapterCheckRun, CheckDefinition, CheckId, CheckRegistry, CheckResult, CheckRunReport,
+    CheckSeverity, CheckStatus, DEFAULT_EVIDENCE_REPORT_PATH, EvidenceCheckResult,
+    EvidenceCommandSummary, EvidencePacket, EvidenceSummary, evidence_packet_from_check_run_report,
     initial_workspace_check_registry, render_check_run_report, render_evidence_packet_markdown,
-    run_monad_workspace_checks, run_workspace_checks, write_check_evidence_packet,
+    run_monad_workspace_checks, run_workspace_checks, select_adapter_checks,
+    write_check_evidence_packet,
 };
 pub use context::{
     BootstrapPromptArtifact, ContextFileCheckResult, ContextFileRequirement, ContextPackArtifact,
