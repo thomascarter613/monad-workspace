@@ -13,11 +13,11 @@ use monad_core::{
     RepositoryGraphRenderFormat, WorkspaceContext, build_repository_graph,
     checked_runtime_identity, export_repository_context_pack_from_workspace,
     generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
-    inspect_workspace, load_manifest_from_workspace, render_context_verify_summary,
-    render_diagnostic_report, render_repository_context_pack, render_repository_graph,
-    render_repository_inspection_summary, render_workspace_summary,
+    inspect_workspace, load_manifest_from_workspace, render_check_run_report,
+    render_context_verify_summary, render_diagnostic_report, render_repository_context_pack,
+    render_repository_graph, render_repository_inspection_summary, render_workspace_summary,
     repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
-    run_workspace_checks, traverse_workspace_bounded, verify_context,
+    run_monad_workspace_checks, run_workspace_checks, traverse_workspace_bounded, verify_context,
     workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_context_pack_artifact,
     write_current_state_artifact, write_handoff_artifact,
 };
@@ -378,9 +378,15 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
 /// Renders workspace checks.
 fn render_check(output_format: OutputFormat) -> Result<String, String> {
     let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
-    let report = run_workspace_checks(&context);
+    let report = run_monad_workspace_checks(&context);
 
-    Ok(render_diagnostic_report(&report, output_format))
+    match output_format {
+        OutputFormat::Text => Ok(render_check_run_report(&report)),
+        OutputFormat::Json => Err(
+            "JSON check output is not implemented yet; use text output for this work packet"
+                .to_string(),
+        ),
+    }
 }
 
 /// Renders repository inspection.

@@ -8,9 +8,14 @@
 
 pub mod model;
 pub mod registry;
+pub mod run;
 
 pub use model::{CheckDefinition, CheckId, CheckResult, CheckSeverity, CheckStatus};
 pub use registry::CheckRegistry;
+pub use run::{
+    CheckRunReport, initial_workspace_check_registry, render_check_run_report,
+    run_monad_workspace_checks,
+};
 
 use crate::{Diagnostic, DiagnosticReport, Severity, WorkspaceContext};
 

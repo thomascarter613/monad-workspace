@@ -22,7 +22,11 @@ pub mod repository_policy;
 pub mod toolchain_detection;
 pub mod workspace;
 
-pub use checks::run_workspace_checks;
+pub use checks::{
+    CheckDefinition, CheckId, CheckRegistry, CheckResult, CheckRunReport, CheckSeverity,
+    CheckStatus, initial_workspace_check_registry, render_check_run_report,
+    run_monad_workspace_checks, run_workspace_checks,
+};
 pub use context::{
     BootstrapPromptArtifact, ContextFileCheckResult, ContextFileRequirement, ContextPackArtifact,
     ContextVerificationReport, CurrentStateArtifact, CurrentStateEpicEntry, ExpectedContextFile,
