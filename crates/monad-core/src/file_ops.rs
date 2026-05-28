@@ -8,8 +8,15 @@
 //! management, worktrees, or CLI behavior. It only defines the safe vocabulary
 //! future evolution commands will use.
 
+pub mod dry_run;
 pub mod model;
 pub mod plan;
+pub mod report;
 
+pub use dry_run::{
+    DryRunFileOperation, DryRunOperationKind, DryRunPlan, DryRunSummary,
+    evaluate_file_operation_plan,
+};
 pub use model::{FileOperationKind, FileOperationTarget, PlannedFileOperation};
 pub use plan::{FileOperationPlan, FileOperationSummary};
+pub use report::render_dry_run_plan;

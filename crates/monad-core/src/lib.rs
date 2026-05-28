@@ -49,8 +49,9 @@ pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
 pub use error::{MonadError, MonadResult};
 pub use exec::{CommandResult, CommandSpec, run_command};
 pub use file_ops::{
-    FileOperationKind, FileOperationPlan, FileOperationSummary, FileOperationTarget,
-    PlannedFileOperation,
+    DryRunFileOperation, DryRunOperationKind, DryRunPlan, DryRunSummary, FileOperationKind,
+    FileOperationPlan, FileOperationSummary, FileOperationTarget, PlannedFileOperation,
+    evaluate_file_operation_plan, render_dry_run_plan,
 };
 pub use manifest::{
     CURRENT_MANIFEST_SCHEMA_VERSION, ManifestProject, ManifestRuntime, ManifestSchemaVersion,
