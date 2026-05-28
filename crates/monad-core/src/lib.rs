@@ -23,8 +23,8 @@ pub mod workspace;
 
 pub use checks::run_workspace_checks;
 pub use context::{
-    CurrentStateArtifact, CurrentStateEpicEntry, generate_current_state,
-    write_current_state_artifact,
+    CurrentStateArtifact, CurrentStateEpicEntry, HandoffArtifact, HandoffWorkPacketEntry,
+    generate_current_state, generate_handoff, write_current_state_artifact, write_handoff_artifact,
 };
 pub use dependency_detection::{
     RepositoryDependencyDetection, RepositoryDependencySignal, RepositoryDependencySignalKind,
