@@ -14,12 +14,12 @@ use monad_core::{
     checked_runtime_identity, export_repository_context_pack_from_workspace,
     generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
     inspect_workspace, load_manifest_from_workspace, render_check_run_report,
-    render_context_verify_summary, render_diagnostic_report, render_repository_context_pack,
-    render_repository_graph, render_repository_inspection_summary, render_workspace_summary,
+    render_context_verify_summary, render_repository_context_pack, render_repository_graph,
+    render_repository_inspection_summary, render_workspace_summary,
     repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
-    run_monad_workspace_checks, run_workspace_checks, traverse_workspace_bounded, verify_context,
-    workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_context_pack_artifact,
-    write_current_state_artifact, write_handoff_artifact,
+    run_monad_workspace_checks, traverse_workspace_bounded, verify_context,
+    workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_check_evidence_packet,
+    write_context_pack_artifact, write_current_state_artifact, write_handoff_artifact,
 };
 use std::env;
 use std::process::ExitCode;
@@ -381,7 +381,15 @@ fn render_check(output_format: OutputFormat) -> Result<String, String> {
     let report = run_monad_workspace_checks(&context);
 
     match output_format {
-        OutputFormat::Text => Ok(render_check_run_report(&report)),
+        OutputFormat::Text => {
+            let evidence_path = write_check_evidence_packet(&context, &report)
+                .map_err(|error| error.to_string())?;
+            Ok(format!(
+                "{}\n\nEvidence report written: {}",
+                render_check_run_report(&report),
+                evidence_path.display()
+            ))
+        }
         OutputFormat::Json => Err(
             "JSON check output is not implemented yet; use text output for this work packet"
                 .to_string(),

@@ -6,12 +6,19 @@
 //! into a reusable verification model with check definitions, statuses,
 //! results, and a registry.
 
+pub mod evidence;
 pub mod model;
 pub mod registry;
+pub mod report;
 pub mod run;
 
+pub use evidence::{EvidenceCheckResult, EvidenceCommandSummary, EvidencePacket, EvidenceSummary};
 pub use model::{CheckDefinition, CheckId, CheckResult, CheckSeverity, CheckStatus};
 pub use registry::CheckRegistry;
+pub use report::{
+    DEFAULT_EVIDENCE_REPORT_PATH, evidence_packet_from_check_run_report,
+    render_evidence_packet_markdown, write_check_evidence_packet,
+};
 pub use run::{
     CheckRunReport, initial_workspace_check_registry, render_check_run_report,
     run_monad_workspace_checks,

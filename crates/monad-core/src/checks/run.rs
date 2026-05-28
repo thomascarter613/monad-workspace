@@ -7,8 +7,8 @@
 use std::path::Path;
 
 use crate::{
-    CheckDefinition, CheckId, CheckRegistry, CheckResult, CheckSeverity, CheckStatus, CommandSpec,
-    WorkspaceContext,
+    CheckDefinition, CheckId, CheckRegistry, CheckResult, CheckSeverity, CheckStatus,
+    CommandResult, CommandSpec, WorkspaceContext,
 };
 
 /// Aggregated result of running Monad workspace checks.
@@ -16,13 +16,32 @@ use crate::{
 pub struct CheckRunReport {
     registry: CheckRegistry,
     results: Vec<CheckResult>,
+    command_results: Vec<CommandResult>,
 }
 
 impl CheckRunReport {
     /// Creates a report from a registry and ordered results.
     #[must_use]
     pub fn new(registry: CheckRegistry, results: Vec<CheckResult>) -> Self {
-        Self { registry, results }
+        Self {
+            registry,
+            results,
+            command_results: Vec::new(),
+        }
+    }
+
+    /// Creates a report from a registry, ordered results, and command results.
+    #[must_use]
+    pub fn with_command_results(
+        registry: CheckRegistry,
+        results: Vec<CheckResult>,
+        command_results: Vec<CommandResult>,
+    ) -> Self {
+        Self {
+            registry,
+            results,
+            command_results,
+        }
     }
 
     /// Returns the check registry used for this run.
@@ -35,6 +54,12 @@ impl CheckRunReport {
     #[must_use]
     pub fn results(&self) -> &[CheckResult] {
         &self.results
+    }
+
+    /// Returns command results captured while running checks.
+    #[must_use]
+    pub fn command_results(&self) -> &[CommandResult] {
+        &self.command_results
     }
 
     /// Returns the number of checks that ran.
@@ -115,13 +140,20 @@ pub fn run_monad_workspace_checks(context: &WorkspaceContext) -> CheckRunReport 
     let registry = initial_workspace_check_registry();
     let root = context.root();
 
+    let cargo_check = check_cargo_available(root);
+    let mut command_results = Vec::new();
+
+    if let Some(command_result) = cargo_check.command_result {
+        command_results.push(command_result);
+    }
+
     let results = vec![
         check_required_file(root, "monad.toml", "MONAD-CHECK-0001"),
         check_required_file(root, "Cargo.toml", "MONAD-CHECK-0002"),
-        check_cargo_available(root),
+        cargo_check.result,
     ];
 
-    CheckRunReport::new(registry, results)
+    CheckRunReport::with_command_results(registry, results, command_results)
 }
 
 /// Renders a human-readable check report.
@@ -174,30 +206,48 @@ fn check_required_file(root: &Path, file_name: &str, check_id: &str) -> CheckRes
     }
 }
 
-fn check_cargo_available(root: &Path) -> CheckResult {
+struct CommandCheckOutcome {
+    result: CheckResult,
+    command_result: Option<CommandResult>,
+}
+
+fn check_cargo_available(root: &Path) -> CommandCheckOutcome {
     let spec = CommandSpec::new("cargo")
         .arg("--version")
         .working_directory(root);
 
     match spec.run() {
-        Ok(result) if result.success() => CheckResult::passed(
-            CheckId::new("MONAD-CHECK-0003"),
-            first_non_empty_line(result.stdout())
-                .unwrap_or_else(|| "cargo is available".to_string()),
-        ),
-        Ok(result) => CheckResult::failed(
-            CheckId::new("MONAD-CHECK-0003"),
-            format!(
-                "cargo --version failed with exit code {:?}: {}",
-                result.exit_code(),
-                first_non_empty_line(result.stderr())
-                    .unwrap_or_else(|| "no stderr output".to_string())
+        Ok(command_result) if command_result.success() => {
+            let message = first_non_empty_line(command_result.stdout())
+                .unwrap_or_else(|| "cargo is available".to_string());
+
+            CommandCheckOutcome {
+                result: CheckResult::passed(CheckId::new("MONAD-CHECK-0003"), message),
+                command_result: Some(command_result),
+            }
+        }
+        Ok(command_result) => {
+            let exit_code = command_result.exit_code();
+            let stderr_summary = first_non_empty_line(command_result.stderr())
+                .unwrap_or_else(|| "no stderr output".to_string());
+
+            CommandCheckOutcome {
+                result: CheckResult::failed(
+                    CheckId::new("MONAD-CHECK-0003"),
+                    format!(
+                        "cargo --version failed with exit code {exit_code:?}: {stderr_summary}"
+                    ),
+                ),
+                command_result: Some(command_result),
+            }
+        }
+        Err(error) => CommandCheckOutcome {
+            result: CheckResult::failed(
+                CheckId::new("MONAD-CHECK-0003"),
+                format!("failed to run cargo --version: {}", error.message()),
             ),
-        ),
-        Err(error) => CheckResult::failed(
-            CheckId::new("MONAD-CHECK-0003"),
-            format!("failed to run cargo --version: {}", error.message()),
-        ),
+            command_result: None,
+        },
     }
 }
 
@@ -285,20 +335,20 @@ mod tests {
     }
 
     #[test]
-    fn workspace_checks_report_missing_files() {
+    fn workspace_checks_report_missing_files() -> crate::MonadResult<()> {
         let root = unique_temp_root("workspace-checks-missing");
-        fs::create_dir_all(&root).unwrap_or_else(|error| {
-            panic!("test root should be created: {error}");
-        });
+        fs::create_dir_all(&root).map_err(|error| {
+            crate::MonadError::internal(format!("test root should be created: {error}"))
+        })?;
 
-        let context = WorkspaceContext::new(&root).unwrap_or_else(|error| {
-            panic!("workspace context should be created: {error}");
-        });
+        let context = WorkspaceContext::new(&root)?;
 
         let report = run_monad_workspace_checks(&context);
 
         assert!(report.failed_count() >= 2);
 
         fs::remove_dir_all(&root).ok();
+
+        Ok(())
     }
 }
