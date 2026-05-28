@@ -8,16 +8,17 @@
 //! artifact generation belong in `monad-core`.
 
 use monad_core::{
-    ContextPackArtifact, CurrentStateArtifact, HandoffArtifact, OutputFormat,
-    RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
+    BootstrapPromptArtifact, ContextPackArtifact, CurrentStateArtifact, HandoffArtifact,
+    OutputFormat, RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
     RepositoryGraphRenderFormat, WorkspaceContext, build_repository_graph,
-    checked_runtime_identity, export_repository_context_pack_from_workspace, generate_context_pack,
-    generate_current_state, generate_handoff, inspect_workspace, load_manifest_from_workspace,
-    render_diagnostic_report, render_repository_context_pack, render_repository_graph,
-    render_repository_inspection_summary, render_workspace_summary,
-    repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
-    run_workspace_checks, traverse_workspace_bounded, workspace_summary_from_manifest,
-    write_context_pack_artifact, write_current_state_artifact, write_handoff_artifact,
+    checked_runtime_identity, export_repository_context_pack_from_workspace,
+    generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
+    inspect_workspace, load_manifest_from_workspace, render_diagnostic_report,
+    render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
+    render_workspace_summary, repository_context_pack_from_workspace,
+    repository_inspection_summary_from_workspace, run_workspace_checks, traverse_workspace_bounded,
+    workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_context_pack_artifact,
+    write_current_state_artifact, write_handoff_artifact,
 };
 use std::env;
 use std::process::ExitCode;
@@ -85,6 +86,9 @@ enum ContextArtifactKind {
 
     /// Generate `.monad/context/latest-handoff.md`.
     Handoff,
+
+    /// Generate `docs/ai/BOOTSTRAP-PROMPT.md`.
+    Bootstrap,
 }
 
 impl CliCommand {
@@ -187,8 +191,14 @@ impl CliCommand {
                     artifact: ContextArtifactKind::Handoff,
                 })
             }
+            ["context", "generate", "bootstrap"] => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::ContextGenerate {
+                    artifact: ContextArtifactKind::Bootstrap,
+                })
+            }
             ["context", "generate"] => {
-                Err("missing artifact kind: try 'context generate current-state' or 'context generate handoff'".to_string())
+                Err("missing artifact kind: try 'context generate current-state', 'context generate handoff', or 'context generate bootstrap'".to_string())
             }
             ["context", "generate", other] => Err(format!("unknown context artifact: {other}")),
             ["context", other, ..] => Err(format!("unknown context subcommand: {other}")),
@@ -303,6 +313,7 @@ fn help_text() -> String {
         "  context                           Render AI-readable repository context pack",
         "  context generate current-state    Generate current-state artifact",
         "  context generate handoff          Generate latest handoff artifact",
+        "  context generate bootstrap        Generate bootstrap prompt for AI sessions",
         "  context pack                      Assemble project-level context pack",
         "  version                           Show runtime version",
         "  help                              Show this help",
@@ -329,6 +340,7 @@ fn help_text() -> String {
         "Context generation:",
         "  monad context generate current-state",
         "  monad context generate handoff",
+        "  monad context generate bootstrap",
         "  monad context pack",
     ]
     .join("\n")
@@ -421,6 +433,15 @@ fn render_context_generate(artifact: ContextArtifactKind) -> Result<String, Stri
 
             Ok(render_handoff_summary(&context, &handoff))
         }
+        ContextArtifactKind::Bootstrap => {
+            let bootstrap =
+                generate_bootstrap_prompt(&context).map_err(|error| error.to_string())?;
+
+            write_bootstrap_prompt_artifact(&context, &bootstrap)
+                .map_err(|error| error.to_string())?;
+
+            Ok(render_bootstrap_summary(&context, &bootstrap))
+        }
     }
 }
 
@@ -474,6 +495,39 @@ fn render_handoff_summary(context: &WorkspaceContext, artifact: &HandoffArtifact
 
     let completed_packets = artifact.completed_work_packets().len();
     lines.push(format!("  completed_work_packets: {completed_packets}"));
+
+    lines.join("\n")
+}
+
+/// Renders a concise bootstrap prompt generation summary.
+fn render_bootstrap_summary(
+    context: &WorkspaceContext,
+    artifact: &BootstrapPromptArtifact,
+) -> String {
+    let output_path = context.root().join("docs/ai/BOOTSTRAP-PROMPT.md");
+
+    let mut lines = vec![
+        "Monad bootstrap prompt generated".to_string(),
+        format!("  output: {}", output_path.display()),
+        format!("  project: {}", artifact.project_name),
+        format!("  reading_order: {} files", artifact.reading_order.len()),
+        format!("  workflow_rules: {}", artifact.workflow_rules.len()),
+        format!("  source_files: {}", artifact.source_files.len()),
+    ];
+
+    if let Some(active_epic) = artifact.current_state.active_epic() {
+        lines.push(format!(
+            "  active_epic: {} — {}",
+            active_epic.id, active_epic.title
+        ));
+    }
+
+    if let Some(active_wp) = artifact.handoff.active_work_packet() {
+        lines.push(format!(
+            "  active_work_packet: {} — {}",
+            active_wp.id, active_wp.title
+        ));
+    }
 
     lines.join("\n")
 }
@@ -903,5 +957,23 @@ mod tests {
         let text = help_text();
 
         assert!(text.contains("context pack"));
+    }
+
+    #[test]
+    fn context_generate_bootstrap_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "context", "generate", "bootstrap"])
+                .expect("context generate bootstrap should parse"),
+            CliCommand::ContextGenerate {
+                artifact: ContextArtifactKind::Bootstrap,
+            }
+        );
+    }
+
+    #[test]
+    fn help_text_mentions_context_generate_bootstrap() {
+        let text = help_text();
+
+        assert!(text.contains("context generate bootstrap"));
     }
 }
