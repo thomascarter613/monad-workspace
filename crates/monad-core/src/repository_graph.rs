@@ -60,9 +60,10 @@ impl RepositoryGraphEdgeKind {
 }
 
 /// Supported graph rendering formats.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RepositoryGraphRenderFormat {
     /// Human-readable graph summary.
+    #[default]
     Text,
 
     /// Machine-readable JSON graph.
@@ -98,12 +99,6 @@ impl RepositoryGraphRenderFormat {
                 "unsupported repository graph render format: {other}"
             ))),
         }
-    }
-}
-
-impl Default for RepositoryGraphRenderFormat {
-    fn default() -> Self {
-        Self::Text
     }
 }
 
@@ -524,7 +519,17 @@ fn render_repository_graph_json(graph: &RepositoryGraph) -> String {
         "nodes": nodes,
         "edges": edges,
     }))
-    .expect("serializing repository graph JSON should not fail")
+    .unwrap_or_else(|error| {
+        json!({
+            "kind": "repository_graph",
+            "format": RepositoryGraphRenderFormat::Json.as_str(),
+            "error": {
+                "code": "MONAD-GRAPH-OUTPUT-0001",
+                "message": format!("failed to serialize repository graph JSON: {error}")
+            }
+        })
+        .to_string()
+    })
 }
 
 /// Renders a Mermaid flowchart.

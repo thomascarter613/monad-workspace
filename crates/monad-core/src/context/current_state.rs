@@ -640,10 +640,10 @@ pub mod workspace;
         let mut modules = Vec::new();
         for line in content.lines() {
             let trimmed = line.trim();
-            if let Some(rest) = trimmed.strip_prefix("pub mod ") {
-                if let Some(name) = rest.strip_suffix(';') {
-                    modules.push(name.trim().to_string());
-                }
+            if let Some(rest) = trimmed.strip_prefix("pub mod ")
+                && let Some(name) = rest.strip_suffix(';')
+            {
+                modules.push(name.trim().to_string());
             }
         }
 

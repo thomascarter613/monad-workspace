@@ -56,9 +56,10 @@ pub const REPOSITORY_CONTEXT_PACK_MARKDOWN_FILENAME: &str = "repository-context-
 pub const REPOSITORY_CONTEXT_PACK_JSON_FILENAME: &str = "repository-context-pack.json";
 
 /// Supported repository context pack render formats.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RepositoryContextPackRenderFormat {
     /// Markdown designed for human and LLM reading.
+    #[default]
     Markdown,
 
     /// Machine-readable JSON.
@@ -93,12 +94,6 @@ impl RepositoryContextPackRenderFormat {
                 "unsupported repository context pack render format: {other}"
             ))),
         }
-    }
-}
-
-impl Default for RepositoryContextPackRenderFormat {
-    fn default() -> Self {
-        Self::Markdown
     }
 }
 
@@ -877,7 +872,17 @@ fn render_repository_context_pack_json(pack: &RepositoryContextPack) -> String {
         "has_policy_warnings": pack.has_policy_warnings(),
         "sections": sections,
     }))
-    .expect("serializing repository context pack JSON should not fail")
+    .unwrap_or_else(|error| {
+        json!({
+            "kind": "repository_context_pack",
+            "schema_version": "error",
+            "error": {
+                "code": "MONAD-CONTEXT-PACK-OUTPUT-0001",
+                "message": format!("failed to serialize repository context pack JSON: {error}")
+            }
+        })
+        .to_string()
+    })
 }
 
 #[cfg(test)]

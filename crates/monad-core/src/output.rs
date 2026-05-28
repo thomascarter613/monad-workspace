@@ -13,20 +13,19 @@ use crate::dependency_detection::{
     detect_repository_dependency_signals,
 };
 use crate::repository_graph::{RepositoryGraph, build_repository_graph};
+
 use crate::repository_inspection::{
-    RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind, RepositoryEntryRole,
+    RepositoryBoundedTraversal, RepositoryEntryCategory, RepositoryEntryKind,
     RepositoryEntryTraversalPolicy, RepositoryInspection, build_traversal_plan,
 };
-use crate::repository_policy::{
-    RepositoryPolicyReport, RepositoryPolicySeverity, evaluate_repository_intelligence_policy,
-};
-use crate::toolchain_detection::{
-    RepositoryToolchainDetection, RepositoryToolchainKind, detect_repository_toolchains,
-};
+
+use crate::repository_policy::{RepositoryPolicyReport, evaluate_repository_intelligence_policy};
+use crate::toolchain_detection::{RepositoryToolchainDetection, detect_repository_toolchains};
 use crate::{DiagnosticReport, MonadError, MonadManifest, MonadResult, Severity, WorkspaceContext};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OutputFormat {
+    #[default]
     Text,
     Json,
 }
@@ -48,12 +47,6 @@ impl OutputFormat {
                 "unsupported output format: {other}"
             ))),
         }
-    }
-}
-
-impl Default for OutputFormat {
-    fn default() -> Self {
-        Self::Text
     }
 }
 
@@ -626,14 +619,17 @@ pub fn render_diagnostic_report(report: &DiagnosticReport, format: OutputFormat)
                     })
                 })
                 .collect::<Vec<_>>();
-
             serde_json::to_string_pretty(&json!({
-                "format": OutputFormat::Json.as_str(),
-                "kind": "diagnostic_report",
-                "has_errors": report.has_errors(),
-                "diagnostics": diagnostics,
-            }))
-            .expect("serializing diagnostic report JSON should not fail")
+                    "format": OutputFormat::Json.as_str(),
+                    "kind": "diagnostic_report",
+                    "has_errors": report.has_errors(),
+                    "diagnostics": diagnostics,
+                }))
+                .unwrap_or_else(|error| {
+                    format!(
+                        "{{\"format\":\"json\",\"kind\":\"diagnostic_report\",\"has_errors\":true,\"diagnostics\":[{{\"severity\":\"error\",\"code\":\"MONAD-OUTPUT-0001\",\"message\":\"failed to serialize diagnostic report JSON: {error}\"}}]}}"
+                     )
+                })
         }
     }
 }
@@ -651,26 +647,28 @@ pub fn render_workspace_summary(summary: &WorkspaceSummary, format: OutputFormat
             summary.cli_crate,
             summary.execution_model,
         ),
-        OutputFormat::Json => serde_json::to_string_pretty(&json!({
-            "format": OutputFormat::Json.as_str(),
-            "kind": "workspace_summary",
-            "workspace": {
-                "root": &summary.root,
-            },
-            "project": {
-                "display_name": &summary.project_display_name,
-                "name": &summary.project_name,
-            },
-            "manifest": {
-                "schema_version": &summary.schema_version,
-            },
-            "runtime": {
-                "core_crate": &summary.core_crate,
-                "cli_crate": &summary.cli_crate,
-                "execution_model": &summary.execution_model,
-            },
-        }))
-        .expect("serializing workspace summary JSON should not fail"),
+        OutputFormat::Json => render_json_value(
+            json!({
+                "format": OutputFormat::Json.as_str(),
+                "kind": "workspace_summary",
+                "workspace": {
+                    "root": &summary.root,
+                },
+                "project": {
+                    "display_name": &summary.project_display_name,
+                    "name": &summary.project_name,
+                },
+                "manifest": {
+                    "schema_version": &summary.schema_version,
+                },
+                "runtime": {
+                    "core_crate": &summary.core_crate,
+                    "cli_crate": &summary.cli_crate,
+                    "execution_model": &summary.execution_model,
+                },
+            }),
+            "workspace_summary",
+        ),
     }
 }
 
@@ -939,91 +937,117 @@ fn render_repository_inspection_summary_json(summary: &RepositoryInspectionSumma
         })
         .collect::<Vec<_>>();
 
-    serde_json::to_string_pretty(&json!({
-        "format": OutputFormat::Json.as_str(),
-        "kind": "repository_inspection_summary",
-        "repository": {
-            "root": &summary.root,
-            "entry_count": summary.entry_count,
-            "file_count": summary.file_count,
-            "directory_count": summary.directory_count,
-            "symlink_count": summary.symlink_count,
-            "other_count": summary.other_count,
-            "policy": {
-                "diagnostic_count": summary.policy_diagnostic_count,
-                "info_count": summary.policy_info_count,
-                "advisory_count": summary.policy_advisory_count,
-                "warning_count": summary.policy_warning_count,
-                "has_warnings": summary.policy_has_warnings,
-                "diagnostics": policy_diagnostics,
-            },
-            "metrics": {
-                "known_entry_count": summary.known_entry_count,
-                "unknown_entry_count": summary.unknown_entry_count,
-                "generated_or_external_count": summary.generated_or_external_count,
-                "safe_for_future_traversal_count": summary.safe_for_future_traversal_count,
-                "inspect_shallow_only_count": summary.inspect_shallow_only_count,
-                "skip_generated_or_external_count": summary.skip_generated_or_external_count,
-            },
-            "future_traversal": {
-                "mode": &summary.future_traversal_mode,
-                "guardrails": {
-                    "max_depth": summary.future_traversal_max_depth,
-                    "follow_symlinks": summary.future_traversal_follow_symlinks,
-                    "include_generated_or_external": summary.future_traversal_include_generated_or_external,
-                    "respect_ignore_files": summary.future_traversal_respect_ignore_files,
-                    "deterministic_ordering": summary.future_traversal_deterministic_ordering,
+    render_json_value(
+        json!({
+            "format": OutputFormat::Json.as_str(),
+            "kind": "repository_inspection_summary",
+            "repository": {
+                "root": &summary.root,
+                "entry_count": summary.entry_count,
+                "file_count": summary.file_count,
+                "directory_count": summary.directory_count,
+                "symlink_count": summary.symlink_count,
+                "other_count": summary.other_count,
+                "policy": {
+                    "diagnostic_count": summary.policy_diagnostic_count,
+                    "info_count": summary.policy_info_count,
+                    "advisory_count": summary.policy_advisory_count,
+                    "warning_count": summary.policy_warning_count,
+                    "has_warnings": summary.policy_has_warnings,
+                    "diagnostics": policy_diagnostics,
                 },
-                "candidate_entry_count": summary.future_traversal_candidate_count,
-                "shallow_only_entry_count": summary.future_traversal_shallow_only_count,
-                "skip_entry_count": summary.future_traversal_skip_count,
+                "metrics": {
+                    "known_entry_count": summary.known_entry_count,
+                    "unknown_entry_count": summary.unknown_entry_count,
+                    "generated_or_external_count": summary.generated_or_external_count,
+                    "safe_for_future_traversal_count": summary.safe_for_future_traversal_count,
+                    "inspect_shallow_only_count": summary.inspect_shallow_only_count,
+                    "skip_generated_or_external_count": summary.skip_generated_or_external_count,
+                },
+                "future_traversal": {
+                    "mode": &summary.future_traversal_mode,
+                    "guardrails": {
+                        "max_depth": summary.future_traversal_max_depth,
+                        "follow_symlinks": summary.future_traversal_follow_symlinks,
+                        "include_generated_or_external": summary.future_traversal_include_generated_or_external,
+                        "respect_ignore_files": summary.future_traversal_respect_ignore_files,
+                        "deterministic_ordering": summary.future_traversal_deterministic_ordering,
+                    },
+                    "candidate_entry_count": summary.future_traversal_candidate_count,
+                    "shallow_only_entry_count": summary.future_traversal_shallow_only_count,
+                    "skip_entry_count": summary.future_traversal_skip_count,
+                },
+                "bounded_traversal": {
+                    "mode": &summary.bounded_traversal_mode,
+                    "entry_count": summary.bounded_traversal_entry_count,
+                    "max_observed_depth": summary.bounded_traversal_max_observed_depth,
+                    "candidate_entry_count": summary.bounded_traversal_candidate_count,
+                    "shallow_only_entry_count": summary.bounded_traversal_shallow_only_count,
+                    "skip_entry_count": summary.bounded_traversal_skip_count,
+                    "generated_or_external_entry_count": summary.bounded_traversal_generated_or_external_count,
+                },
+                "graph": {
+                    "node_count": summary.graph_node_count,
+                    "edge_count": summary.graph_edge_count,
+                    "max_depth": summary.graph_max_depth,
+                    "category_counts": &summary.graph_category_counts,
+                    "traversal_decision_counts": &summary.graph_traversal_decision_counts,
+                },
+                "toolchains": {
+                    "detected_toolchain_count": summary.toolchain_count,
+                    "signal_count": summary.toolchain_signal_count,
+                    "toolchain_counts": &summary.toolchain_counts,
+                    "signal_kind_counts": &summary.toolchain_signal_kind_counts,
+                    "detected": toolchains,
+                },
+                "dependencies": {
+                    "detected_toolchain_count": summary.dependency_toolchain_count,
+                    "signal_count": summary.dependency_signal_count,
+                    "manifest_count": summary.dependency_manifest_count,
+                    "lockfile_count": summary.dependency_lockfile_count,
+                    "package_manager_config_count": summary.dependency_package_manager_config_count,
+                    "build_file_count": summary.dependency_build_file_count,
+                    "toolchain_counts": &summary.dependency_toolchain_counts,
+                    "signal_kind_counts": &summary.dependency_signal_kind_counts,
+                    "detected": dependencies,
+                },
+                "category_counts": &summary.category_counts,
+                "role_counts": &summary.role_counts,
+                "traversal_policy_counts": &summary.traversal_policy_counts,
+                "entries": entries,
             },
-            "bounded_traversal": {
-                "mode": &summary.bounded_traversal_mode,
-                "entry_count": summary.bounded_traversal_entry_count,
-                "max_observed_depth": summary.bounded_traversal_max_observed_depth,
-                "candidate_entry_count": summary.bounded_traversal_candidate_count,
-                "shallow_only_entry_count": summary.bounded_traversal_shallow_only_count,
-                "skip_entry_count": summary.bounded_traversal_skip_count,
-                "generated_or_external_entry_count": summary.bounded_traversal_generated_or_external_count,
-            },
-            "graph": {
-                "node_count": summary.graph_node_count,
-                "edge_count": summary.graph_edge_count,
-                "max_depth": summary.graph_max_depth,
-                "category_counts": &summary.graph_category_counts,
-                "traversal_decision_counts": &summary.graph_traversal_decision_counts,
-            },
-            "toolchains": {
-                "detected_toolchain_count": summary.toolchain_count,
-                "signal_count": summary.toolchain_signal_count,
-                "toolchain_counts": &summary.toolchain_counts,
-                "signal_kind_counts": &summary.toolchain_signal_kind_counts,
-                "detected": toolchains,
-            },
-            "dependencies": {
-                "detected_toolchain_count": summary.dependency_toolchain_count,
-                "signal_count": summary.dependency_signal_count,
-                "manifest_count": summary.dependency_manifest_count,
-                "lockfile_count": summary.dependency_lockfile_count,
-                "package_manager_config_count": summary.dependency_package_manager_config_count,
-                "build_file_count": summary.dependency_build_file_count,
-                "toolchain_counts": &summary.dependency_toolchain_counts,
-                "signal_kind_counts": &summary.dependency_signal_kind_counts,
-                "detected": dependencies,
-            },
-            "category_counts": &summary.category_counts,
-            "role_counts": &summary.role_counts,
-            "traversal_policy_counts": &summary.traversal_policy_counts,
-            "entries": entries,
-        },
-    }))
-    .expect("serializing repository inspection summary JSON should not fail")
+        }),
+        "repository_inspection_summary",
+    )
+}
+
+/// Serializes a JSON value for user-facing output.
+///
+/// This avoids panicking in production output rendering. Serialization of a
+/// `serde_json::Value` should normally be infallible, but returning a compact
+/// JSON error object is safer than using `expect`.
+fn render_json_value(value: serde_json::Value, kind: &str) -> String {
+    serde_json::to_string_pretty(&value).unwrap_or_else(|error| {
+        json!({
+            "format": OutputFormat::Json.as_str(),
+            "kind": kind,
+            "has_errors": true,
+            "diagnostics": [
+                {
+                    "severity": "error",
+                    "code": "MONAD-OUTPUT-0001",
+                    "message": format!("failed to serialize {kind} JSON: {error}")
+                }
+            ]
+        })
+        .to_string()
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{RepositoryEntryRole, RepositoryPolicySeverity, RepositoryToolchainKind};
 
     use std::fs;
     use std::path::PathBuf;
