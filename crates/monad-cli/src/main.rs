@@ -457,11 +457,37 @@ fn help_text() -> String {
     .join("\n")
 }
 
-/// Renders runtime identity.
+/// Renders runtime, package, and release-preparation identity.
+///
+/// This output is intentionally more explicit than a normal `--version` line
+/// because Monad is currently preparing an internal MVP candidate cut. It must
+/// identify the compiled CLI package version without implying public release,
+/// installer availability, autonomous execution, or write/apply support.
 fn render_version() -> Result<String, String> {
     let identity = checked_runtime_identity().map_err(|error| error.to_string())?;
 
-    Ok(identity.banner())
+    let lines = vec![
+        identity.banner(),
+        String::new(),
+        "Package:".to_string(),
+        format!("  cli_crate: {}", env!("CARGO_PKG_NAME")),
+        format!("  version: {}", env!("CARGO_PKG_VERSION")),
+        String::new(),
+        "Release posture:".to_string(),
+        "  channel: internal-mvp-candidate".to_string(),
+        "  candidate_identifier: 0.1.0-internal-mvp-candidate".to_string(),
+        "  public_release: no".to_string(),
+        "  package_published: no".to_string(),
+        "  installer_available: no".to_string(),
+        String::new(),
+        "Safety posture:".to_string(),
+        "  execution_model: local-first".to_string(),
+        "  planning: no-write".to_string(),
+        "  evolution: dry-run-only".to_string(),
+        "  autonomous_agent_execution: no".to_string(),
+    ];
+
+    Ok(lines.join("\n"))
 }
 
 /// Renders workspace info.
@@ -1168,7 +1194,8 @@ mod tests {
 
     #[test]
     fn plan_without_intent_returns_actionable_error() {
-        let error = parse_arguments(&["monad", "plan"]).expect_err("plan without intent should fail");
+        let error =
+            parse_arguments(&["monad", "plan"]).expect_err("plan without intent should fail");
 
         assert!(error.contains("missing plan intent"));
         assert!(error.contains("explain this repository"));
@@ -1226,5 +1253,4 @@ mod tests {
         assert!(text.contains("dry-run only"));
         assert!(text.contains("plan is no-write"));
     }
-
 }

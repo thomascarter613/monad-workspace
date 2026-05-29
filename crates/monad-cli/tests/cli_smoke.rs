@@ -119,7 +119,18 @@ fn help_command_smoke_test() {
 #[test]
 fn version_command_smoke_test() {
     assert_success_contains(&["version"], "Monad");
+    assert_success_contains(&["version"], "cli_crate: monad-cli");
+    assert_success_contains(&["version"], "version: 0.1.0");
+    assert_success_contains(
+        &["version"],
+        "candidate_identifier: 0.1.0-internal-mvp-candidate",
+    );
+    assert_success_contains(&["version"], "public_release: no");
+    assert_success_contains(&["version"], "planning: no-write");
+    assert_success_contains(&["version"], "evolution: dry-run-only");
+
     assert_success_contains(&["--version"], "Monad");
+    assert_success_contains(&["--version"], "cli_crate: monad-cli");
 }
 
 #[test]
@@ -188,10 +199,7 @@ fn evolve_context_baseline_requires_dry_run_smoke_test() {
 
 #[test]
 fn evolve_verify_baseline_dry_run_smoke_test() {
-    assert_success_contains(
-        &["evolve", "verify-baseline", "--dry-run"],
-        "Mode: dry-run",
-    );
+    assert_success_contains(&["evolve", "verify-baseline", "--dry-run"], "Mode: dry-run");
     assert_success_contains(
         &["evolve", "verify-baseline", "--dry-run"],
         "No files were written.",
