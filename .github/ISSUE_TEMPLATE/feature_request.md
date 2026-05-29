@@ -1,20 +1,31 @@
----
+
 name: Feature request
-about: Suggest an idea for this project
-title: ''
-labels: ''
-assignees: ''
+about: Propose a bounded Monad feature or improvement
+title: "feat: "
+labels: enhancement
+assignees: ""
+-------------
 
----
+## Summary
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+Describe the proposed feature.
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+## Problem
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+What problem does this solve?
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+## Proposed outcome
+
+What should exist after this work?
+
+## Non-goals
+
+What should this not include?
+
+## Verification
+
+How should this be verified?
+
+## Additional context
+
+Add references, examples, or constraints.
