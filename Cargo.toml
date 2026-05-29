@@ -3,6 +3,7 @@ resolver = "2"
 members = [
   "crates/monad-cli",
   "crates/monad-core",
+  "crates/monad-mcp",
 ]
 
 [workspace.package]
