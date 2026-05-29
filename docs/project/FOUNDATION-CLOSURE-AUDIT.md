@@ -81,12 +81,10 @@ After generating this report, review:
 
 - `tools/scripts/verify.sh` failed during the foundation closure audit.
   - Audit log: `.artifacts/audits/foundation-closure/20260529T023150Z/13-root-verify-script.log`
-  - Follow-up required: inspect the root verification script failure and determine whether the script is stale, the repository is missing required paths, or a genuine implementation defect exists.
+  - Current classification: root verification blocker.
+  - Follow-up required: inspect whether the root verifier is stale, missing required paths, or detecting a real implementation defect.
+  - Recommended follow-up packet: WP-E7-002 if the issue is CLI/help/command-surface mismatch, WP-E7-003 if the issue is test/verification coverage, or a small immediate verifier repair if the script is simply stale.
 
-<!-- Add blocker bullets here. Example:
-- `cargo clippy` fails because ...
-- `monad plan` fails because ...
--->
 
 ## 7. Follow-up recommendations
 
