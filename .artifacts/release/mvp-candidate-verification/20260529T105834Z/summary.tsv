@@ -1,0 +1,6 @@
+git status before verification	PASS	0	.artifacts/release/mvp-candidate-verification/20260529T105834Z/git-status-before-verification.log
+cargo fmt check	PASS	0	.artifacts/release/mvp-candidate-verification/20260529T105834Z/cargo-fmt-check.log
+cargo test	PASS	0	.artifacts/release/mvp-candidate-verification/20260529T105834Z/cargo-test.log
+cargo clippy strict	PASS	0	.artifacts/release/mvp-candidate-verification/20260529T105834Z/cargo-clippy-strict.log
+root verifier	FAIL	1	.artifacts/release/mvp-candidate-verification/20260529T105834Z/root-verifier.log
+git status after verification	PASS	0	.artifacts/release/mvp-candidate-verification/20260529T105834Z/git-status-after-verification.log

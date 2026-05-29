@@ -1,33 +1,60 @@
 #!/usr/bin/env python3
 """
-Check that every Markdown file under docs/, work/, and .monad/ starts with YAML frontmatter.
+Check that first-party Monad Markdown records start with YAML frontmatter.
 
-This intentionally avoids external dependencies so the earliest Monad repository
-verification baseline works on any machine with Python 3 installed.
+Generated artifacts, vendored dependencies, build output, and imported DeepWiki
+dumps are intentionally excluded because they are not first-party Monad docs.
 """
 
 from pathlib import Path
 
 
-# These are the repository areas where Markdown files are expected to be
-# project records, documentation records, work records, or context records.
 ROOTS_TO_SCAN = [
     Path("docs"),
     Path("work"),
     Path(".monad"),
 ]
 
+IGNORED_PATH_PARTS = {
+    ".artifacts",
+    "node_modules",
+    "target",
+    ".git",
+}
+
+IGNORED_PREFIXES = (
+    Path("docs/wiki/.artifacts"),
+    Path("docs/wiki/deepwiki-dump-monad-workspace"),
+    Path(".monad/reports"),
+    Path(".monad/context/generated"),
+)
+
+
+def should_ignore(path: Path) -> bool:
+    if any(part in IGNORED_PATH_PARTS for part in path.parts):
+        return True
+
+    for prefix in IGNORED_PREFIXES:
+        try:
+            path.relative_to(prefix)
+            return True
+        except ValueError:
+            pass
+
+    return False
+
 
 def main() -> int:
     missing_frontmatter: list[str] = []
 
     for root in ROOTS_TO_SCAN:
-        # Some roots may not exist during very early bootstrapping.
-        # Missing required roots are checked by check-required-paths.py.
         if not root.exists():
             continue
 
         for path in sorted(root.rglob("*.md")):
+            if should_ignore(path):
+                continue
+
             text = path.read_text(encoding="utf-8")
 
             if not text.startswith("---\n"):
@@ -39,7 +66,7 @@ def main() -> int:
             print(f"  {item}")
         return 1
 
-    print("All docs/work/.monad Markdown files have YAML frontmatter.")
+    print("All first-party docs/work/.monad Markdown files have YAML frontmatter.")
     return 0
 
 
