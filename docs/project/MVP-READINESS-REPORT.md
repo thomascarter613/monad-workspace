@@ -394,6 +394,16 @@ Status:
 
 * Documented in this report.
 
+## Scope freeze
+
+The internal MVP candidate scope is formally frozen in:
+
+```text
+docs/project/MVP-SCOPE-FREEZE.md
+```
+
+That document is controlling for included capabilities, deferred capabilities, and prohibited release claims during E8.
+
 ## 7. Final MVP cut line
 
 The final MVP cut line is:
