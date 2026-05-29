@@ -1,0 +1,56 @@
+name: Build Binary
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux-x86_64:
+    name: Build Linux x86_64 binary
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build output
+        uses: Swatinem/rust-cache@v2
+
+      - name: Show Rust version
+        run: rustc --version && cargo --version
+
+      - name: Run verification
+        run: |
+          cargo fmt --check
+          cargo test
+          cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build release binary
+        run: cargo build --release -p monad-cli
+
+      - name: Stage artifact
+        run: |
+          mkdir -p dist
+          cp target/release/monad dist/monad-linux-x86_64
+          chmod +x dist/monad-linux-x86_64
+          tar -C dist -czf dist/monad-linux-x86_64.tar.gz monad-linux-x86_64
+          sha256sum dist/monad-linux-x86_64.tar.gz > dist/monad-linux-x86_64.tar.gz.sha256
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: monad-linux-x86_64
+          path: |
+            dist/monad-linux-x86_64.tar.gz
+            dist/monad-linux-x86_64.tar.gz.sha256
+          if-no-files-found: error
