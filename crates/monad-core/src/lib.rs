@@ -18,6 +18,7 @@ pub mod file_ops;
 pub mod git;
 pub mod manifest;
 pub mod output;
+pub mod policy;
 pub mod repo_contract;
 pub mod repository_context_pack;
 pub mod repository_graph;
@@ -211,6 +212,11 @@ pub use agents::{
     ModelProviderCapabilities, ModelProviderMetadata, ModelRequest, ModelResponse,
     build_agent_plan_with_provider, build_local_agent_plan, render_agent_plan,
     render_draft_sandbox,
+};
+
+pub use policy::{
+    ApprovalDecision, ApprovalDecisionKind, ApprovalGate, ApprovalGateId, ApprovalGateKind,
+    ApprovalRequirement, AuditActor, AuditEvent, AuditEventKind, AuditLog, ProposedAction,
 };
 
 #[cfg(test)]
