@@ -237,7 +237,7 @@ impl CliCommand {
             ["context", other, ..] => Err(format!("unknown context subcommand: {other}")),
             ["evolve", "verify-baseline"] => {
                 reject_write_for_non_context(write)?;
-                require_dry_run_for_evolve(dry_run)?;
+                require_dry_run_for_evolve("verify-baseline", dry_run)?;
                 reject_format_for_evolve(requested_format.as_deref())?;
                 Ok(Self::EvolveVerifyBaseline { dry_run })
             }
@@ -247,7 +247,7 @@ impl CliCommand {
             }
             ["evolve", "context-baseline"] => {
                 reject_write_for_non_context(write)?;
-                require_dry_run_for_evolve(dry_run)?;
+                require_dry_run_for_evolve("context-baseline", dry_run)?;
                 reject_format_for_evolve(requested_format.as_deref())?;
                 Ok(Self::EvolveContextBaseline { dry_run })
             }
@@ -326,11 +326,13 @@ fn reject_write_for_non_context(write: bool) -> Result<(), String> {
 /// Requires dry-run mode for early evolution commands.
 ///
 /// WP-E5-004 intentionally does not add apply/write behavior.
-fn require_dry_run_for_evolve(dry_run: bool) -> Result<(), String> {
+fn require_dry_run_for_evolve(command_name: &str, dry_run: bool) -> Result<(), String> {
     if dry_run {
         Ok(())
     } else {
-        Err("evolve verify-baseline currently requires --dry-run".to_string())
+        Err(format!(
+            "evolve {command_name} currently requires --dry-run; write/apply behavior is not implemented"
+        ))
     }
 }
 
@@ -398,21 +400,29 @@ fn help_text() -> String {
         "Monad",
         "",
         "Usage:",
-        "  monad [command] [--format=<format>] [--write]",
+        "  monad [command] [--format=<format>] [--write] [--dry-run]",
         "",
-        "Commands:",
-        "  info                              Show workspace summary",
-        "  check                             Run workspace checks",
-        "  inspect                           Inspect repository structure",
-        "  graph                             Render repository graph",
-        "  context                           Render AI-readable repository context pack",
-        "  context generate current-state    Generate current-state artifact",
-        "  context generate handoff          Generate latest handoff artifact",
-        "  context generate bootstrap        Generate bootstrap prompt for AI sessions",
-        "  context pack                      Assemble project-level context pack",
-        "  context verify                    Verify context files exist and are well-formed",
-        "  version                           Show runtime version",
-        "  help                              Show this help",
+        "Core commands:",
+        "  info                                      Show workspace summary",
+        "  check                                     Run workspace checks",
+        "  inspect                                   Inspect repository structure",
+        "  graph                                     Render repository graph",
+        "  plan \"<intent>\"                          Produce a supervised no-write plan",
+        "  version                                   Show runtime version",
+        "  help                                      Show this help",
+        "",
+        "Context commands:",
+        "  context                                   Render AI-readable repository context pack",
+        "  context --write                           Export repository context pack files",
+        "  context generate current-state            Generate current-state artifact",
+        "  context generate handoff                  Generate latest handoff artifact",
+        "  context generate bootstrap                Generate bootstrap prompt for AI sessions",
+        "  context pack                              Assemble project-level context pack",
+        "  context verify                            Verify context files exist and are well-formed",
+        "",
+        "Evolution dry-run commands:",
+        "  evolve verify-baseline --dry-run          Preview verification baseline files",
+        "  evolve context-baseline --dry-run         Preview context baseline files",
         "",
         "General formats:",
         "  text",
@@ -430,17 +440,18 @@ fn help_text() -> String {
         "  text",
         "  json",
         "",
-        "Context write mode:",
-        "  monad context --write",
+        "Examples:",
+        "  monad inspect",
+        "  monad check --format=json",
+        "  monad graph --format=mermaid",
+        "  monad plan \"explain this repository\"",
+        "  monad evolve verify-baseline --dry-run",
+        "  monad evolve context-baseline --dry-run",
         "",
-        "Context generation:",
-        "  monad context generate current-state",
-        "  monad context generate handoff",
-        "  monad context generate bootstrap",
-        "  monad context pack",
-        "",
-        "Context verification:",
-        "  monad context verify",
+        "Safety notes:",
+        "  plan is no-write and does not run commands.",
+        "  evolve commands are dry-run only in this MVP hardening phase.",
+        "  --write is only supported for the context command.",
     ]
     .join("\n")
 }
@@ -1143,4 +1154,76 @@ mod tests {
 
         assert!(text.contains("context verify"));
     }
+    #[test]
+    fn plan_command_parses_multi_word_intent() {
+        assert_eq!(
+            parse_arguments(&["monad", "plan", "explain", "this", "repository"])
+                .expect("plan should parse"),
+            CliCommand::Plan {
+                intent: "explain this repository".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn plan_without_intent_returns_actionable_error() {
+        let error = parse_arguments(&["monad", "plan"]).expect_err("plan without intent should fail");
+
+        assert!(error.contains("missing plan intent"));
+        assert!(error.contains("explain this repository"));
+    }
+
+    #[test]
+    fn plan_rejects_format_flags_for_now() {
+        let error = parse_arguments(&["monad", "plan", "explain", "--format=json"])
+            .expect_err("plan should reject --format for now");
+
+        assert_eq!(error, "--format is not supported for plan yet");
+    }
+
+    #[test]
+    fn evolve_verify_baseline_requires_dry_run_with_specific_error() {
+        let error = parse_arguments(&["monad", "evolve", "verify-baseline"])
+            .expect_err("verify-baseline should require dry-run");
+
+        assert!(error.contains("evolve verify-baseline currently requires --dry-run"));
+        assert!(error.contains("write/apply behavior is not implemented"));
+    }
+
+    #[test]
+    fn evolve_context_baseline_requires_dry_run_with_specific_error() {
+        let error = parse_arguments(&["monad", "evolve", "context-baseline"])
+            .expect_err("context-baseline should require dry-run");
+
+        assert!(error.contains("evolve context-baseline currently requires --dry-run"));
+        assert!(error.contains("write/apply behavior is not implemented"));
+    }
+
+    #[test]
+    fn evolve_dry_run_commands_parse() {
+        assert_eq!(
+            parse_arguments(&["monad", "evolve", "verify-baseline", "--dry-run"])
+                .expect("verify-baseline dry-run should parse"),
+            CliCommand::EvolveVerifyBaseline { dry_run: true }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "evolve", "context-baseline", "--dry-run"])
+                .expect("context-baseline dry-run should parse"),
+            CliCommand::EvolveContextBaseline { dry_run: true }
+        );
+    }
+
+    #[test]
+    fn help_text_mentions_plan_and_evolve_dry_run_commands() {
+        let text = help_text();
+
+        assert!(text.contains("plan \"<intent>\""));
+        assert!(text.contains("monad plan \"explain this repository\""));
+        assert!(text.contains("evolve verify-baseline --dry-run"));
+        assert!(text.contains("evolve context-baseline --dry-run"));
+        assert!(text.contains("dry-run only"));
+        assert!(text.contains("plan is no-write"));
+    }
+
 }
