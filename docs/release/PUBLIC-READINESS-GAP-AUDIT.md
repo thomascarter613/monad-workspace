@@ -13,3 +13,13 @@ GitHub reported two high-severity alerts:
 
 Decision: these alerts are real public-readiness blockers while the manifest remains committed, but they do not indicate a vulnerability in Monad's Rust CLI runtime. The repository should not commit generated/imported DeepWiki npm dependency metadata under `docs/`.
 
+## Public pre-release checklist
+
+The public pre-release gate checklist is maintained in:
+
+```text
+PUBLIC-PRERELEASE-CHECKLIST.md
+```
+
+The current audit remains a no-go posture until the checklist gates are satisfied or explicitly deferred through a documented release decision.
+

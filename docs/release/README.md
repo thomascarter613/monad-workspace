@@ -62,3 +62,15 @@ E8 release documentation does not add:
 - binary signing
 - distribution channels
 - public release announcement text
+
+## Public pre-release readiness
+
+Monad's public pre-release gates are tracked in:
+
+```text
+PUBLIC-PRERELEASE-CHECKLIST.md
+```
+
+The checklist is a release gate. It does not authorize a public release by itself.
+
+A public pre-release must not proceed until P0/P1 readiness blockers are resolved or formally deferred through a documented release decision.
