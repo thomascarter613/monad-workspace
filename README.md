@@ -158,3 +158,33 @@ See:
 ```text
 LICENSE
 ```
+
+## Local development
+
+Monad is currently preparing for an internal MVP candidate cut.
+
+Local development documentation:
+
+- [Local Build Guide](docs/development/LOCAL-BUILD.md)
+- [Local Verification Guide](docs/development/LOCAL-VERIFY.md)
+- [MVP Command Reference](docs/project/MVP-COMMAND-REFERENCE.md)
+- [MVP Scope Freeze](docs/project/MVP-SCOPE-FREEZE.md)
+
+Run the CLI locally through Cargo:
+
+```bash
+cargo run -p monad-cli -- --help
+cargo run -p monad-cli -- version
+cargo run -p monad-cli -- inspect
+```
+
+Run the baseline verification set:
+
+```bash
+cargo fmt --check
+cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+tools/scripts/verify.sh
+```
+
+Monad is not yet a public release, published package, installer distribution, hosted service, or autonomous agent runtime.
