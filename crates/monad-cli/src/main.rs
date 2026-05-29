@@ -442,6 +442,7 @@ fn help_text() -> String {
         "",
         "Examples:",
         "  monad inspect",
+        "  monad context --write",
         "  monad check --format=json",
         "  monad graph --format=mermaid",
         "  monad plan \"explain this repository\"",
