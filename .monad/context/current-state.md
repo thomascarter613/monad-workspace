@@ -5,7 +5,7 @@ artifact_type: "current-state"
 status: "current"
 generated: true
 reviewed: false
-epic: "E9"
+epic: "E10"
 source_files:
   - "crates/monad-core/src/lib.rs"
   - "monad.toml"
@@ -23,14 +23,15 @@ Monad is AI-native, repo-native, local-first Software Foundry OS for understandi
 E0 — Project Foundation is complete.
 E1 — Runtime Foundation is complete.
 E2 — Repository Intelligence Foundation is complete.
+E9 — Post-MVP Candidate Stabilization and Public-Readiness Gap Closure is complete.
 
 ## Current Epic
 
-E9 — Post-MVP Candidate Stabilization and Public-Readiness Gap Closure
+E10 — Public Pre-Release Hardening and Boundary Enforcement
 
 ## Active Focus
 
-The current focus is E9 — Post-MVP Candidate Stabilization and Public-Readiness Gap Closure.
+The current focus is E10 — Public Pre-Release Hardening and Boundary Enforcement.
 
 ## Runtime Capabilities
 

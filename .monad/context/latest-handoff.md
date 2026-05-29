@@ -5,7 +5,7 @@ artifact_type: "handoff"
 status: "current"
 generated: true
 reviewed: false
-epic: "E9"
+epic: "E10"
 source_files:
   - "crates/monad-core/src/lib.rs"
   - "monad.toml"
@@ -21,12 +21,12 @@ Monad is AI-native, repo-native, local-first Software Foundry OS for understandi
 
 ## Current Status
 
-3 of 4 epics completed. 35 of 41 work packets completed.
-Active epic: E9 — Post-MVP Candidate Stabilization and Public-Readiness Gap Closure.
+4 of 5 epics completed. 35 of 41 work packets completed.
+Active epic: E10 — Public Pre-Release Hardening and Boundary Enforcement.
 
 ## Active Epic
 
-E9 — Post-MVP Candidate Stabilization and Public-Readiness Gap Closure
+E10 — Public Pre-Release Hardening and Boundary Enforcement
 
 ## Active Work Packet
 
@@ -37,6 +37,7 @@ None.
 - E0 — Project Foundation (epic complete)
 - E1 — Runtime Foundation (epic complete)
 - E2 — Repository Intelligence Foundation (epic complete)
+- E9 — Post-MVP Candidate Stabilization and Public-Readiness Gap Closure (epic complete)
 - WP-E0-001 — Establish Repository Foundation (work packet complete)
 - WP-E0-002 — Establish Documentation Architecture (work packet complete)
 - WP-E0-003 — Establish Context Bridge Foundation (work packet complete)
@@ -77,7 +78,7 @@ None.
 
 - `monad.toml`
 - `crates/monad-core/src/lib.rs`
-- `work/epics/E9-post-mvp-candidate-stabilization-and-public-readiness-gap-closure.md`
+- `work/epics/E10-public-pre-release-hardening-and-boundary-enforcement.md`
 - `crates/monad-core/src/agents.rs`
 - `crates/monad-core/src/checks.rs`
 - `crates/monad-core/src/context.rs`
@@ -116,7 +117,7 @@ No known blockers.
 
 ## Next Recommended Action
 
-Continue epic E9 — Post-MVP Candidate Stabilization and Public-Readiness Gap Closure.
+Continue epic E10 — Public Pre-Release Hardening and Boundary Enforcement.
 
 ## Instructions for Next Assistant
 

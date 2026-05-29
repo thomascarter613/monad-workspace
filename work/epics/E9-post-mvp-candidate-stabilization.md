@@ -1,7 +1,7 @@
 ---
 title: Post-MVP Candidate Stabilization and Public-Readiness Gap Closure
 epic: E9
-status: in-progress
+status: complete
 priority: high
 size: large
 created: 2026-05-29
