@@ -419,3 +419,15 @@ The E0–E6 foundation phase established the core conceptual and technical skele
 The project should now stop expanding the foundation and begin proving it.
 
 The next phase is MVP hardening.
+
+## E7 MVP hardening closeout
+
+E7 MVP hardening has produced a dedicated MVP readiness report:
+
+```text
+docs/project/MVP-READINESS-REPORT.md
+```
+
+The readiness report is the controlling closeout artifact for deciding whether Monad may be treated as an internal MVP candidate.
+
+Monad should not be treated as a public release, published package, hosted product, or autonomous agent platform until a later release-preparation milestone explicitly approves that scope.

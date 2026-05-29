@@ -35,18 +35,25 @@ The current focus is E2 — Repository Intelligence Foundation.
 
 Public modules in `monad-core`:
 
+- `agents`
 - `checks`
 - `context`
 - `dependency_detection`
 - `diagnostics`
 - `error`
+- `evolution`
+- `exec`
+- `file_ops`
+- `git`
 - `manifest`
 - `output`
+- `policy`
 - `repo_contract`
 - `repository_context_pack`
 - `repository_graph`
 - `repository_inspection`
 - `repository_policy`
+- `templates`
 - `toolchain_detection`
 - `workspace`
 

@@ -79,18 +79,25 @@ WP-E2-001 — Establish Repository Inspection Foundation
 - `monad.toml`
 - `crates/monad-core/src/lib.rs`
 - `work/epics/E2-repository-intelligence-foundation.md`
+- `crates/monad-core/src/agents.rs`
 - `crates/monad-core/src/checks.rs`
 - `crates/monad-core/src/context.rs`
 - `crates/monad-core/src/dependency_detection.rs`
 - `crates/monad-core/src/diagnostics.rs`
 - `crates/monad-core/src/error.rs`
+- `crates/monad-core/src/evolution.rs`
+- `crates/monad-core/src/exec.rs`
+- `crates/monad-core/src/file_ops.rs`
+- `crates/monad-core/src/git.rs`
 - `crates/monad-core/src/manifest.rs`
 - `crates/monad-core/src/output.rs`
+- `crates/monad-core/src/policy.rs`
 - `crates/monad-core/src/repo_contract.rs`
 - `crates/monad-core/src/repository_context_pack.rs`
 - `crates/monad-core/src/repository_graph.rs`
 - `crates/monad-core/src/repository_inspection.rs`
 - `crates/monad-core/src/repository_policy.rs`
+- `crates/monad-core/src/templates.rs`
 - `crates/monad-core/src/toolchain_detection.rs`
 - `crates/monad-core/src/workspace.rs`
 
