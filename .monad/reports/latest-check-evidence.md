@@ -8,12 +8,12 @@
 
 ## Summary
 
-- Result: failed
+- Result: passed
 - Checks run: 7
-- Passed: 5
-- Failed: 1
+- Passed: 7
+- Failed: 0
 - Warnings: 0
-- Skipped: 1
+- Skipped: 0
 - Commands summarized: 2
 
 ## Check Results
@@ -25,8 +25,8 @@
 | `MONAD-CHECK-0003` | passed | cargo 1.95.0 (f2d3ce0bd 2026-03-21) (Homebrew) |
 | `MONAD-CHECK-RUST-0001` | passed | cargo 1.95.0 (f2d3ce0bd 2026-03-21) (Homebrew) |
 | `MONAD-CHECK-RUST-0002` | passed | Cargo manifest exists: Cargo.toml |
-| `MONAD-CHECK-JS-0001` | failed | JavaScript or TypeScript was detected but package.json was not found at the workspace root. |
-| `MONAD-CHECK-JS-0002` | skipped | No supported JavaScript lockfile found at the workspace root; command execution skipped. |
+| `MONAD-CHECK-JS-0001` | passed | JavaScript manifest exists: package.json |
+| `MONAD-CHECK-JS-0002` | passed | package-manager lockfile exists: bun.lock |
 
 ## Command Outcomes
 
@@ -39,4 +39,3 @@
 
 - This evidence packet is unsigned and is intended for human review only.
 - This packet does not provide SLSA provenance, SBOM output, or compliance attestation.
-- One or more checks failed; review failed check details before trusting the repository state.
