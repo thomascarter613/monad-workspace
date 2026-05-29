@@ -93,3 +93,7 @@ test -f "${CONTEXT_GENERATED_DIR}/repository-context-pack.json"
 cleanup_generated_context
 
 echo "Verification baseline passed."
+
+echo
+echo "==> Verifying no-write planning and dry-run commands"
+tools/scripts/verify-no-write-commands.sh

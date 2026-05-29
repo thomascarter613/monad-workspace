@@ -138,6 +138,22 @@ fn plan_command_smoke_test() {
         &["plan", "explain", "this", "repository"],
         "Monad supervised plan",
     );
+    assert_success_contains(
+        &["plan", "explain", "this", "repository"],
+        "No files were created, updated, or deleted.",
+    );
+    assert_success_contains(
+        &["plan", "explain", "this", "repository"],
+        "No shell commands were run.",
+    );
+    assert_success_contains(
+        &["plan", "explain", "this", "repository"],
+        "No Git state was changed.",
+    );
+    assert_success_contains(
+        &["plan", "explain", "this", "repository"],
+        "No real model provider or external AI API was called.",
+    );
 }
 
 #[test]
@@ -174,7 +190,11 @@ fn evolve_context_baseline_requires_dry_run_smoke_test() {
 fn evolve_verify_baseline_dry_run_smoke_test() {
     assert_success_contains(
         &["evolve", "verify-baseline", "--dry-run"],
-        "dry-run",
+        "Mode: dry-run",
+    );
+    assert_success_contains(
+        &["evolve", "verify-baseline", "--dry-run"],
+        "No files were written.",
     );
 }
 
@@ -182,7 +202,15 @@ fn evolve_verify_baseline_dry_run_smoke_test() {
 fn evolve_context_baseline_dry_run_smoke_test() {
     assert_success_contains(
         &["evolve", "context-baseline", "--dry-run"],
-        "dry-run",
+        "Mode: dry-run",
+    );
+    assert_success_contains(
+        &["evolve", "context-baseline", "--dry-run"],
+        "No files were written.",
+    );
+    assert_success_contains(
+        &["evolve", "context-baseline", "--dry-run"],
+        "No AI summarization was performed.",
     );
 }
 
