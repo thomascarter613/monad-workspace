@@ -1,3 +1,15 @@
+---
+title: Wiki Structure
+description: Imported wiki structure reference for Monad workspace.
+status: imported
+version: 0.1.0
+created: 2026-05-29
+updated: 2026-05-29
+owner: Thomas Carter
+project: Monad
+source: DeepWiki
+---
+
 Available pages for thomascarter613/monad-workspace:
 
 - 1 Monad: Project Overview
