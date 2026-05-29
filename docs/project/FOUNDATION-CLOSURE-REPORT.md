@@ -150,6 +150,12 @@ The project should not move toward autonomous coding until planning, dry-run, ap
 
 ## 5. Current known command surface to verify
 
+The current MVP command surface is now tracked in:
+
+```text
+docs/project/MVP-COMMAND-REFERENCE.md
+```
+
 The following commands should be treated as the current foundation command surface for hardening:
 
 ```bash
