@@ -79,3 +79,8 @@ docs/wiki/deepwiki-dump-*/pnpm-lock.yaml
 docs/wiki/deepwiki-dump-*/bun.lockb
 docs/wiki/deepwiki-dump-*/yarn.lock
 docs/wiki/deepwiki-dump-*/node_modules/
+
+# Imported/generated DeepWiki artifacts must not be treated as first-party dependencies.
+
+# Generated Monad operational reports.
+.monad/reports/
