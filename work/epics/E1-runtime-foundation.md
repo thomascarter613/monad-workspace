@@ -1,7 +1,7 @@
 ---
 title: "E1 — Runtime Foundation"
 document_type: "epic"
-status: "complete"
+status: complete
 version: "1.0.0"
 created: "2026-05-23"
 updated: "2026-05-24"

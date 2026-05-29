@@ -27,7 +27,7 @@ source_files:
 
 **Project:** Monad
 **Description:** Monad is an AI-native, repo-native, local-first Software Foundry OS for understanding, verifying, and safely evolving software repositories.
-**Progress:** 2 of 3 epics completed.
+**Progress:** 3 of 4 epics completed.
 
 ## Source of Truth
 
@@ -50,10 +50,8 @@ Read these files in order before beginning any work:
 
 ## Current Work
 
-**Active Epic:** E2 — Repository Intelligence Foundation
-**Active Work Packet:** WP-E2-001 — Establish Repository Inspection Foundation
-
-Read the work packet file for scope, tasks, deliverables, and verification commands.
+**Active Epic:** E9 — Post-MVP Candidate Stabilization and Public-Readiness Gap Closure
+**Active Work Packet:** None
 
 ## Workflow Rules
 
