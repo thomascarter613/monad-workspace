@@ -98,6 +98,11 @@ Expected follow-up categories:
 - dry-run/no-write hardening for WP-E7-005
 - readiness conclusions for WP-E7-006
 
+### WP-E7-002 follow-up
+
+The root verification failure discovered during WP-E7-001 was rechecked after CLI help and command UX normalization. The verifier should be treated according to the latest `tools/scripts/verify.sh` result.
+
+
 ## 8. Closure status
 
 WP-E7-001 should be considered complete when:
