@@ -503,30 +503,3 @@ echo "  WP-E16-003 #$WP_E16_003"
 echo "  WP-E16-004 #$WP_E16_004"
 echo "  WP-E16-005 #$WP_E16_005"
 echo "  WP-E16-006 #$WP_E16_006"
-```
-
-Run it:
-
-```bash
-chmod +x tools/github/seed-e16-issues.sh
-tools/github/seed-e16-issues.sh
-```
-
-Commit it:
-
-```bash
-git add tools/github/seed-e16-issues.sh
-git commit -m "chore(github): add e16 issue seeding script"
-git push
-```
-
-## Roadmap Position
-
-```text
-E10 — Public Pre-Release Hardening and Boundary Enforcement
-E11 — Init Command and Monorepo Scaffold Foundation
-E12 — Component Add and Polyglot Scaffold Foundation
-E13 — Task Execution and Native Tool Orchestration Foundation
-E14 — Manifest Sync and Repository Contract Foundation
-E15 — Doctor and Environment Diagnostics Foundation
-E16 — Release and Distribution Foundation
