@@ -54,7 +54,7 @@ WP-E10-002 — Convert public pre-release checklist into pass/fail evidence.
 | Implemented command surface documented | Pass | `docs/project/MVP-COMMAND-REFERENCE.md`, `README.md` |
 | Future commands clearly bounded | Pass, assuming WP-E10-001 has been applied | `README.md`, `docs/release/PUBLIC-CLAIMS-AUDIT.md` |
 | Source/package posture decided | Pass | `docs/release/PUBLIC-PRERELEASE-DISTRIBUTION-POSTURE.md` |
-| Public pre-release notes drafted | Pending | WP-E10-004 remains required |
+| Public pre-release notes drafted | Pass | `docs/release/PUBLIC-PRERELEASE-NOTES.md` |
 | Final verification audit complete | Pending | WP-E10-005 remains required |
 | Tag/release decision made | Pending | WP-E10-006 remains required |
 | Hosted/SaaS launch | Deferred | Out of scope for E10 |
@@ -84,8 +84,8 @@ WP-E10-002 — Convert public pre-release checklist into pass/fail evidence.
 
 | Check | Status | Evidence | Notes |
 | --- | --- | --- | --- |
-| Public pre-release notes exist. | Pending | WP-E10-004 | Required before any public tag. |
-| Known limitations are documented. | Pending | WP-E10-004 | Should include dry-run-only evolution and no apply behavior. |
+| Public pre-release notes exist. | Pass | `docs/release/PUBLIC-PRERELEASE-NOTES.md` | Source-only public pre-release notes drafted. |
+| Known limitations are documented. | Pass | `docs/release/PUBLIC-PRERELEASE-NOTES.md` | Dry-run-only evolution, no apply behavior, no installer/package distribution, and no autonomous runtime are documented. |
 | Build/run instructions are current. | Pending | WP-E10-004 / WP-E10-005 | Must be verified against local commands. |
 | Upgrade/install expectations are bounded. | Pending | WP-E10-003 / WP-E10-004 | Must not imply installer/package availability unless approved. |
 
@@ -120,13 +120,12 @@ Reason:
 
 ```text
 The public claims audit and source-only distribution posture gates are addressed, but
-release notes, final verification, and tag decision gates remain pending.
+final verification and tag decision gates remain pending.
 ```
 
 ## Required Remaining E10 Work
 
 ```text
-WP-E10-004 — Draft public pre-release notes
 WP-E10-005 — Run final public pre-release verification audit
 WP-E10-006 — Decide and cut first public pre-release tag, if approved
 ```
