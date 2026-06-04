@@ -5,9 +5,24 @@
 //! later E11 work packet.
 
 use crate::{
-    FileOperationPlan, MonadError, MonadResult, PlannedFileOperation, WorkspaceContext,
-    evaluate_file_operation_plan, render_dry_run_plan,
+    FileOperationPlan, MonadError, MonadResult, PlannedFileOperation, TemplateDefinition,
+    WorkspaceContext, evaluate_file_operation_plan, initial_template_registry, render_dry_run_plan,
 };
+
+const MINIMAL_TEMPLATE_IDS: &[&str] = &[
+    "init.minimal.monad-toml",
+    "init.minimal.readme",
+    "init.minimal.docs-readme",
+    "init.minimal.work-readme",
+    "init.minimal.monad-gitignore",
+];
+
+const POLYGLOT_TEMPLATE_IDS: &[&str] = &[
+    "init.polyglot.apps-gitkeep",
+    "init.polyglot.packages-gitkeep",
+    "init.polyglot.services-gitkeep",
+    "init.polyglot.tools-gitkeep",
+];
 
 /// Built-in initialization presets.
 ///
@@ -43,6 +58,16 @@ impl InitPreset {
             Self::Minimal => "minimal",
             Self::PolyglotMinimal => "polyglot-minimal",
         }
+    }
+
+    fn template_ids(self) -> Vec<&'static str> {
+        let mut ids = MINIMAL_TEMPLATE_IDS.to_vec();
+
+        if self == Self::PolyglotMinimal {
+            ids.extend_from_slice(POLYGLOT_TEMPLATE_IDS);
+        }
+
+        ids
     }
 }
 
@@ -92,53 +117,31 @@ impl Default for InitPlanOptions {
 ///
 /// This plan is intentionally review-only. It lists what Monad would create
 /// for the selected preset but does not write anything.
-#[must_use]
-pub fn build_init_plan(options: &InitPlanOptions) -> FileOperationPlan {
-    let mut operations = vec![
-        PlannedFileOperation::create(
-            "monad.toml",
-            "create Monad manifest describing repository intent",
-        ),
-        PlannedFileOperation::create(
-            "README.md",
-            "create repository README entry point if one does not already exist",
-        ),
-        PlannedFileOperation::create(
-            "docs/README.md",
-            "create documentation directory entry point",
-        ),
-        PlannedFileOperation::create(
-            "work/README.md",
-            "create work-tracking directory entry point",
-        ),
-        PlannedFileOperation::create(
-            ".monad/.gitignore",
-            "create Monad local/generated state ignore policy",
-        ),
-    ];
+pub fn build_init_plan(options: &InitPlanOptions) -> MonadResult<FileOperationPlan> {
+    let registry = initial_template_registry()?;
+    let mut operations = Vec::new();
 
-    if options.preset() == InitPreset::PolyglotMinimal {
-        operations.extend([
-            PlannedFileOperation::create(
-                "apps/.gitkeep",
-                "create apps directory placeholder for polyglot workspace layout",
-            ),
-            PlannedFileOperation::create(
-                "packages/.gitkeep",
-                "create packages directory placeholder for shared libraries",
-            ),
-            PlannedFileOperation::create(
-                "services/.gitkeep",
-                "create services directory placeholder for service workloads",
-            ),
-            PlannedFileOperation::create(
-                "tools/.gitkeep",
-                "create tools directory placeholder for repository tooling",
-            ),
-        ]);
+    for template_id in options.preset().template_ids() {
+        let template = registry.get_by_str(template_id).ok_or_else(|| {
+            MonadError::not_found(format!("init template `{template_id}` was not found"))
+        })?;
+
+        operations.push(planned_create_from_template(template));
     }
 
-    FileOperationPlan::from_operations(operations)
+    Ok(FileOperationPlan::from_operations(operations))
+}
+
+fn planned_create_from_template(template: &TemplateDefinition) -> PlannedFileOperation {
+    PlannedFileOperation::create(
+        template.metadata().target_path().to_path_buf(),
+        format!(
+            "create `{}` from embedded template `{}` ({})",
+            template.metadata().target_path().display(),
+            template.id().as_str(),
+            template.metadata().description()
+        ),
+    )
 }
 
 /// Renders the init dry-run plan for the selected workspace.
@@ -149,7 +152,7 @@ pub fn render_init_dry_run(
     context: &WorkspaceContext,
     options: &InitPlanOptions,
 ) -> MonadResult<String> {
-    let plan = build_init_plan(options);
+    let plan = build_init_plan(options)?;
     let dry_run = evaluate_file_operation_plan(context.root(), &plan);
     let project_name = options
         .project_name()
@@ -170,10 +173,14 @@ pub fn render_init_dry_run(
         format!("  project: {project_name}"),
         format!("  preset: {}", options.preset().as_str()),
         String::new(),
+        "Template source:".to_string(),
+        "  registry: embedded".to_string(),
+        format!("  templates: {}", plan.len()),
+        String::new(),
         "Safety:".to_string(),
         "  mode: dry-run".to_string(),
         "  writes: disabled".to_string(),
-        "  apply: not implemented in WP-E11-002".to_string(),
+        "  apply: not implemented in WP-E11-003".to_string(),
         "  approval_flag: --yes reserved for WP-E11-004".to_string(),
         String::new(),
         render_dry_run_plan(&dry_run),
@@ -231,8 +238,8 @@ mod tests {
     }
 
     #[test]
-    fn minimal_init_plan_contains_foundation_files() {
-        let plan = build_init_plan(&InitPlanOptions::minimal());
+    fn minimal_init_plan_contains_foundation_files_from_templates() -> MonadResult<()> {
+        let plan = build_init_plan(&InitPlanOptions::minimal())?;
 
         let targets: Vec<String> = plan
             .operations()
@@ -245,14 +252,22 @@ mod tests {
         assert!(targets.contains(&"docs/README.md".to_string()));
         assert!(targets.contains(&"work/README.md".to_string()));
         assert!(targets.contains(&".monad/.gitignore".to_string()));
+
+        assert!(
+            plan.operations()
+                .iter()
+                .any(|operation| operation.explanation().contains("init.minimal.monad-toml"))
+        );
+
+        Ok(())
     }
 
     #[test]
-    fn polyglot_minimal_plan_contains_workspace_placeholders() {
+    fn polyglot_minimal_plan_contains_workspace_placeholders() -> MonadResult<()> {
         let plan = build_init_plan(&InitPlanOptions::new(
             InitPreset::PolyglotMinimal,
             Some("example".to_string()),
-        ));
+        ))?;
 
         let targets: Vec<String> = plan
             .operations()
@@ -264,6 +279,8 @@ mod tests {
         assert!(targets.contains(&"packages/.gitkeep".to_string()));
         assert!(targets.contains(&"services/.gitkeep".to_string()));
         assert!(targets.contains(&"tools/.gitkeep".to_string()));
+
+        Ok(())
     }
 
     #[test]
@@ -277,7 +294,7 @@ mod tests {
         })?;
 
         let context = WorkspaceContext::new(&root)?;
-        let plan = build_init_plan(&InitPlanOptions::minimal());
+        let plan = build_init_plan(&InitPlanOptions::minimal())?;
         let dry_run = evaluate_file_operation_plan(context.root(), &plan);
 
         assert!(
@@ -306,9 +323,11 @@ mod tests {
 
         assert!(output.contains("Monad init dry-run plan"));
         assert!(output.contains("preset: minimal"));
+        assert!(output.contains("Template source:"));
+        assert!(output.contains("init.minimal.monad-toml"));
         assert!(output.contains("monad.toml"));
         assert!(output.contains("No files were written."));
-        assert!(output.contains("WP-E11-002"));
+        assert!(output.contains("WP-E11-003"));
 
         fs::remove_dir_all(&root).ok();
 

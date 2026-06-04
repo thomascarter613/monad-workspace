@@ -53,7 +53,7 @@ cargo run -p monad-cli -- init --name=my-project --dry-run
 
 Expected behavior:
 
-* previews repository initialization file operations
+* previews embedded scaffold-template file operations
 * writes no files
 * rejects `--yes` until guarded write behavior is implemented
 * detects conflicts such as existing target files

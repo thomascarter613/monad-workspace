@@ -97,8 +97,9 @@ impl TemplateRegistry {
 
 /// Builds the initial embedded template registry.
 ///
-/// WP-E5-003 only needs the foundation, but including a tiny local registry
-/// proves the model supports deterministic embedded templates.
+/// The registry remains local and deterministic. It now includes the E5
+/// baseline templates plus the E11 init scaffold templates used by
+/// `monad init --dry-run`.
 pub fn initial_template_registry() -> MonadResult<TemplateRegistry> {
     TemplateRegistry::from_templates([
         TemplateDefinition::embedded(
@@ -116,6 +117,93 @@ pub fn initial_template_registry() -> MonadResult<TemplateRegistry> {
             "Creates a placeholder README for future context bridge documentation.",
             "docs/ai/README.md",
             "# AI Context\n\nThis directory contains AI-readable project context.\n",
+        ),
+        TemplateDefinition::embedded(
+            "init.minimal.monad-toml",
+            "Minimal Monad Manifest",
+            "1",
+            "Creates the initial Monad manifest for a repository.",
+            "monad.toml",
+            r#"# Monad repository manifest.
+schema_version = 1
+
+[project]
+name = "monad-project"
+display_name = "Monad Project"
+description = "A Monad-aware software repository."
+
+[workspace]
+members = []
+
+[runtime]
+core = "monad-core"
+cli = "monad-cli"
+execution_model = "local-first"
+"#,
+        ),
+        TemplateDefinition::embedded(
+            "init.minimal.readme",
+            "Minimal Repository README",
+            "1",
+            "Creates a minimal repository README entry point.",
+            "README.md",
+            "# Monad Project\n\nThis repository is initialized for Monad-aware local development.\n",
+        ),
+        TemplateDefinition::embedded(
+            "init.minimal.docs-readme",
+            "Minimal Documentation README",
+            "1",
+            "Creates a documentation directory entry point.",
+            "docs/README.md",
+            "# Documentation\n\nThis directory contains project documentation.\n",
+        ),
+        TemplateDefinition::embedded(
+            "init.minimal.work-readme",
+            "Minimal Work README",
+            "1",
+            "Creates a work-tracking directory entry point.",
+            "work/README.md",
+            "# Work\n\nThis directory contains repo-native work records.\n",
+        ),
+        TemplateDefinition::embedded(
+            "init.minimal.monad-gitignore",
+            "Minimal Monad State Gitignore",
+            "1",
+            "Creates a local/generated Monad state ignore policy.",
+            ".monad/.gitignore",
+            "# Local/generated Monad state.\n*\n!.gitignore\n",
+        ),
+        TemplateDefinition::embedded(
+            "init.polyglot.apps-gitkeep",
+            "Polyglot Apps Placeholder",
+            "1",
+            "Creates an apps directory placeholder.",
+            "apps/.gitkeep",
+            "",
+        ),
+        TemplateDefinition::embedded(
+            "init.polyglot.packages-gitkeep",
+            "Polyglot Packages Placeholder",
+            "1",
+            "Creates a packages directory placeholder.",
+            "packages/.gitkeep",
+            "",
+        ),
+        TemplateDefinition::embedded(
+            "init.polyglot.services-gitkeep",
+            "Polyglot Services Placeholder",
+            "1",
+            "Creates a services directory placeholder.",
+            "services/.gitkeep",
+            "",
+        ),
+        TemplateDefinition::embedded(
+            "init.polyglot.tools-gitkeep",
+            "Polyglot Tools Placeholder",
+            "1",
+            "Creates a tools directory placeholder.",
+            "tools/.gitkeep",
+            "",
         ),
     ])
 }
@@ -207,7 +295,31 @@ mod tests {
 
         assert!(registry.contains(&TemplateId::new("verify-baseline.readme")));
         assert!(registry.contains(&TemplateId::new("context-baseline.readme")));
-        assert_eq!(registry.len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn initial_registry_contains_minimal_init_templates() -> MonadResult<()> {
+        let registry = initial_template_registry()?;
+
+        assert!(registry.contains(&TemplateId::new("init.minimal.monad-toml")));
+        assert!(registry.contains(&TemplateId::new("init.minimal.readme")));
+        assert!(registry.contains(&TemplateId::new("init.minimal.docs-readme")));
+        assert!(registry.contains(&TemplateId::new("init.minimal.work-readme")));
+        assert!(registry.contains(&TemplateId::new("init.minimal.monad-gitignore")));
+
+        Ok(())
+    }
+
+    #[test]
+    fn initial_registry_contains_polyglot_init_templates() -> MonadResult<()> {
+        let registry = initial_template_registry()?;
+
+        assert!(registry.contains(&TemplateId::new("init.polyglot.apps-gitkeep")));
+        assert!(registry.contains(&TemplateId::new("init.polyglot.packages-gitkeep")));
+        assert!(registry.contains(&TemplateId::new("init.polyglot.services-gitkeep")));
+        assert!(registry.contains(&TemplateId::new("init.polyglot.tools-gitkeep")));
 
         Ok(())
     }

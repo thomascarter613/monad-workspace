@@ -397,3 +397,14 @@ monad init --name=my-project --dry-run
 The command is dry-run only in this slice.
 
 It renders a safe file-operation plan and writes no files.
+
+
+## WP-E11-003 Implementation Note
+
+WP-E11-003 adds embedded scaffold templates to the existing local template registry.
+
+`monad init --dry-run` now previews planned file operations sourced from embedded templates rather than hard-coded target paths.
+
+The command remains dry-run only.
+
+No files are written until the guarded write path is implemented in WP-E11-004.
