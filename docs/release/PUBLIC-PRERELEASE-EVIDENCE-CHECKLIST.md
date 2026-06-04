@@ -56,7 +56,7 @@ WP-E10-002 — Convert public pre-release checklist into pass/fail evidence.
 | Source/package posture decided | Pass | `docs/release/PUBLIC-PRERELEASE-DISTRIBUTION-POSTURE.md` |
 | Public pre-release notes drafted | Pass | `docs/release/PUBLIC-PRERELEASE-NOTES.md` |
 | Final verification audit complete | Pending | WP-E10-005 remains required |
-| Tag/release decision made | Pending | WP-E10-006 remains required |
+| Tag/release decision made | Pass |  |
 | Hosted/SaaS launch | Deferred | Out of scope for E10 |
 | Installer generation | Deferred unless explicitly approved | Out of scope for E10 unless later approved |
 | Crates.io/package publication | Deferred unless explicitly approved | Out of scope for E10 unless later approved |
@@ -103,10 +103,10 @@ WP-E10-002 — Convert public pre-release checklist into pass/fail evidence.
 
 | Check | Status | Evidence | Notes |
 | --- | --- | --- | --- |
-| Public pre-release go/no-go decision is documented. | Pending | WP-E10-006 | Must happen after gates above are reviewed. |
-| Tag decision is explicit. | Pending | WP-E10-006 | Either cut tag or defer it. |
-| If tag is cut, release evidence is attached. | Pending | WP-E10-006 | Required only if approved. |
-| If tag is deferred, blockers are documented. | Pending | WP-E10-006 | Required if not approved. |
+| Public pre-release go/no-go decision is documented. | Pass |  | Decision: Approved. |
+| Tag decision is explicit. | Pass |  | Decision: Approved. |
+| If tag is cut, release evidence is attached. | Pending |  | Tag cut remains a separate explicit command. |
+| If tag is deferred, blockers are documented. | Not Applicable |  | Tag approved. |
 
 ## Current Decision
 
@@ -127,7 +127,6 @@ final verification and tag decision gates remain pending.
 
 ```text
 WP-E10-005 — Run final public pre-release verification audit
-WP-E10-006 — Decide and cut first public pre-release tag, if approved
 ```
 
 ## Definition of Done for WP-E10-002
