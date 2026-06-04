@@ -10,7 +10,6 @@ contain the core sections needed for durable architectural decision records.
 from pathlib import Path
 import re
 
-
 ADR_DIR = Path("docs/06-adrs")
 
 REQUIRED_PATHS = [
@@ -18,6 +17,12 @@ REQUIRED_PATHS = [
     ADR_DIR / "ADR-0000-template.md",
     ADR_DIR / "ADR-0001-use-rust-for-core-runtime.md",
     ADR_DIR / "ADR-0002-use-monad-as-unified-product-name.md",
+    ADR_DIR / "ADR-0003-use-repo-native-context-as-source-of-truth.md",
+    ADR_DIR / "ADR-0004-use-work-packets-as-primary-delivery-unit.md",
+    ADR_DIR / "ADR-0005-use-multi-crate-rust-workspace.md",
+    ADR_DIR / "ADR-0006-keep-cli-thin-and-core-durable.md",
+    ADR_DIR / "ADR-0007-use-supervised-autonomy-for-agent-workflows.md",
+    ADR_DIR / "ADR-0008-coordinate-native-tools-rather-than-replace-them.md",
 ]
 
 ADR_FILENAME_PATTERN = re.compile(r"^ADR-\d{4}-[a-z0-9][a-z0-9-]*\.md$")
@@ -40,13 +45,11 @@ REQUIRED_NON_TEMPLATE_SECTIONS = [
 
 
 def split_frontmatter(text: str) -> tuple[str, str] | None:
-    """Return frontmatter and body if a Markdown file starts with YAML frontmatter."""
     if not text.startswith("---\n"):
         return None
 
     marker = "\n---\n"
     end = text.find(marker, len("---\n"))
-
     if end == -1:
         return None
 
@@ -67,7 +70,6 @@ def main() -> int:
             failures.append(f"Missing required ADR path: {required_path}")
 
     adr_files = sorted(ADR_DIR.glob("ADR-*.md"))
-
     if not adr_files:
         failures.append("No ADR files found under docs/06-adrs/.")
 
@@ -77,13 +79,11 @@ def main() -> int:
 
         text = path.read_text(encoding="utf-8")
         split = split_frontmatter(text)
-
         if split is None:
             failures.append(f"{path}: missing or malformed YAML frontmatter")
             continue
 
         frontmatter, body = split
-
         for key in REQUIRED_FRONTMATTER_KEYS:
             if key not in frontmatter:
                 failures.append(f"{path}: frontmatter missing {key}")
@@ -91,8 +91,6 @@ def main() -> int:
         if "# " not in body:
             failures.append(f"{path}: missing top-level Markdown heading")
 
-        # ADR-0000 is the template. It may describe required sections without
-        # itself being an accepted decision.
         if path.name.startswith("ADR-0000-"):
             continue
 
