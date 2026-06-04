@@ -1,21 +1,21 @@
 # Monad
 
-Monad is an AI-native, repo-native, local-first Software Foundry OS for understanding, verifying, and safely evolving software repositories.
+Monad is a Rust-first, repo-native, local-first developer tool being built toward an AI-native Software Foundry OS for understanding, verifying, and safely evolving software repositories.
 
-Monad is being built as a Rust-first developer tool that helps repositories become easier to inspect, explain, verify, document, hand off, and improve.
+The current implementation helps repositories become easier to inspect, explain, verify, document, hand off, and improve without overstating future capabilities that are not implemented yet.
 
 ## Current Status
 
-Monad is currently in the project foundation phase.
+Monad is currently in public pre-release hardening.
 
-The initial focus is:
+The repository has progressed beyond the initial project foundation phase into an internal MVP-candidate/public-readiness track. The current focus is:
 
-1. establish the repository foundation;
-2. establish the documentation architecture;
-3. establish the context bridge foundation;
-4. establish workflow standards;
-5. establish the initial product canon;
-6. then begin the Rust core foundation.
+1. keep public-facing claims aligned with implemented capability;
+2. preserve clear release and safety boundaries;
+3. verify the current command surface;
+4. document source-only versus packaged pre-release posture;
+5. prepare truthful public pre-release notes;
+6. explicitly decide whether a public pre-release tag should be cut.
 
 ## Product Thesis
 
@@ -82,7 +82,7 @@ docs/07-workflow/OPERATING-MODEL.md
 docs/07-workflow/WORK-PACKET-STANDARD.md
 ```
 
-## Planned MVP Epics
+## Foundation and Public-Readiness Epics
 
 ```text
 E0 — Project Foundation
@@ -92,29 +92,61 @@ E3 — Context Bridge
 E4 — Verification Engine
 E5 — Evolution Engine
 E6 — Agent Supervision
+E7 — MVP Hardening
+E8 — MVP Candidate Cut and Release Preparation
+E9 — Post-MVP Candidate Stabilization and Public-Readiness Gap Closure
+E10 — Public Pre-Release Hardening and Boundary Enforcement
 ```
 
-## Planned MVP Commands
+## Implemented MVP Command Surface
 
-The MVP roadmap targets these commands:
+The current implemented local command surface is:
 
 ```text
 monad --help
 monad --version
+monad help
+monad version
 monad info
+monad info --format=json
 monad inspect
-monad graph
-monad context generate
-monad context verify
+monad inspect --format=json
 monad check
+monad check --format=json
+monad graph
+monad graph --format=json
+monad graph --format=mermaid
+monad graph --format=dot
+monad context
+monad context --format=json
+monad context --write
+monad context generate current-state
+monad context generate handoff
+monad context generate bootstrap
+monad context pack
+monad context verify
 monad evolve verify-baseline --dry-run
 monad evolve context-baseline --dry-run
 monad plan "<intent>"
 ```
 
-Most commands do not exist yet. They will be implemented through the MVP work packets.
+The following command families are future roadmap work and should not be treated as implemented yet:
 
-## Local Development
+```text
+monad init
+monad add
+monad run
+monad sync
+monad doctor
+monad release
+monad upgrade
+monad patch
+monad apply
+```
+
+Safety boundary: `plan` is no-write, `evolve` commands are dry-run only, and write behavior is currently limited to explicit context export/generation commands.
+
+## Development Prerequisites
 
 Initial local development requires:
 
