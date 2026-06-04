@@ -53,7 +53,7 @@ WP-E10-002 — Convert public pre-release checklist into pass/fail evidence.
 | Public claims honesty | Pass, assuming WP-E10-001 has been applied | `README.md`, `docs/release/PUBLIC-CLAIMS-AUDIT.md` |
 | Implemented command surface documented | Pass | `docs/project/MVP-COMMAND-REFERENCE.md`, `README.md` |
 | Future commands clearly bounded | Pass, assuming WP-E10-001 has been applied | `README.md`, `docs/release/PUBLIC-CLAIMS-AUDIT.md` |
-| Source/package posture decided | Pending | WP-E10-003 remains required |
+| Source/package posture decided | Pass | `docs/release/PUBLIC-PRERELEASE-DISTRIBUTION-POSTURE.md` |
 | Public pre-release notes drafted | Pending | WP-E10-004 remains required |
 | Final verification audit complete | Pending | WP-E10-005 remains required |
 | Tag/release decision made | Pending | WP-E10-006 remains required |
@@ -75,8 +75,8 @@ WP-E10-002 — Convert public pre-release checklist into pass/fail evidence.
 
 | Check | Status | Evidence | Notes |
 | --- | --- | --- | --- |
-| Source-only vs packaged pre-release posture is decided. | Pending | WP-E10-003 | Required before release tag approval. |
-| Any package/install claims are removed or explicitly deferred. | Pending | WP-E10-003 | Depends on posture decision. |
+| Source-only vs packaged pre-release posture is decided. | Pass | `docs/release/PUBLIC-PRERELEASE-DISTRIBUTION-POSTURE.md` | Source-only public pre-release posture accepted. |
+| Any package/install claims are removed or explicitly deferred. | Pass | `docs/release/PUBLIC-PRERELEASE-DISTRIBUTION-POSTURE.md` | Binary, installer, package-manager, and hosted distribution are deferred. |
 | Public pre-release scope excludes hosted/SaaS launch. | Pass | E10 scope / README release boundary | Hosted launch is not part of E10. |
 | Public pre-release scope excludes autonomous agent execution. | Pass | README safety boundary | Autonomous execution is not implemented. |
 
@@ -119,14 +119,13 @@ Not ready yet.
 Reason:
 
 ```text
-The public claims audit gate is being addressed, but source/package posture,
+The public claims audit and source-only distribution posture gates are addressed, but
 release notes, final verification, and tag decision gates remain pending.
 ```
 
 ## Required Remaining E10 Work
 
 ```text
-WP-E10-003 — Decide source-only versus packaged pre-release posture
 WP-E10-004 — Draft public pre-release notes
 WP-E10-005 — Run final public pre-release verification audit
 WP-E10-006 — Decide and cut first public pre-release tag, if approved
