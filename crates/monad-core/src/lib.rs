@@ -66,7 +66,10 @@ pub use file_ops::{
 pub use git::{
     GitEvolutionSafety, GitWorkingTreeStatus, inspect_git_working_tree, parse_git_status_porcelain,
 };
-pub use init::{InitPlanOptions, InitPreset, build_init_plan, render_init_dry_run};
+pub use init::{
+    InitApplyResult, InitPlanOptions, InitPreset, apply_init_plan, build_init_plan,
+    render_init_apply_result, render_init_dry_run,
+};
 pub use manifest::{
     CURRENT_MANIFEST_SCHEMA_VERSION, ManifestProject, ManifestRuntime, ManifestSchemaVersion,
     ManifestWorkspace, MonadManifest,

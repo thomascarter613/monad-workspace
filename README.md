@@ -143,7 +143,7 @@ monad patch
 monad apply
 ```
 
-Safety boundary: `init` and `evolve` commands are dry-run only, `plan` is no-write, and write behavior is currently limited to explicit context export/generation commands.
+Safety boundary: `init --yes` writes only after conflict checks, `evolve` commands are dry-run only, `plan` is no-write, and other write behavior is limited to explicit context export/generation commands.
 
 ## Development Prerequisites
 

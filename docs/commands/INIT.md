@@ -407,4 +407,28 @@ WP-E11-003 adds embedded scaffold templates to the existing local template regis
 
 The command remains dry-run only.
 
-No files are written until the guarded write path is implemented in WP-E11-004.
+Guarded write behavior is implemented in WP-E11-004 through `monad init --yes`.
+
+
+## WP-E11-004 Implementation Note
+
+WP-E11-004 adds the guarded write path:
+
+```bash
+monad init --yes
+```
+
+The write path is conservative:
+
+- it runs through the same planned template set as dry-run;
+- it refuses to continue if conflicts exist;
+- it refuses to overwrite existing files;
+- it creates parent directories only for approved scaffold targets;
+- it runs no Git commands;
+- it reports created files and bytes written.
+
+Dry-run remains available:
+
+```bash
+monad init --dry-run
+```

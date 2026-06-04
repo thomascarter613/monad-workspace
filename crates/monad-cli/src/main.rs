@@ -11,17 +11,18 @@ use monad_core::{
     BootstrapPromptArtifact, ContextPackArtifact, CurrentStateArtifact, HandoffArtifact,
     InitPlanOptions, InitPreset, OutputFormat, RepositoryContextPackExportResult,
     RepositoryContextPackRenderFormat, RepositoryGraphRenderFormat, WorkspaceContext,
-    build_local_agent_plan, build_repository_graph, checked_runtime_identity,
+    apply_init_plan, build_local_agent_plan, build_repository_graph, checked_runtime_identity,
     export_repository_context_pack_from_workspace, generate_bootstrap_prompt,
     generate_context_pack, generate_current_state, generate_handoff, inspect_workspace,
     load_manifest_from_workspace, render_agent_plan, render_check_run_report,
     render_check_run_report_json, render_context_baseline_dry_run, render_context_verify_summary,
-    render_init_dry_run, render_repository_context_pack, render_repository_graph,
-    render_repository_inspection_summary, render_verify_baseline_dry_run, render_workspace_summary,
-    repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
-    run_monad_workspace_checks, traverse_workspace_bounded, verify_context,
-    workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_check_evidence_packet,
-    write_context_pack_artifact, write_current_state_artifact, write_handoff_artifact,
+    render_init_apply_result, render_init_dry_run, render_repository_context_pack,
+    render_repository_graph, render_repository_inspection_summary, render_verify_baseline_dry_run,
+    render_workspace_summary, repository_context_pack_from_workspace,
+    repository_inspection_summary_from_workspace, run_monad_workspace_checks,
+    traverse_workspace_bounded, verify_context, workspace_summary_from_manifest,
+    write_bootstrap_prompt_artifact, write_check_evidence_packet, write_context_pack_artifact,
+    write_current_state_artifact, write_handoff_artifact,
 };
 use std::env;
 use std::process::ExitCode;
@@ -42,6 +43,9 @@ enum CliCommand {
     Init {
         /// Whether to run in dry-run mode.
         dry_run: bool,
+
+        /// Whether to apply after explicit approval.
+        yes: bool,
 
         /// Selected init preset.
         preset: InitPreset,
@@ -228,12 +232,12 @@ impl CliCommand {
             }
             ["init"] => {
                 reject_write_for_non_context(write)?;
-                require_dry_run_for_init(dry_run)?;
-                reject_yes_for_init(yes)?;
+                require_init_mode(dry_run, yes)?;
                 reject_format_for_init(requested_format.as_deref())?;
                 let preset = parse_init_preset_or_default(requested_preset.as_deref())?;
                 Ok(Self::Init {
                     dry_run,
+                    yes,
                     preset,
                     project_name: requested_project_name,
                 })
@@ -364,9 +368,10 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
         CliCommand::Version => render_version(),
         CliCommand::Init {
             dry_run,
+            yes,
             preset,
             project_name,
-        } => render_init(dry_run, preset, project_name),
+        } => render_init(dry_run, yes, preset, project_name),
         CliCommand::Info { output_format } => render_info(output_format),
         CliCommand::Check { output_format } => render_check(output_format),
         CliCommand::Inspect { output_format } => render_inspect(output_format),
@@ -392,25 +397,14 @@ fn reject_write_for_non_context(write: bool) -> Result<(), String> {
         Ok(())
     }
 }
-
-/// Requires dry-run mode for the first init implementation.
-fn require_dry_run_for_init(dry_run: bool) -> Result<(), String> {
-    if dry_run {
-        Ok(())
-    } else {
-        Err("init currently requires --dry-run; write behavior is not implemented".to_string())
-    }
-}
-
-/// Rejects init write approval until the guarded write path exists.
-fn reject_yes_for_init(yes: bool) -> Result<(), String> {
-    if yes {
-        Err(
-            "init --yes is reserved for the guarded write path; WP-E11-002 is dry-run only"
-                .to_string(),
-        )
-    } else {
-        Ok(())
+/// Requires exactly one init mode for the guarded init implementation.
+fn require_init_mode(dry_run: bool, yes: bool) -> Result<(), String> {
+    match (dry_run, yes) {
+        (true, false) | (false, true) => Ok(()),
+        (false, false) => {
+            Err("init currently requires either --dry-run to preview or --yes to apply".to_string())
+        }
+        (true, true) => Err("init accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -512,6 +506,7 @@ fn help_text() -> String {
         "",
         "Core commands:",
         "  init --dry-run                            Preview repository initialization plan",
+        "  init --yes                                Apply repository initialization after review",
         "  info                                      Show workspace summary",
         "  check                                     Run workspace checks",
         "  inspect                                   Inspect repository structure",
@@ -627,22 +622,26 @@ fn render_check(output_format: OutputFormat) -> Result<String, String> {
     }
 }
 
-/// Renders repository initialization dry-run output.
+/// Renders or applies repository initialization.
 fn render_init(
     dry_run: bool,
+    yes: bool,
     preset: InitPreset,
     project_name: Option<String>,
 ) -> Result<String, String> {
-    if !dry_run {
-        return Err(
-            "init currently requires --dry-run; write behavior is not implemented".to_string(),
-        );
-    }
-
     let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
     let options = InitPlanOptions::new(preset, project_name);
 
-    render_init_dry_run(&context, &options).map_err(|error| error.to_string())
+    if dry_run {
+        return render_init_dry_run(&context, &options).map_err(|error| error.to_string());
+    }
+
+    if yes {
+        let result = apply_init_plan(&context, &options).map_err(|error| error.to_string())?;
+        return Ok(render_init_apply_result(&result));
+    }
+
+    Err("init currently requires either --dry-run to preview or --yes to apply".to_string())
 }
 
 /// Renders verification baseline evolution dry-run output.
@@ -962,6 +961,7 @@ mod tests {
             parse_arguments(&["monad", "init", "--dry-run"]).expect("init should parse"),
             CliCommand::Init {
                 dry_run: true,
+                yes: false,
                 preset: InitPreset::Minimal,
                 project_name: None,
             }
@@ -978,6 +978,7 @@ mod tests {
             .expect("init preset should parse"),
             CliCommand::Init {
                 dry_run: true,
+                yes: false,
                 preset: InitPreset::PolyglotMinimal,
                 project_name: Some("example".to_string()),
             }
@@ -985,21 +986,33 @@ mod tests {
     }
 
     #[test]
-    fn init_requires_dry_run_for_now() {
-        let error =
-            parse_arguments(&["monad", "init"]).expect_err("init without dry-run should fail");
+    fn init_requires_dry_run_or_yes() {
+        let error = parse_arguments(&["monad", "init"]).expect_err("init without mode should fail");
 
-        assert!(error.contains("init currently requires --dry-run"));
-        assert!(error.contains("write behavior is not implemented"));
+        assert!(error.contains("init currently requires either --dry-run"));
+        assert!(error.contains("--yes"));
     }
 
     #[test]
-    fn init_rejects_yes_until_guarded_write_exists() {
-        let error = parse_arguments(&["monad", "init", "--dry-run", "--yes"])
-            .expect_err("init --yes should fail for now");
+    fn init_yes_command_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "init", "--yes"]).expect("init --yes should parse"),
+            CliCommand::Init {
+                dry_run: false,
+                yes: true,
+                preset: InitPreset::Minimal,
+                project_name: None,
+            }
+        );
+    }
 
-        assert!(error.contains("init --yes is reserved"));
-        assert!(error.contains("dry-run only"));
+    #[test]
+    fn init_rejects_dry_run_and_yes_together() {
+        let error = parse_arguments(&["monad", "init", "--dry-run", "--yes"])
+            .expect_err("init should reject conflicting modes");
+
+        assert!(error.contains("either --dry-run or --yes"));
+        assert!(error.contains("not both"));
     }
 
     #[test]
@@ -1420,6 +1433,7 @@ mod tests {
         let text = help_text();
 
         assert!(text.contains("init --dry-run"));
+        assert!(text.contains("init --yes"));
         assert!(text.contains("plan \"<intent>\""));
         assert!(text.contains("monad plan \"explain this repository\""));
         assert!(text.contains("evolve verify-baseline --dry-run"));
