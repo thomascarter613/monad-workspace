@@ -1,0 +1,511 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Complete WP-E11-001 — Define monad init UX and safety contract.
+#
+# This is a design/contract packet, not code implementation.
+#
+# It creates:
+# - docs/commands/INIT.md
+# - work/deliverables/E11/WP-E11-001-init-ux-safety-contract.md
+#
+# It does not add the init command implementation. That begins in WP-E11-002.
+
+mkdir -p docs/commands
+mkdir -p work/deliverables/E11
+
+cat > docs/commands/INIT.md <<'EOF'
+---
+title: "monad init Command Contract"
+document_type: "command-contract"
+status: accepted
+owner: "Thomas Carter"
+created: 2026-06-04
+updated: 2026-06-04
+version: 1.0.0
+project: Monad
+epic: E11
+work_packet: WP-E11-001
+tags:
+  - monad
+  - command
+  - init
+  - scaffold
+  - safety
+related:
+  - README.md
+  - docs/project/MVP-COMMAND-REFERENCE.md
+  - docs/release/PUBLIC-PRERELEASE-DISTRIBUTION-POSTURE.md
+  - docs/06-adrs/ADR-0006-keep-cli-thin-and-core-durable.md
+  - docs/06-adrs/ADR-0008-coordinate-native-tools-rather-than-replace-them.md
+---
+
+# `monad init` Command Contract
+
+## Status
+
+Accepted as the initial command contract for E11.
+
+This document defines the intended `monad init` behavior before implementation begins.
+
+## Work Packet
+
+WP-E11-001 — Define `monad init` UX and safety contract.
+
+## Purpose
+
+`monad init` creates the initial Monad-managed repository foundation for a project.
+
+The command should help a user turn an empty or existing repository into a Monad-aware workspace without destructive behavior, hidden rewrites, or premature assumptions about language ecosystems.
+
+## Product Intent
+
+`monad init` should be:
+
+- local-first;
+- non-destructive by default;
+- dry-run-first during early implementation;
+- explicit about every file it proposes to create;
+- safe in existing repositories;
+- reviewable before write behavior is enabled;
+- compatible with future presets and language adapters.
+
+## Non-Goals for E11
+
+`monad init` must not become a full application generator in E11.
+
+E11 should not implement:
+
+- full framework scaffolding;
+- package-manager installation;
+- remote repository creation;
+- GitHub issue creation;
+- CI provider setup beyond placeholders;
+- hosted control plane integration;
+- autonomous AI execution;
+- destructive overwrites;
+- automatic package publication;
+- plugin installation.
+
+Those belong to later epics.
+
+## MVP Command Shape
+
+The target command family is:
+
+```bash
+monad init
+monad init --dry-run
+monad init --preset minimal --dry-run
+monad init --preset polyglot-minimal --dry-run
+monad init --path . --dry-run
+monad init --name my-project --dry-run
+```
+
+When guarded write behavior is implemented later in E11, the write shape should be explicit:
+
+```bash
+monad init --yes
+monad init --preset minimal --yes
+monad init --preset polyglot-minimal --yes
+```
+
+## Initial E11 Implementation Sequence
+
+E11 should implement `init` in this order:
+
+1. WP-E11-001 — define this UX and safety contract.
+2. WP-E11-002 — add init dry-run plan.
+3. WP-E11-003 — add minimal embedded scaffold templates.
+4. WP-E11-004 — add guarded init write path.
+5. WP-E11-005 — add basic/polyglot-minimal preset.
+6. WP-E11-006 — add init smoke tests and verification evidence.
+
+## Safety Contract
+
+### Rule 1 — No silent overwrite
+
+`monad init` must never silently overwrite existing files.
+
+If a target path already exists, the plan must mark it as one of:
+
+```text
+exists-compatible
+exists-conflict
+skip
+would-create
+would-update-generated
+```
+
+For E11, prefer conflict/skip over update.
+
+### Rule 2 — Dry-run before writes
+
+The first implementation must support dry-run planning before any write path exists.
+
+During WP-E11-002 and WP-E11-003, `monad init` may require `--dry-run`.
+
+### Rule 3 — Write path requires explicit approval
+
+When write behavior is added, it must require explicit user intent.
+
+The accepted non-interactive approval flag is:
+
+```bash
+--yes
+```
+
+No write should occur simply because the user ran:
+
+```bash
+monad init
+```
+
+unless a later ADR explicitly changes this behavior.
+
+### Rule 4 — Existing repositories are first-class
+
+`monad init` must support being run in an existing repository.
+
+It should inspect before proposing changes.
+
+It should not assume the directory is empty.
+
+### Rule 5 — Git is not automatically mutated
+
+For E11, `monad init` must not automatically run:
+
+```bash
+git init
+git add
+git commit
+git push
+```
+
+Git automation belongs to later workflow/GitHub integration work.
+
+### Rule 6 — Native tools are coordinated, not replaced
+
+`monad init` may create Monad metadata and docs, but it should not replace ecosystem-native manifests.
+
+For example, it may detect or respect:
+
+```text
+Cargo.toml
+package.json
+pyproject.toml
+go.mod
+build.gradle
+pom.xml
+```
+
+but it should not rewrite them without a later, explicit sync/evolution contract.
+
+### Rule 7 — Generated files are identifiable
+
+Files generated by Monad should either be:
+
+- clearly named as Monad project files;
+- placed under `.monad/`;
+- described in generated documentation;
+- or listed in the init plan.
+
+### Rule 8 — Failure must be actionable
+
+If init cannot proceed, the error should explain:
+
+- what path blocked the operation;
+- why it is unsafe;
+- what command or manual action the user can take next.
+
+## Planned Init Plan Model
+
+The init dry-run should render a plan containing:
+
+```text
+workspace_root
+project_name
+selected_preset
+detected_existing_files
+proposed_groups
+proposed_file_operations
+conflicts
+warnings
+next_steps
+```
+
+Each proposed file operation should include:
+
+```text
+operation_kind
+path
+reason
+safety_status
+will_write
+```
+
+Example operation:
+
+```text
+would-create docs/README.md
+reason: create documentation entry point
+safety_status: safe-new-file
+will_write: false
+```
+
+## Initial Presets
+
+### `minimal`
+
+Purpose:
+
+Create the smallest useful Monad-aware repository baseline.
+
+Likely files:
+
+```text
+monad.toml
+README.md
+docs/README.md
+work/README.md
+.monad/.gitignore
+```
+
+### `polyglot-minimal`
+
+Purpose:
+
+Create a minimal polyglot monorepo baseline without choosing heavy orchestration tools.
+
+Likely files/directories:
+
+```text
+monad.toml
+README.md
+docs/README.md
+work/README.md
+apps/
+packages/
+services/
+tools/
+.monad/.gitignore
+```
+
+This preset must not require Bazel, Pants, Buck2, or Nx.
+
+## Initial Output Requirements
+
+Text output should be human-readable and stable:
+
+```text
+Monad init plan
+
+Workspace:
+  root: .
+  project: my-project
+  preset: minimal
+
+Proposed file operations:
+  would-create monad.toml
+  would-create docs/README.md
+  would-create work/README.md
+
+Safety:
+  writes: disabled
+  conflicts: 0
+
+Next:
+  rerun with --yes after reviewing the plan
+```
+
+JSON output may be added later, but is not required in WP-E11-002 unless implementation cost is low.
+
+## CLI Parsing Rules
+
+The command parser should eventually accept:
+
+```text
+init
+init --dry-run
+init --yes
+init --preset <preset>
+init --preset=<preset>
+init --path <path>
+init --path=<path>
+init --name <name>
+init --name=<name>
+```
+
+For initial implementation, it is acceptable to start with a narrower subset if error messages clearly explain unsupported forms.
+
+## Error Cases
+
+`monad init` should fail safely when:
+
+- target path does not exist;
+- target path is not a directory;
+- target path cannot be read;
+- selected preset is unknown;
+- proposed write operation conflicts with existing file;
+- `--yes` is provided before write support exists;
+- unsupported flags are passed.
+
+## Relationship to Future Commands
+
+`monad init` establishes the repository baseline.
+
+It should not absorb the responsibilities of:
+
+```text
+monad add
+monad run
+monad sync
+monad doctor
+monad release
+monad upgrade
+monad patch
+monad apply
+```
+
+Those commands have separate future epics.
+
+## Acceptance Criteria
+
+WP-E11-001 is complete when:
+
+- this command contract exists;
+- safety rules are explicit;
+- dry-run-first behavior is established;
+- guarded write behavior is defined but not implemented;
+- initial presets are named;
+- non-goals are recorded;
+- E11 implementation sequencing is clear.
+
+## Verification
+
+```bash
+git status --short
+test -f docs/commands/INIT.md
+grep -n "No silent overwrite" docs/commands/INIT.md
+grep -n "Dry-run before writes" docs/commands/INIT.md
+grep -n "Write path requires explicit approval" docs/commands/INIT.md
+tools/scripts/verify.sh
+git status --short
+```
+
+## Outcome
+
+Accepted.
+
+E11 may proceed to WP-E11-002 — Add init dry-run plan.
+EOF
+
+cat > work/deliverables/E11/WP-E11-001-init-ux-safety-contract.md <<'EOF'
+---
+title: "WP-E11-001 Init UX and Safety Contract Deliverable"
+document_type: "deliverable-record"
+status: accepted
+owner: "Thomas Carter"
+created: 2026-06-04
+updated: 2026-06-04
+version: 1.0.0
+project: Monad
+epic: E11
+work_packet: WP-E11-001
+tags:
+  - monad
+  - e11
+  - init
+  - safety
+  - command-contract
+related:
+  - docs/commands/INIT.md
+---
+
+# WP-E11-001 Init UX and Safety Contract Deliverable
+
+## Work Packet
+
+WP-E11-001 — Define `monad init` UX and safety contract.
+
+## Outcome
+
+Completed.
+
+## Summary
+
+This work packet establishes the design and safety contract for `monad init` before code implementation begins.
+
+The contract defines:
+
+- dry-run-first implementation order;
+- no silent overwrite rule;
+- explicit approval requirement for writes;
+- existing-repository support;
+- Git non-mutation boundary;
+- generated-file visibility;
+- initial `minimal` and `polyglot-minimal` presets;
+- relationship to future commands.
+
+## Deliverables
+
+- `docs/commands/INIT.md`
+- `work/deliverables/E11/WP-E11-001-init-ux-safety-contract.md`
+
+## Decision
+
+`monad init` should begin as a dry-run planning feature and only later gain explicit, guarded write behavior.
+
+The accepted write approval flag for later implementation is:
+
+```bash
+--yes
+```
+
+The accepted first presets are:
+
+```text
+minimal
+polyglot-minimal
+```
+
+## Verification
+
+Run:
+
+```bash
+git status --short
+test -f docs/commands/INIT.md
+grep -n "No silent overwrite" docs/commands/INIT.md
+grep -n "Dry-run before writes" docs/commands/INIT.md
+grep -n "Write path requires explicit approval" docs/commands/INIT.md
+tools/scripts/verify.sh
+git status --short
+```
+
+## Recommended Commit
+
+```bash
+git commit -m "docs(init): define init ux and safety contract"
+```
+
+## Closeout Note
+
+WP-E11-001 is complete once the command contract is committed and the corresponding GitHub work-packet issue or tracking item is closed.
+
+## Next Work Packet
+
+```text
+WP-E11-002 — Add init dry-run plan
+```
+EOF
+
+echo
+echo "WP-E11-001 files written:"
+echo "  docs/commands/INIT.md"
+echo "  work/deliverables/E11/WP-E11-001-init-ux-safety-contract.md"
+echo
+echo "Next verification:"
+echo "  git status --short"
+echo "  test -f docs/commands/INIT.md"
+echo "  tools/scripts/verify.sh"
