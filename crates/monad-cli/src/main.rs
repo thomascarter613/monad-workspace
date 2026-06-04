@@ -506,6 +506,7 @@ fn help_text() -> String {
         "",
         "Core commands:",
         "  init --dry-run                            Preview repository initialization plan",
+        "  init --preset=basic --dry-run             Preview the basic repository scaffold",
         "  init --yes                                Apply repository initialization after review",
         "  info                                      Show workspace summary",
         "  check                                     Run workspace checks",
@@ -1016,6 +1017,20 @@ mod tests {
     }
 
     #[test]
+    fn init_basic_preset_alias_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "init", "--dry-run", "--preset=basic"])
+                .expect("init basic preset should parse"),
+            CliCommand::Init {
+                dry_run: true,
+                yes: false,
+                preset: InitPreset::Minimal,
+                project_name: None,
+            }
+        );
+    }
+
+    #[test]
     fn info_command_parses_text_and_json_formats() {
         assert_eq!(
             parse_arguments(&["monad", "info"]).expect("info should parse"),
@@ -1433,6 +1448,7 @@ mod tests {
         let text = help_text();
 
         assert!(text.contains("init --dry-run"));
+        assert!(text.contains("init --preset=basic --dry-run"));
         assert!(text.contains("init --yes"));
         assert!(text.contains("plan \"<intent>\""));
         assert!(text.contains("monad plan \"explain this repository\""));

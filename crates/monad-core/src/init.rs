@@ -50,10 +50,10 @@ impl InitPreset {
     /// Parses a user-facing preset name.
     pub fn parse(value: &str) -> MonadResult<Self> {
         match value {
-            "minimal" => Ok(Self::Minimal),
+            "basic" | "minimal" => Ok(Self::Minimal),
             "polyglot-minimal" => Ok(Self::PolyglotMinimal),
             other => Err(MonadError::invalid_input(format!(
-                "unsupported init preset `{other}`; supported presets: minimal, polyglot-minimal"
+                "unsupported init preset `{other}`; supported presets: basic, minimal, polyglot-minimal"
             ))),
         }
     }
@@ -387,6 +387,14 @@ mod tests {
             InitPreset::parse("polyglot-minimal")?,
             InitPreset::PolyglotMinimal
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn init_preset_parses_basic_alias() -> MonadResult<()> {
+        assert_eq!(InitPreset::parse("basic")?, InitPreset::Minimal);
+        assert_eq!(InitPreset::parse("minimal")?, InitPreset::Minimal);
 
         Ok(())
     }

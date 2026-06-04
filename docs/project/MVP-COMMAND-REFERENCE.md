@@ -46,6 +46,7 @@ cargo run -p monad-cli -- <command>
 
 ```bash
 cargo run -p monad-cli -- init --dry-run
+cargo run -p monad-cli -- init --preset=basic --dry-run
 cargo run -p monad-cli -- init --preset=minimal --dry-run
 cargo run -p monad-cli -- init --preset=polyglot-minimal --dry-run
 cargo run -p monad-cli -- init --name=my-project --dry-run
@@ -56,6 +57,7 @@ Expected behavior:
 
 * previews embedded scaffold-template file operations
 * writes no files
+* supports `basic`, `minimal`, and `polyglot-minimal` presets
 * applies the scaffold only when `--yes` is provided and no conflicts exist
 * detects conflicts such as existing target files
 
