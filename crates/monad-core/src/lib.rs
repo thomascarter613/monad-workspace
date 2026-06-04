@@ -16,6 +16,7 @@ pub mod evolution;
 pub mod exec;
 pub mod file_ops;
 pub mod git;
+pub mod init;
 pub mod manifest;
 pub mod output;
 pub mod policy;
@@ -65,6 +66,7 @@ pub use file_ops::{
 pub use git::{
     GitEvolutionSafety, GitWorkingTreeStatus, inspect_git_working_tree, parse_git_status_porcelain,
 };
+pub use init::{InitPlanOptions, InitPreset, build_init_plan, render_init_dry_run};
 pub use manifest::{
     CURRENT_MANIFEST_SCHEMA_VERSION, ManifestProject, ManifestRuntime, ManifestSchemaVersion,
     ManifestWorkspace, MonadManifest,

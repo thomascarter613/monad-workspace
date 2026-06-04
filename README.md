@@ -133,7 +133,6 @@ monad plan "<intent>"
 The following command families are future roadmap work and should not be treated as implemented yet:
 
 ```text
-monad init
 monad add
 monad run
 monad sync
@@ -144,7 +143,7 @@ monad patch
 monad apply
 ```
 
-Safety boundary: `plan` is no-write, `evolve` commands are dry-run only, and write behavior is currently limited to explicit context export/generation commands.
+Safety boundary: `init` and `evolve` commands are dry-run only, `plan` is no-write, and write behavior is currently limited to explicit context export/generation commands.
 
 ## Development Prerequisites
 

@@ -42,6 +42,22 @@ cargo run -p monad-cli -- <command>
 
 ## 3. Current core commands
 
+### Init dry-run
+
+```bash
+cargo run -p monad-cli -- init --dry-run
+cargo run -p monad-cli -- init --preset=minimal --dry-run
+cargo run -p monad-cli -- init --preset=polyglot-minimal --dry-run
+cargo run -p monad-cli -- init --name=my-project --dry-run
+```
+
+Expected behavior:
+
+* previews repository initialization file operations
+* writes no files
+* rejects `--yes` until guarded write behavior is implemented
+* detects conflicts such as existing target files
+
 ### Help
 
 ```bash
@@ -284,6 +300,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 cargo run -p monad-cli -- --help
 cargo run -p monad-cli -- version
+cargo run -p monad-cli -- init --dry-run
 cargo run -p monad-cli -- inspect
 cargo run -p monad-cli -- check
 cargo run -p monad-cli -- plan "explain this repository"

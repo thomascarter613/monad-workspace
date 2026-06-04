@@ -8,7 +8,7 @@ updated: 2026-06-04
 version: 1.0.0
 project: Monad
 epic: E11
-work_packet: WP-E11-001
+work_packet: WP-E11-002
 tags:
   - monad
   - command
@@ -381,3 +381,19 @@ git status --short
 Accepted.
 
 E11 may proceed to WP-E11-002 — Add init dry-run plan.
+
+
+## WP-E11-002 Implementation Note
+
+WP-E11-002 adds the first implemented `monad init` behavior:
+
+```bash
+monad init --dry-run
+monad init --preset=minimal --dry-run
+monad init --preset=polyglot-minimal --dry-run
+monad init --name=my-project --dry-run
+```
+
+The command is dry-run only in this slice.
+
+It renders a safe file-operation plan and writes no files.
