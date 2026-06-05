@@ -1,3 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Complete WP-E12-003 — Add embedded component scaffold templates.
+#
+# Learning-first script:
+# - It keeps the convenience of a single script.
+# - It creates a learning note that explains the design shift.
+# - It keeps monad add dry-run only.
+#
+# Safety boundary:
+# - No component files are written.
+# - No directories are created.
+# - No package managers are run.
+# - No Git commands are run.
+# - `monad add --yes` remains unsupported.
+
+echo "==> WP-E12-003 learning checkpoint"
+echo "This packet changes monad add planning from hard-coded paths to embedded component scaffold templates."
+echo "Mental model: component request -> choose embedded templates -> resolve target paths -> evaluate dry-run."
+echo
+
+mkdir -p work/deliverables/E12
+mkdir -p work/learning/E12
+
+cat > crates/monad-core/src/component_add.rs <<'EOF'
 //! Component add planning.
 //!
 //! This module backs `monad add <kind> <name> --dry-run`.
@@ -101,9 +127,10 @@ impl ComponentName {
             )));
         }
 
-        if !value.chars().all(|character| {
-            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
-        }) {
+        if !value
+            .chars()
+            .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-')
+        {
             return Err(MonadError::invalid_input(format!(
                 "invalid component name `{value}`; use lowercase letters, numbers, and hyphens only"
             )));
@@ -341,9 +368,7 @@ mod tests {
 
     #[test]
     fn component_name_rejects_unsafe_names() {
-        for value in [
-            "", "../web", "apps/web", "Web", "web app", "web;", "-web", "web-",
-        ] {
+        for value in ["", "../web", "apps/web", "Web", "web app", "web;", "-web", "web-"] {
             assert!(
                 ComponentName::parse(value).is_err(),
                 "expected `{value}` to be rejected"
@@ -441,10 +466,8 @@ mod tests {
             dry_run
                 .operations()
                 .iter()
-                .any(
-                    |operation| operation.target().display_path() == "apps/web/README.md"
-                        && operation.outcome_kind() == DryRunOperationKind::Conflict
-                )
+                .any(|operation| operation.target().display_path() == "apps/web/README.md"
+                    && operation.outcome_kind() == DryRunOperationKind::Conflict)
         );
 
         fs::remove_dir_all(&root).ok();
@@ -452,3 +475,255 @@ mod tests {
         Ok(())
     }
 }
+EOF
+
+cat > work/learning/E12/WP-E12-003-embedded-component-scaffold-templates.md <<'EOF'
+---
+title: "Learning Note — WP-E12-003 Embedded Component Scaffold Templates"
+document_type: "learning-note"
+status: active
+owner: "Thomas Carter"
+created: 2026-06-04
+updated: 2026-06-04
+version: 1.0.0
+project: Monad
+epic: E12
+work_packet: WP-E12-003
+tags:
+  - learning
+  - rust
+  - templates
+  - dry-run
+  - monad
+---
+
+# Learning Note — WP-E12-003 Embedded Component Scaffold Templates
+
+## What Changed
+
+WP-E12-002 built the `add` plan directly from hard-coded paths.
+
+WP-E12-003 introduces a tiny embedded template layer:
+
+```text
+component.readme
+component.gitkeep
+```
+
+The command still does not write files.
+
+## Why This Matters
+
+Hard-coded paths are fine for the first slice, but they do not scale.
+
+Templates give us a place to attach:
+
+- a stable ID;
+- a relative path;
+- a description;
+- content for a future write path.
+
+## Main File to Read
+
+```text
+crates/monad-core/src/component_add.rs
+```
+
+Start with:
+
+```text
+ComponentScaffoldTemplate
+COMPONENT_SCAFFOLD_TEMPLATES
+component_scaffold_templates
+```
+
+## New Mental Model
+
+The add flow is now:
+
+```text
+component kind + name
+  -> component root
+  -> embedded component templates
+  -> target paths
+  -> dry-run file operation plan
+  -> rendered dry-run output
+```
+
+## Rust Concept: Struct for Template Metadata
+
+`ComponentScaffoldTemplate` is a struct.
+
+It groups related template facts:
+
+```text
+id
+relative_path
+description
+content
+```
+
+That keeps the plan builder from spreading template details across unrelated code.
+
+## Rust Concept: Constants
+
+The templates are stored in a constant array:
+
+```text
+COMPONENT_SCAFFOLD_TEMPLATES
+```
+
+This means the templates are compiled into the binary.
+
+No network fetch.
+
+No plugin install.
+
+No runtime template discovery.
+
+## Rust Concept: Placeholder Replacement
+
+The README template uses simple placeholders:
+
+```text
+{{component_kind}}
+{{component_name}}
+{{component_root}}
+```
+
+The renderer replaces them with safe values.
+
+This is not a full templating engine.
+
+That is intentional.
+
+## What to Inspect
+
+```bash
+git diff -- crates/monad-core/src/component_add.rs
+```
+
+Look for:
+
+```text
+ComponentScaffoldTemplate
+component_scaffold_templates
+render_content
+build_add_plan
+```
+
+## Verification Commands
+
+```bash
+cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+cargo run -p monad-cli -- add app web --dry-run
+cargo run -p monad-cli -- add service api --dry-run
+```
+EOF
+
+cat > work/deliverables/E12/WP-E12-003-embedded-component-scaffold-templates.md <<'EOF'
+---
+title: "WP-E12-003 Embedded Component Scaffold Templates Deliverable"
+document_type: "deliverable-record"
+status: accepted
+owner: "Thomas Carter"
+created: 2026-06-04
+updated: 2026-06-04
+version: 1.0.0
+project: Monad
+epic: E12
+work_packet: WP-E12-003
+tags:
+  - monad
+  - e12
+  - add
+  - templates
+  - component
+related:
+  - crates/monad-core/src/component_add.rs
+  - work/learning/E12/WP-E12-003-embedded-component-scaffold-templates.md
+---
+
+# WP-E12-003 Embedded Component Scaffold Templates Deliverable
+
+## Work Packet
+
+WP-E12-003 — Add embedded component scaffold templates.
+
+## Outcome
+
+Implemented.
+
+## Summary
+
+This work packet replaces hard-coded `monad add` planned paths with embedded component scaffold templates.
+
+The implementation remains dry-run only.
+
+## Embedded Templates
+
+```text
+component.readme
+component.gitkeep
+```
+
+## Deliverables
+
+- `crates/monad-core/src/component_add.rs`
+- `work/learning/E12/WP-E12-003-embedded-component-scaffold-templates.md`
+- `work/deliverables/E12/WP-E12-003-embedded-component-scaffold-templates.md`
+
+## Safety Boundary
+
+WP-E12-003 does not write files.
+
+It only makes dry-run planning template-backed.
+
+## Verification
+
+Run:
+
+```bash
+git status --short
+cargo fmt --check
+cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+cargo run -p monad-cli -- add app web --dry-run
+cargo run -p monad-cli -- add service api --dry-run
+tools/scripts/verify.sh
+git status --short
+```
+
+## Recommended Commit
+
+```bash
+git commit -m "feat(add): add embedded component scaffold templates"
+```
+
+## Closeout Note
+
+WP-E12-003 is complete once the template-backed dry-run plan is committed and the corresponding GitHub work-packet issue or tracking item is closed.
+
+## Next Work Packet
+
+```text
+WP-E12-004 — Add guarded add write path
+```
+EOF
+
+cargo fmt
+
+echo
+echo "WP-E12-003 files updated:"
+echo "  crates/monad-core/src/component_add.rs"
+echo "  work/learning/E12/WP-E12-003-embedded-component-scaffold-templates.md"
+echo "  work/deliverables/E12/WP-E12-003-embedded-component-scaffold-templates.md"
+echo
+echo "Learning checkpoint:"
+echo "  Read work/learning/E12/WP-E12-003-embedded-component-scaffold-templates.md before committing."
+echo
+echo "Next verification:"
+echo "  cargo test"
+echo "  cargo clippy --all-targets --all-features -- -D warnings"
+echo "  cargo run -p monad-cli -- add app web --dry-run"
