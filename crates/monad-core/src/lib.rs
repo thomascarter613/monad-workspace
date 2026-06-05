@@ -8,6 +8,7 @@
 
 pub mod agents;
 pub mod checks;
+pub mod component_add;
 pub mod context;
 pub mod dependency_detection;
 pub mod diagnostics;
@@ -222,6 +223,10 @@ pub use agents::{
 pub use policy::{
     ApprovalDecision, ApprovalDecisionKind, ApprovalGate, ApprovalGateId, ApprovalGateKind,
     ApprovalRequirement, AuditActor, AuditEvent, AuditEventKind, AuditLog, ProposedAction,
+};
+
+pub use component_add::{
+    AddPlanOptions, ComponentKind, ComponentName, build_add_plan, render_add_dry_run,
 };
 
 #[cfg(test)]

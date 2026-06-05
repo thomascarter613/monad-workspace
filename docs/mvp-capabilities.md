@@ -1,3 +1,18 @@
+---
+title: "MVP Capabilities"
+document_type: "capability-reference"
+status: accepted
+owner: "Thomas Carter"
+created: 2026-06-04
+updated: 2026-06-04
+version: 1.0.0
+project: Monad
+tags:
+  - monad
+  - mvp
+  - capabilities
+---
+
 # Monad Capabilities: Current Binary vs. First MVP Release Target
 
 ## Orientation
