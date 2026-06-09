@@ -34,7 +34,6 @@ pub mod sync;
 pub mod templates;
 pub mod toolchain_detection;
 pub mod upgrade;
-pub mod work_packet;
 pub mod workspace;
 
 pub use ai_context::{
@@ -152,14 +151,6 @@ pub use upgrade::{
     UpgradeStep, UpgradeStepSafety, apply_upgrade_plan, build_upgrade_plan,
     render_upgrade_apply_result, render_upgrade_apply_result_json,
     render_upgrade_evidence_markdown, render_upgrade_plan, render_upgrade_plan_json,
-};
-pub use work_packet::{
-    WORK_PACKET_HANDOFF_PATH, WORK_PACKET_PLAN_JSON_PATH, WORK_PACKET_PLAN_MARKDOWN_PATH,
-    WorkPacketApplyResult, WorkPacketEvidenceItem, WorkPacketExecutionPlan,
-    WorkPacketImplementationStep, WorkPacketMetadata, WorkPacketStatus,
-    apply_work_packet_execution_plan, build_work_packet_execution_plan, parse_work_packet_metadata,
-    render_work_packet_apply_result, render_work_packet_apply_result_json,
-    render_work_packet_execution_plan, render_work_packet_execution_plan_json,
 };
 pub use workspace::{WorkspaceContext, discover_workspace_root, is_workspace_root};
 

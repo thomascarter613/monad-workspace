@@ -13,10 +13,9 @@ use monad_core::{
     OutputFormat, ReleasePlanOptions, RepositoryContextPackExportResult,
     RepositoryContextPackRenderFormat, RepositoryGraphRenderFormat, WorkspaceContext,
     apply_add_plan, apply_ai_context_plan, apply_init_plan, apply_patch_plan, apply_sync_plan,
-    apply_upgrade_plan, apply_work_packet_execution_plan, build_ai_context_plan,
-    build_local_agent_plan, build_patch_plan, build_policy_report, build_release_plan,
-    build_repository_graph, build_sync_plan, build_upgrade_plan, build_work_packet_execution_plan,
-    checked_runtime_identity, export_repository_context_pack_from_workspace,
+    apply_upgrade_plan, build_ai_context_plan, build_local_agent_plan, build_patch_plan,
+    build_policy_report, build_release_plan, build_repository_graph, build_sync_plan,
+    build_upgrade_plan, checked_runtime_identity, export_repository_context_pack_from_workspace,
     generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
     inspect_workspace, load_manifest_from_workspace, render_add_apply_result, render_add_dry_run,
     render_agent_plan, render_ai_context_apply_result, render_ai_context_apply_result_json,
@@ -29,8 +28,6 @@ use monad_core::{
     render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
     render_sync_apply_result, render_sync_plan, render_sync_plan_json, render_upgrade_apply_result,
     render_upgrade_plan, render_upgrade_plan_json, render_verify_baseline_dry_run,
-    render_work_packet_apply_result, render_work_packet_apply_result_json,
-    render_work_packet_execution_plan, render_work_packet_execution_plan_json,
     render_workspace_summary, repository_context_pack_from_workspace,
     repository_inspection_summary_from_workspace, run_doctor, run_monad_workspace_checks,
     traverse_workspace_bounded, verify_context, workspace_summary_from_manifest,
@@ -96,18 +93,6 @@ enum CliCommand {
         dry_run: bool,
 
         /// Whether to write generated policy evidence.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
-    /// Plan or write generated work-packet workflow evidence.
-    WorkPacket {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated workflow evidence after explicit approval.
         yes: bool,
 
         /// Requested output format.
@@ -372,12 +357,11 @@ impl CliCommand {
             && parts.first().copied() != Some("ai-context")
             && parts.first().copied() != Some("policy")
             && parts.first().copied() != Some("patch")
-            && parts.first().copied() != Some("work-packet")
             && parts.first().copied() != Some("sync")
             && parts.first().copied() != Some("upgrade")
         {
             return Err(
-                "--yes is only supported for init, add, sync, upgrade, ai-context, policy, patch, and work-packet commands"
+                "--yes is only supported for init, add, sync, upgrade, ai-context, policy, and patch commands"
                     .to_string(),
             );
         }
@@ -487,21 +471,6 @@ impl CliCommand {
                 Err(format!("unknown policy argument: {other}"))
             }
 
-
-            ["work-packet"] => {
-                reject_write_for_non_context(write)?;
-                require_work_packet_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::WorkPacket {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["work-packet", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown work-packet argument: {other}"))
-            }
             ["patch"] => {
                 reject_write_for_non_context(write)?;
                 require_patch_mode(dry_run, yes)?;
@@ -698,11 +667,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             output_format,
         } => render_policy(dry_run, yes, output_format),
 
-        CliCommand::WorkPacket {
-            dry_run,
-            yes,
-            output_format,
-        } => render_work_packet(dry_run, yes, output_format),
         CliCommand::Patch {
             dry_run,
             yes,
@@ -761,18 +725,6 @@ fn require_add_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("add currently requires either --dry-run to preview or --yes to apply".to_string())
         }
         (true, true) => Err("add accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one work-packet mode.
-fn require_work_packet_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => Err(
-            "work-packet currently requires either --dry-run to preview or --yes to write generated workflow evidence"
-                .to_string(),
-        ),
-        (true, true) => Err("work-packet accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -973,9 +925,6 @@ fn help_text() -> String {
         "  patch --dry-run                         Preview supervised patch plan",
         "  patch --dry-run --format=json           Preview supervised patch plan as JSON",
         "  patch --yes                             Apply generated patch artifacts after review",
-        "  work-packet --dry-run                   Preview work-packet workflow plan",
-        "  work-packet --dry-run --format=json     Preview work-packet workflow as JSON",
-        "  work-packet --yes                       Write generated workflow evidence",
         "  ai-context --dry-run --format=json      Preview AI context plan as JSON",
         "  ai-context --yes                        Write generated local AI context artifacts",
         "  upgrade --dry-run --format=json         Preview upgrade plan as JSON",
@@ -1036,9 +985,6 @@ fn help_text() -> String {
         "  monad patch --dry-run",
         "  monad patch --dry-run --format=json",
         "  monad patch --yes",
-        "  monad work-packet --dry-run",
-        "  monad work-packet --dry-run --format=json",
-        "  monad work-packet --yes",
         "  monad ai-context --dry-run --format=json",
         "  monad upgrade --dry-run --format=json",
         "  monad release --dry-run --format=json",
@@ -1057,7 +1003,6 @@ fn help_text() -> String {
         "  ai-context never calls providers or sends repo data remotely.",
         "  policy writes generated evidence only and never approves risky work automatically.",
         "  patch applies generated local evidence only; user-owned source mutation remains blocked.",
-        "  work-packet writes generated workflow evidence only and never closes issues automatically.",
         "  plan is no-write and does not run commands.",
         "  evolve commands are dry-run only in this MVP hardening phase.",
         "  language-aware add writes use local embedded templates only.",
@@ -1144,33 +1089,6 @@ fn render_sync(dry_run: bool, yes: bool, output_format: OutputFormat) -> Result<
         "sync currently requires either --dry-run to preview or --yes to write generated evidence"
             .to_string(),
     )
-}
-
-/// Renders or writes generated work-packet workflow evidence.
-fn render_work_packet(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = build_work_packet_execution_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(render_work_packet_execution_plan(&plan)),
-            OutputFormat::Json => Ok(render_work_packet_execution_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result = apply_work_packet_execution_plan(&root)?;
-        return match output_format {
-            OutputFormat::Text => Ok(render_work_packet_apply_result(&result)),
-            OutputFormat::Json => Ok(render_work_packet_apply_result_json(&result)),
-        };
-    }
-
-    Err("work-packet currently requires either --dry-run to preview or --yes to write generated workflow evidence".to_string())
 }
 
 /// Renders or applies generated patch artifacts under E19 approval gates.
@@ -2638,58 +2556,5 @@ mod tests {
             .expect_err("patch should reject conflicting modes");
 
         assert!(error.contains("patch accepts either --dry-run or --yes"));
-    }
-
-    #[test]
-    fn work_packet_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "work-packet", "--dry-run"])
-                .expect("work-packet dry-run should parse"),
-            CliCommand::WorkPacket {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "work-packet", "--dry-run", "--format=json"])
-                .expect("work-packet dry-run json should parse"),
-            CliCommand::WorkPacket {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn work_packet_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "work-packet", "--yes"])
-                .expect("work-packet yes should parse"),
-            CliCommand::WorkPacket {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn work_packet_requires_mode() {
-        let error = parse_arguments(&["monad", "work-packet"])
-            .expect_err("work-packet should require mode");
-
-        assert!(error.contains("work-packet currently requires either --dry-run"));
-        assert!(error.contains("--yes"));
-    }
-
-    #[test]
-    fn work_packet_rejects_dry_run_and_yes_together() {
-        let error = parse_arguments(&["monad", "work-packet", "--dry-run", "--yes"])
-            .expect_err("work-packet should reject conflicting modes");
-
-        assert!(error.contains("work-packet accepts either --dry-run or --yes"));
     }
 }

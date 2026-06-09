@@ -157,9 +157,10 @@ pub use work_packet::{
     WORK_PACKET_HANDOFF_PATH, WORK_PACKET_PLAN_JSON_PATH, WORK_PACKET_PLAN_MARKDOWN_PATH,
     WorkPacketApplyResult, WorkPacketEvidenceItem, WorkPacketExecutionPlan,
     WorkPacketImplementationStep, WorkPacketMetadata, WorkPacketStatus,
-    apply_work_packet_execution_plan, build_work_packet_execution_plan, parse_work_packet_metadata,
-    render_work_packet_apply_result, render_work_packet_apply_result_json,
-    render_work_packet_execution_plan, render_work_packet_execution_plan_json,
+    apply_work_packet_execution_plan, build_work_packet_execution_plan,
+    parse_work_packet_metadata, render_work_packet_apply_result,
+    render_work_packet_apply_result_json, render_work_packet_execution_plan,
+    render_work_packet_execution_plan_json,
 };
 pub use workspace::{WorkspaceContext, discover_workspace_root, is_workspace_root};
 
