@@ -11,7 +11,6 @@ pub mod ai_context;
 pub mod checks;
 pub mod component_add;
 pub mod context;
-pub mod contract_schema;
 pub mod dependency_detection;
 pub mod diagnostics;
 pub mod doctor;
@@ -61,15 +60,6 @@ pub use context::{
     render_context_pack_markdown, render_context_verify_summary, verify_context,
     write_bootstrap_prompt_artifact, write_context_pack_artifact, write_current_state_artifact,
     write_handoff_artifact,
-};
-pub use contract_schema::{
-    CONTRACT_GENERATED_STATE_PATH, CONTRACT_LOCK_PATH, CONTRACT_SCHEMA_MIGRATION_PLAN_PATH,
-    CONTRACT_SCHEMA_REPORT_JSON_PATH, CONTRACT_SCHEMA_REPORT_PATH, ContractGeneratedState,
-    ContractMigrationStep, ContractMigrationStepStatus, ContractSchemaApplyResult,
-    ContractSchemaArtifact, ContractSchemaArtifactKind, ContractSchemaPlan,
-    apply_contract_schema_plan, build_contract_schema_plan, render_contract_schema_apply_result,
-    render_contract_schema_apply_result_json, render_contract_schema_plan,
-    render_contract_schema_plan_json,
 };
 pub use dependency_detection::{
     RepositoryDependencyDetection, RepositoryDependencySignal, RepositoryDependencySignalKind,

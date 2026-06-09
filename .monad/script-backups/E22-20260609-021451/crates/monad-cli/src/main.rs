@@ -126,18 +126,6 @@ enum CliCommand {
         output_format: OutputFormat,
     },
 
-    /// Validate repository contract schema and generated state.
-    Contract {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated contract schema evidence/state.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
     /// Generate provider-agnostic AI context and memory artifacts.
     AiContext {
         /// Whether to run in dry-run mode.
@@ -383,14 +371,13 @@ impl CliCommand {
             && parts.first().copied() != Some("upgrade")
             && parts.first().copied() != Some("ai-context")
             && parts.first().copied() != Some("policy")
-            && parts.first().copied() != Some("contract")
             && parts.first().copied() != Some("patch")
             && parts.first().copied() != Some("work-packet")
             && parts.first().copied() != Some("sync")
             && parts.first().copied() != Some("upgrade")
         {
             return Err(
-                "--yes is only supported for init, add, sync, upgrade, ai-context, policy, contract, work-packet, and patch commands"
+                "--yes is only supported for init, add, sync, upgrade, ai-context, policy, patch, and work-packet commands"
                     .to_string(),
             );
         }
@@ -528,20 +515,6 @@ impl CliCommand {
             ["patch", other, ..] => {
                 reject_write_for_non_context(write)?;
                 Err(format!("unknown patch argument: {other}"))
-            }
-            ["contract"] => {
-                reject_write_for_non_context(write)?;
-                require_contract_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::Contract {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["contract", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown contract argument: {other}"))
             }
             ["ai-context"] => {
                 reject_write_for_non_context(write)?;
@@ -735,11 +708,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             yes,
             output_format,
         } => render_patch(dry_run, yes, output_format),
-        CliCommand::Contract {
-            dry_run,
-            yes,
-            output_format,
-        } => render_contract(dry_run, yes, output_format),
         CliCommand::AiContext {
             dry_run,
             yes,
@@ -828,17 +796,6 @@ fn require_policy_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("policy currently requires either --dry-run to preview or --yes to write generated policy evidence".to_string())
         }
         (true, true) => Err("policy accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one contract mode.
-fn require_contract_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => {
-            Err("contract currently requires either --dry-run to preview or --yes to write generated contract evidence/state".to_string())
-        }
-        (true, true) => Err("contract accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -1013,9 +970,6 @@ fn help_text() -> String {
         "  policy --dry-run                        Preview policy and approval gates",
         "  policy --dry-run --format=json          Preview policy report as JSON",
         "  policy --yes                            Write generated policy evidence",
-        "  contract --dry-run                      Preview repo contract schema validation",
-        "  contract --dry-run --format=json        Preview contract schema validation as JSON",
-        "  contract --yes                         Write generated contract evidence/state",
         "  patch --dry-run                         Preview supervised patch plan",
         "  patch --dry-run --format=json           Preview supervised patch plan as JSON",
         "  patch --yes                             Apply generated patch artifacts after review",
@@ -1079,8 +1033,6 @@ fn help_text() -> String {
         "  monad ai-context --dry-run",
         "  monad policy --dry-run",
         "  monad policy --dry-run --format=json",
-        "  monad contract --dry-run",
-        "  monad contract --dry-run --format=json",
         "  monad patch --dry-run",
         "  monad patch --dry-run --format=json",
         "  monad patch --yes",
@@ -1104,7 +1056,6 @@ fn help_text() -> String {
         "  upgrade writes generated metadata/evidence only after --yes.",
         "  ai-context never calls providers or sends repo data remotely.",
         "  policy writes generated evidence only and never approves risky work automatically.",
-        "  contract writes generated contract evidence/state only and never rewrites monad.toml.",
         "  patch applies generated local evidence only; user-owned source mutation remains blocked.",
         "  work-packet writes generated workflow evidence only and never closes issues automatically.",
         "  plan is no-write and does not run commands.",
@@ -1262,35 +1213,6 @@ fn render_policy(dry_run: bool, yes: bool, output_format: OutputFormat) -> Resul
     }
 
     Err("policy currently requires either --dry-run to preview or --yes to write generated policy evidence".to_string())
-}
-
-/// Renders or writes repository contract schema validation output.
-fn render_contract(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = monad_core::build_contract_schema_plan(&context);
-        return match output_format {
-            OutputFormat::Text => Ok(monad_core::render_contract_schema_plan(&plan)),
-            OutputFormat::Json => Ok(monad_core::render_contract_schema_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result = monad_core::apply_contract_schema_plan(&context)?;
-        return match output_format {
-            OutputFormat::Text => Ok(monad_core::render_contract_schema_apply_result(&result)),
-            OutputFormat::Json => Ok(monad_core::render_contract_schema_apply_result_json(
-                &result,
-            )),
-        };
-    }
-
-    Err("contract currently requires either --dry-run to preview or --yes to write generated contract evidence/state".to_string())
 }
 
 /// Renders or writes AI context artifacts.
@@ -2109,57 +2031,6 @@ mod tests {
         let error = parse_arguments(&["monad", "policy"]).expect_err("policy should require mode");
 
         assert!(error.contains("policy currently requires either --dry-run"));
-    }
-
-    #[test]
-    fn contract_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "contract", "--dry-run"])
-                .expect("contract dry-run should parse"),
-            CliCommand::Contract {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "contract", "--dry-run", "--format=json"])
-                .expect("contract json should parse"),
-            CliCommand::Contract {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn contract_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "contract", "--yes"]).expect("contract yes should parse"),
-            CliCommand::Contract {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn contract_requires_mode() {
-        let error =
-            parse_arguments(&["monad", "contract"]).expect_err("contract should require a mode");
-
-        assert!(error.contains("contract currently requires either --dry-run"));
-    }
-
-    #[test]
-    fn contract_rejects_dry_run_and_yes_together() {
-        let error = parse_arguments(&["monad", "contract", "--dry-run", "--yes"])
-            .expect_err("contract should reject conflicting modes");
-
-        assert!(error.contains("contract accepts either --dry-run or --yes"));
     }
 
     #[test]
