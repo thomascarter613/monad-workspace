@@ -37,12 +37,6 @@ use monad_core::{
     write_bootstrap_prompt_artifact, write_check_evidence_packet, write_context_pack_artifact,
     write_current_state_artifact, write_handoff_artifact, write_policy_evidence,
 };
-use monad_core::{
-    build_language_adapter_registry, render_language_adapter_evidence_results,
-    render_language_adapter_registry, render_language_adapter_registry_json,
-    write_language_adapter_evidence,
-};
-
 use std::env;
 use std::process::ExitCode;
 
@@ -175,18 +169,6 @@ enum CliCommand {
 
         /// Optional release version override.
         version: Option<String>,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
-    /// Render or write language adapter registry evidence.
-    LanguageAdapters {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated adapter evidence.
-        yes: bool,
 
         /// Requested output format.
         output_format: OutputFormat,
@@ -401,8 +383,6 @@ impl CliCommand {
             && parts.first().copied() != Some("upgrade")
             && parts.first().copied() != Some("ai-context")
             && parts.first().copied() != Some("policy")
-            && parts.first().copied() != Some("adapters")
-            && parts.first().copied() != Some("language-adapters")
             && parts.first().copied() != Some("contract")
             && parts.first().copied() != Some("patch")
             && parts.first().copied() != Some("work-packet")
@@ -605,21 +585,6 @@ impl CliCommand {
                 reject_write_for_non_context(write)?;
                 Err(format!("unknown release argument: {other}"))
             }
-
-            ["adapters"] | ["language-adapters"] => {
-                reject_write_for_non_context(write)?;
-                require_language_adapters_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::LanguageAdapters {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["adapters", other, ..] | ["language-adapters", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown adapters argument: {other}"))
-            }
             ["doctor"] => {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
@@ -790,12 +755,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             version,
             output_format,
         } => render_release(dry_run, version, output_format),
-
-        CliCommand::LanguageAdapters {
-            dry_run,
-            yes,
-            output_format,
-        } => render_language_adapters(dry_run, yes, output_format),
         CliCommand::Doctor { output_format } => render_doctor(output_format),
         CliCommand::Check { output_format } => render_check(output_format),
         CliCommand::Sync {
@@ -915,17 +874,6 @@ fn require_release_mode(dry_run: bool, yes: bool) -> Result<(), String> {
         ),
         (false, true) => Err("release does not support --yes; use --dry-run only".to_string()),
         (true, true) => Err("release accepts --dry-run only, not --yes".to_string()),
-    }
-}
-
-/// Requires exactly one language-adapter mode.
-fn require_language_adapters_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => Err(
-            "adapters currently requires either --dry-run to preview or --yes to write generated adapter evidence".to_string(),
-        ),
-        (true, true) => Err("adapters accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -1059,9 +1007,6 @@ fn help_text() -> String {
         "  info                                      Show workspace summary",
         "  check                                     Run workspace checks",
         "  doctor                                   Diagnose local environment and repo readiness",
-        "  adapters --dry-run                      Preview language adapter registry",
-        "  adapters --dry-run --format=json        Preview language adapter registry as JSON",
-        "  adapters --yes                          Write generated adapter evidence",
         "  release --dry-run                       Plan release readiness without publishing",
         "  upgrade --dry-run                       Preview safe repository upgrade steps",
         "  ai-context --dry-run                    Preview AI context/memory artifacts",
@@ -1129,8 +1074,6 @@ fn help_text() -> String {
         "  monad context --write",
         "  monad check --format=json",
         "  monad doctor",
-        "  monad adapters --dry-run",
-        "  monad adapters --dry-run --format=json",
         "  monad release --dry-run",
         "  monad upgrade --dry-run",
         "  monad ai-context --dry-run",
@@ -1168,7 +1111,6 @@ fn help_text() -> String {
         "  evolve commands are dry-run only in this MVP hardening phase.",
         "  language-aware add writes use local embedded templates only.",
         "  sync writes generated evidence reports only.",
-        "  adapters records command suggestions only; it does not run native tools.",
         "  --write is only supported for the context command.",
     ]
     .join("\n")
@@ -1419,29 +1361,6 @@ fn render_release(
         OutputFormat::Text => Ok(render_release_plan(&plan)),
         OutputFormat::Json => Ok(render_release_plan_json(&plan)),
     }
-}
-
-/// Renders or writes language adapter registry evidence.
-fn render_language_adapters(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    if dry_run {
-        let registry = build_language_adapter_registry();
-        return match output_format {
-            OutputFormat::Text => Ok(render_language_adapter_registry(&registry)),
-            OutputFormat::Json => Ok(render_language_adapter_registry_json(&registry)),
-        };
-    }
-
-    if yes {
-        let root = std::env::current_dir().map_err(|error| error.to_string())?;
-        let results = write_language_adapter_evidence(root)?;
-        return Ok(render_language_adapter_evidence_results(&results));
-    }
-
-    Err("adapters currently requires either --dry-run to preview or --yes to write generated adapter evidence".to_string())
 }
 
 /// Renders doctor diagnostics.

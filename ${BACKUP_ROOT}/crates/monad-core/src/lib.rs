@@ -21,7 +21,6 @@ pub mod exec;
 pub mod file_ops;
 pub mod git;
 pub mod init;
-pub mod language_adapters;
 pub mod manifest;
 pub mod output;
 pub mod patch;
@@ -291,14 +290,6 @@ pub use component_add::{
     apply_add_plan, build_add_plan, component_scaffold_templates, render_add_apply_result,
     render_add_dry_run,
 };
-pub use language_adapters::{
-    LanguageAdapter, LanguageAdapterCapability, LanguageAdapterCommand,
-    LanguageAdapterCommandIntent, LanguageAdapterKind, LanguageAdapterRegistry,
-    build_language_adapter_registry, render_language_adapter_evidence_results,
-    render_language_adapter_registry, render_language_adapter_registry_json,
-    write_language_adapter_evidence,
-};
-
 #[cfg(test)]
 mod tests {
     use super::*;
