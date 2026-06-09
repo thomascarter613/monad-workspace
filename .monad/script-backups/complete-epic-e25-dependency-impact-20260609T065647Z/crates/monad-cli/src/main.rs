@@ -277,18 +277,6 @@ enum CliCommand {
         dry_run: bool,
     },
 
-    /// Analyze dependency graph and changed-file impact recommendations.
-    Impact {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated dependency-impact evidence.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
     /// Produce a supervised plan from a user intent.
     Plan {
         /// User intent to plan from.
@@ -437,8 +425,6 @@ impl CliCommand {
             && parts.first().copied() != Some("analysis")
             && parts.first().copied() != Some("static-analysis")
             && parts.first().copied() != Some("sync")
-            && parts.first().copied() != Some("impact")
-            && parts.first().copied() != Some("dependency-impact")
             && parts.first().copied() != Some("upgrade")
         {
             return Err(
@@ -676,34 +662,6 @@ impl CliCommand {
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Check { output_format })
             }
-            ["impact"] => {
-                reject_write_for_non_context(write)?;
-                require_dependency_impact_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::Impact {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["dependency-impact"] => {
-                reject_write_for_non_context(write)?;
-                require_dependency_impact_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::Impact {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["impact", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown impact argument: {other}"))
-            }
-            ["dependency-impact", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown dependency-impact argument: {other}"))
-            }
             ["inspect"] => {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
@@ -882,11 +840,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             yes,
             output_format,
         } => render_sync(dry_run, yes, output_format),
-        CliCommand::Impact {
-            dry_run,
-            yes,
-            output_format,
-        } => render_dependency_impact(dry_run, yes, output_format),
         CliCommand::Inspect { output_format } => render_inspect(output_format),
         CliCommand::Graph { graph_format } => render_graph(graph_format),
         CliCommand::Context {
@@ -997,17 +950,6 @@ fn require_upgrade_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("upgrade currently requires either --dry-run to preview or --yes to apply guarded generated metadata".to_string())
         }
         (true, true) => Err("upgrade accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one dependency-impact mode.
-fn require_dependency_impact_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => {
-            Err("impact currently requires either --dry-run to preview or --yes to write generated dependency-impact evidence".to_string())
-        }
-        (true, true) => Err("impact accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -1195,9 +1137,6 @@ fn help_text() -> String {
         "  sync --dry-run                            Preview repository sync plan",
         "  sync --dry-run --format=json              Preview repository sync plan as JSON",
         "  sync --yes                                Write generated sync evidence reports",
-        "  impact --dry-run                          Preview dependency impact analysis",
-        "  impact --dry-run --format=json            Preview dependency impact analysis as JSON",
-        "  impact --yes                              Write generated dependency-impact evidence",
         "  inspect                                   Inspect repository structure",
         "  graph                                     Render repository graph",
         "  plan \"<intent>\"                          Produce a supervised no-write plan",
@@ -1264,9 +1203,6 @@ fn help_text() -> String {
         "  monad doctor --format=json",
         "  monad sync --dry-run",
         "  monad sync --dry-run --format=json",
-        "  monad impact --dry-run",
-        "  monad impact --dry-run --format=json",
-        "  monad dependency-impact --dry-run",
         "  monad graph --format=mermaid",
         "  monad plan \"explain this repository\"",
         "  monad evolve verify-baseline --dry-run",
@@ -1286,7 +1222,6 @@ fn help_text() -> String {
         "  evolve commands are dry-run only in this MVP hardening phase.",
         "  language-aware add writes use local embedded templates only.",
         "  sync writes generated evidence reports only.",
-        "  impact writes generated evidence only and does not execute tools.",
         "  adapters records command suggestions only; it does not run native tools.",
         "  --write is only supported for the context command.",
     ]
@@ -1333,31 +1268,6 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
     Ok(render_workspace_summary(&summary, output_format))
-}
-
-/// Renders or writes dependency-impact evidence.
-fn render_dependency_impact(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = monad_core::build_dependency_impact_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(monad_core::render_dependency_impact_plan(&plan)),
-            OutputFormat::Json => Ok(monad_core::render_dependency_impact_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result = monad_core::write_dependency_impact_evidence(&root)
-            .map_err(|error| error.to_string())?;
-        return Ok(monad_core::render_dependency_impact_apply_result(&result));
-    }
-
-    Err("impact currently requires either --dry-run to preview or --yes to write generated dependency-impact evidence".to_string())
 }
 
 /// Discovers a workspace context for sync.
@@ -2283,61 +2193,6 @@ mod tests {
                 output_format: OutputFormat::Text,
             }
         );
-    }
-
-    #[test]
-    fn impact_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "impact", "--dry-run"])
-                .expect("impact dry-run should parse"),
-            CliCommand::Impact {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "impact", "--dry-run", "--format=json"])
-                .expect("impact dry-run json should parse"),
-            CliCommand::Impact {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn dependency_impact_alias_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "dependency-impact", "--dry-run"])
-                .expect("dependency-impact alias should parse"),
-            CliCommand::Impact {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn impact_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "impact", "--yes"]).expect("impact yes should parse"),
-            CliCommand::Impact {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn impact_requires_mode() {
-        let error = parse_arguments(&["monad", "impact"]).expect_err("impact should require mode");
-
-        assert!(error.contains("impact currently requires either --dry-run"));
     }
 
     #[test]

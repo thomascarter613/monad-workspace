@@ -1,0 +1,947 @@
+//! Dependency graph and impact analysis foundation.
+//!
+//! This module is intentionally local-only. It does not execute Git, build
+//! tools, package managers, language servers, remote calls, AI providers, or
+//! source mutations. It models dependency/impact data and writes generated
+//! evidence only when the CLI asks for approved generated writes.
+
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use serde::Serialize;
+
+use crate::{GatedWriteRequest, GatedWriteResult, gated_generated_write};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DependencyImpactNodeKind {
+    Component,
+    Task,
+    FileClass,
+    Verification,
+}
+
+impl DependencyImpactNodeKind {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Component => "component",
+            Self::Task => "task",
+            Self::FileClass => "file-class",
+            Self::Verification => "verification",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DependencyImpactEdgeKind {
+    DependsOn,
+    OwnsFiles,
+    RequiresVerification,
+    RelatedTask,
+}
+
+impl DependencyImpactEdgeKind {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DependsOn => "depends-on",
+            Self::OwnsFiles => "owns-files",
+            Self::RequiresVerification => "requires-verification",
+            Self::RelatedTask => "related-task",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DependencyImpactSeverity {
+    Low,
+    Medium,
+    High,
+}
+
+impl DependencyImpactSeverity {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DependencyImpactNode {
+    id: String,
+    kind: DependencyImpactNodeKind,
+    label: String,
+}
+
+impl DependencyImpactNode {
+    #[must_use]
+    pub fn new(
+        id: impl Into<String>,
+        kind: DependencyImpactNodeKind,
+        label: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            kind,
+            label: label.into(),
+        }
+    }
+
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> DependencyImpactNodeKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DependencyImpactEdge {
+    from: String,
+    to: String,
+    kind: DependencyImpactEdgeKind,
+    reason: String,
+}
+
+impl DependencyImpactEdge {
+    #[must_use]
+    pub fn new(
+        from: impl Into<String>,
+        to: impl Into<String>,
+        kind: DependencyImpactEdgeKind,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self {
+            from: from.into(),
+            to: to.into(),
+            kind,
+            reason: reason.into(),
+        }
+    }
+
+    #[must_use]
+    pub fn from(&self) -> &str {
+        &self.from
+    }
+
+    #[must_use]
+    pub fn to(&self) -> &str {
+        &self.to
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> DependencyImpactEdgeKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub fn reason(&self) -> &str {
+        &self.reason
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DependencyImpactGraph {
+    nodes: Vec<DependencyImpactNode>,
+    edges: Vec<DependencyImpactEdge>,
+}
+
+impl DependencyImpactGraph {
+    #[must_use]
+    pub fn new(mut nodes: Vec<DependencyImpactNode>, mut edges: Vec<DependencyImpactEdge>) -> Self {
+        nodes.sort_by(|left, right| left.id().cmp(right.id()));
+        nodes.dedup_by(|left, right| left.id() == right.id());
+
+        edges.sort_by(|left, right| {
+            left.from()
+                .cmp(right.from())
+                .then(left.to().cmp(right.to()))
+                .then(left.kind().cmp(&right.kind()))
+        });
+        edges.dedup_by(|left, right| {
+            left.from() == right.from() && left.to() == right.to() && left.kind() == right.kind()
+        });
+
+        Self { nodes, edges }
+    }
+
+    #[must_use]
+    pub fn nodes(&self) -> &[DependencyImpactNode] {
+        &self.nodes
+    }
+
+    #[must_use]
+    pub fn edges(&self) -> &[DependencyImpactEdge] {
+        &self.edges
+    }
+
+    #[must_use]
+    pub fn has_node(&self, id: &str) -> bool {
+        self.nodes.iter().any(|node| node.id() == id)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ChangedFileImpact {
+    path: PathBuf,
+    severity: DependencyImpactSeverity,
+    impacted_nodes: Vec<String>,
+    recommended_verifications: Vec<String>,
+}
+
+impl ChangedFileImpact {
+    #[must_use]
+    pub fn new(
+        path: impl Into<PathBuf>,
+        severity: DependencyImpactSeverity,
+        mut impacted_nodes: Vec<String>,
+        mut recommended_verifications: Vec<String>,
+    ) -> Self {
+        impacted_nodes.sort();
+        impacted_nodes.dedup();
+        recommended_verifications.sort();
+        recommended_verifications.dedup();
+
+        Self {
+            path: path.into(),
+            severity,
+            impacted_nodes,
+            recommended_verifications,
+        }
+    }
+
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    #[must_use]
+    pub const fn severity(&self) -> DependencyImpactSeverity {
+        self.severity
+    }
+
+    #[must_use]
+    pub fn impacted_nodes(&self) -> &[String] {
+        &self.impacted_nodes
+    }
+
+    #[must_use]
+    pub fn recommended_verifications(&self) -> &[String] {
+        &self.recommended_verifications
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DependencyImpactPlan {
+    command: String,
+    graph: DependencyImpactGraph,
+    changed_files: Vec<ChangedFileImpact>,
+    recommendations: Vec<String>,
+    evidence_paths: Vec<PathBuf>,
+    safety_notes: Vec<String>,
+}
+
+impl DependencyImpactPlan {
+    #[must_use]
+    pub fn new(
+        graph: DependencyImpactGraph,
+        mut changed_files: Vec<ChangedFileImpact>,
+        mut recommendations: Vec<String>,
+    ) -> Self {
+        changed_files.sort_by(|left, right| left.path().cmp(right.path()));
+        recommendations.sort();
+        recommendations.dedup();
+
+        Self {
+            command: "impact".to_string(),
+            graph,
+            changed_files,
+            recommendations,
+            evidence_paths: vec![
+                PathBuf::from(".monad/reports/dependency-impact-report.md"),
+                PathBuf::from(".monad/reports/dependency-impact-report.json"),
+            ],
+            safety_notes: vec![
+                "No Git commands are executed.".to_string(),
+                "No native build tools are executed.".to_string(),
+                "No package managers are invoked.".to_string(),
+                "No language servers are launched.".to_string(),
+                "No remote dependency graph is fetched.".to_string(),
+                "No user-owned source files are rewritten.".to_string(),
+            ],
+        }
+    }
+
+    #[must_use]
+    pub const fn graph(&self) -> &DependencyImpactGraph {
+        &self.graph
+    }
+
+    #[must_use]
+    pub fn changed_files(&self) -> &[ChangedFileImpact] {
+        &self.changed_files
+    }
+
+    #[must_use]
+    pub fn recommendations(&self) -> &[String] {
+        &self.recommendations
+    }
+
+    #[must_use]
+    pub fn evidence_paths(&self) -> &[PathBuf] {
+        &self.evidence_paths
+    }
+
+    #[must_use]
+    pub fn safety_notes(&self) -> &[String] {
+        &self.safety_notes
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DependencyImpactApplyResult {
+    write_results: Vec<GatedWriteResult>,
+}
+
+impl DependencyImpactApplyResult {
+    #[must_use]
+    pub fn new(write_results: Vec<GatedWriteResult>) -> Self {
+        Self { write_results }
+    }
+
+    #[must_use]
+    pub fn write_results(&self) -> &[GatedWriteResult] {
+        &self.write_results
+    }
+}
+
+#[must_use]
+pub fn build_dependency_impact_graph(root: impl AsRef<Path>) -> DependencyImpactGraph {
+    let root = root.as_ref();
+    let mut nodes = Vec::new();
+    let mut edges = Vec::new();
+
+    push_component_if_exists(
+        &mut nodes,
+        root,
+        "crates/monad-core",
+        "component:monad-core",
+        "monad-core runtime library",
+    );
+    push_component_if_exists(
+        &mut nodes,
+        root,
+        "crates/monad-cli",
+        "component:monad-cli",
+        "monad-cli command-line interface",
+    );
+    push_component_if_exists(
+        &mut nodes,
+        root,
+        "docs",
+        "component:docs",
+        "repo-native docs",
+    );
+    push_component_if_exists(
+        &mut nodes,
+        root,
+        "tools/scripts",
+        "component:scripts",
+        "verification scripts",
+    );
+
+    for node in baseline_nodes() {
+        nodes.push(node);
+    }
+
+    edges.extend([
+        DependencyImpactEdge::new(
+            "component:monad-cli",
+            "component:monad-core",
+            DependencyImpactEdgeKind::DependsOn,
+            "the CLI delegates durable behavior to monad-core",
+        ),
+        DependencyImpactEdge::new(
+            "component:monad-core",
+            "file-class:rust-core",
+            DependencyImpactEdgeKind::OwnsFiles,
+            "core runtime source lives under crates/monad-core",
+        ),
+        DependencyImpactEdge::new(
+            "component:monad-cli",
+            "file-class:rust-cli",
+            DependencyImpactEdgeKind::OwnsFiles,
+            "CLI source lives under crates/monad-cli",
+        ),
+        DependencyImpactEdge::new(
+            "component:docs",
+            "file-class:docs",
+            DependencyImpactEdgeKind::OwnsFiles,
+            "documentation lives under docs",
+        ),
+        DependencyImpactEdge::new(
+            "component:scripts",
+            "file-class:scripts",
+            DependencyImpactEdgeKind::OwnsFiles,
+            "verification scripts live under tools/scripts",
+        ),
+        DependencyImpactEdge::new(
+            "component:repository-contract",
+            "file-class:contract",
+            DependencyImpactEdgeKind::OwnsFiles,
+            "contract state includes monad.toml, monad.lock, and .monad state",
+        ),
+        DependencyImpactEdge::new(
+            "task:E25",
+            "component:monad-core",
+            DependencyImpactEdgeKind::RelatedTask,
+            "E25 adds core dependency graph and impact analysis models",
+        ),
+        DependencyImpactEdge::new(
+            "task:E25",
+            "verify:dependency-impact",
+            DependencyImpactEdgeKind::RelatedTask,
+            "E25 adds dedicated dependency-impact verification",
+        ),
+    ]);
+
+    edges.extend(component_verification_edges().into_iter().map(
+        |(component, verification, reason)| {
+            DependencyImpactEdge::new(
+                component,
+                verification,
+                DependencyImpactEdgeKind::RequiresVerification,
+                reason,
+            )
+        },
+    ));
+
+    DependencyImpactGraph::new(nodes, edges)
+}
+
+#[must_use]
+pub fn build_dependency_impact_plan(root: impl AsRef<Path>) -> DependencyImpactPlan {
+    let root = root.as_ref();
+    let graph = build_dependency_impact_graph(root);
+    let changed_files = read_changed_file_manifest(root)
+        .iter()
+        .map(analyze_changed_file_impact)
+        .collect::<Vec<_>>();
+
+    let mut recommendations = changed_files
+        .iter()
+        .flat_map(|impact| impact.recommended_verifications().iter().cloned())
+        .collect::<BTreeSet<_>>();
+
+    if changed_files.is_empty() {
+        recommendations.insert("cargo fmt --check".to_string());
+        recommendations.insert("cargo test".to_string());
+        recommendations
+            .insert("cargo clippy --all-targets --all-features -- -D warnings".to_string());
+        recommendations.insert(
+            "No .monad/changed-files.txt entries were found; run full verification for release confidence."
+                .to_string(),
+        );
+    }
+
+    recommendations.insert("tools/scripts/verify-dependency-impact.sh".to_string());
+    recommendations.insert("tools/scripts/verify-e25.sh".to_string());
+
+    DependencyImpactPlan::new(graph, changed_files, recommendations.into_iter().collect())
+}
+
+#[must_use]
+pub fn analyze_changed_file_impact(path: &PathBuf) -> ChangedFileImpact {
+    let normalized = path.to_string_lossy().replace('\\', "/");
+
+    if normalized.starts_with("crates/monad-core/") {
+        return ChangedFileImpact::new(
+            path,
+            DependencyImpactSeverity::High,
+            vec![
+                "component:monad-core".to_string(),
+                "component:monad-cli".to_string(),
+            ],
+            vec![
+                "cargo fmt --check".to_string(),
+                "cargo test -p monad-core".to_string(),
+                "cargo test -p monad-cli".to_string(),
+                "cargo clippy --all-targets --all-features -- -D warnings".to_string(),
+            ],
+        );
+    }
+
+    if normalized.starts_with("crates/monad-cli/") {
+        return ChangedFileImpact::new(
+            path,
+            DependencyImpactSeverity::Medium,
+            vec!["component:monad-cli".to_string()],
+            vec![
+                "cargo fmt --check".to_string(),
+                "cargo test -p monad-cli".to_string(),
+                "cargo clippy --all-targets --all-features -- -D warnings".to_string(),
+            ],
+        );
+    }
+
+    if normalized == "monad.toml" || normalized == "monad.lock" || normalized.starts_with(".monad/")
+    {
+        return ChangedFileImpact::new(
+            path,
+            DependencyImpactSeverity::High,
+            vec!["component:repository-contract".to_string()],
+            vec![
+                "cargo test -p monad-core --lib contract_schema".to_string(),
+                "cargo test -p monad-core --lib repo_contract".to_string(),
+                "cargo clippy --all-targets --all-features -- -D warnings".to_string(),
+            ],
+        );
+    }
+
+    if normalized.starts_with("tools/scripts/") {
+        return ChangedFileImpact::new(
+            path,
+            DependencyImpactSeverity::Medium,
+            vec!["component:scripts".to_string()],
+            vec![
+                "bash -n tools/scripts/verify-dependency-impact.sh".to_string(),
+                "bash -n tools/scripts/verify-e25.sh".to_string(),
+            ],
+        );
+    }
+
+    if normalized.starts_with("docs/") {
+        return ChangedFileImpact::new(
+            path,
+            DependencyImpactSeverity::Low,
+            vec!["component:docs".to_string()],
+            vec![
+                "Review changed documentation for roadmap and safety consistency.".to_string(),
+                "tools/scripts/verify-e25.sh".to_string(),
+            ],
+        );
+    }
+
+    ChangedFileImpact::new(
+        path,
+        DependencyImpactSeverity::Medium,
+        vec!["component:repository".to_string()],
+        vec![
+            "cargo fmt --check".to_string(),
+            "cargo test".to_string(),
+            "cargo clippy --all-targets --all-features -- -D warnings".to_string(),
+        ],
+    )
+}
+
+pub fn write_dependency_impact_evidence(
+    root: impl AsRef<Path>,
+) -> Result<DependencyImpactApplyResult, String> {
+    let root = root.as_ref();
+    let plan = build_dependency_impact_plan(root);
+    let requests = [
+        GatedWriteRequest::new(
+            ".monad/reports/dependency-impact-report.md",
+            render_dependency_impact_plan(&plan),
+            true,
+        ),
+        GatedWriteRequest::new(
+            ".monad/reports/dependency-impact-report.json",
+            render_dependency_impact_plan_json(&plan),
+            true,
+        ),
+    ];
+
+    let write_results = requests
+        .iter()
+        .map(|request| gated_generated_write(root, request))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(DependencyImpactApplyResult::new(write_results))
+}
+
+#[must_use]
+pub fn render_dependency_impact_plan(plan: &DependencyImpactPlan) -> String {
+    let mut lines = vec![
+        "Monad dependency graph and impact analysis plan".to_string(),
+        String::new(),
+        "Summary:".to_string(),
+        format!("  nodes: {}", plan.graph().nodes().len()),
+        format!("  edges: {}", plan.graph().edges().len()),
+        format!("  changed_files: {}", plan.changed_files().len()),
+        format!("  recommendations: {}", plan.recommendations().len()),
+        String::new(),
+        "Nodes:".to_string(),
+    ];
+
+    for node in plan.graph().nodes() {
+        lines.push(format!(
+            "  - {} kind={} label={}",
+            node.id(),
+            node.kind().as_str(),
+            node.label()
+        ));
+    }
+
+    lines.push(String::new());
+    lines.push("Edges:".to_string());
+    for edge in plan.graph().edges() {
+        lines.push(format!(
+            "  - {} --{}--> {}",
+            edge.from(),
+            edge.kind().as_str(),
+            edge.to()
+        ));
+        lines.push(format!("    reason: {}", edge.reason()));
+    }
+
+    lines.push(String::new());
+    lines.push("Changed-file impact:".to_string());
+    if plan.changed_files().is_empty() {
+        lines.push("  - no .monad/changed-files.txt entries found".to_string());
+    } else {
+        for impact in plan.changed_files() {
+            lines.push(format!(
+                "  - {} severity={}",
+                impact.path().display(),
+                impact.severity().as_str()
+            ));
+            lines.push(format!(
+                "    impacted_nodes: {}",
+                impact.impacted_nodes().join(", ")
+            ));
+            lines.push(format!(
+                "    recommended_verifications: {}",
+                impact.recommended_verifications().join(" | ")
+            ));
+        }
+    }
+
+    lines.push(String::new());
+    lines.push("Recommended verification:".to_string());
+    for recommendation in plan.recommendations() {
+        lines.push(format!("  - {recommendation}"));
+    }
+
+    lines.push(String::new());
+    lines.push("Evidence outputs:".to_string());
+    for path in plan.evidence_paths() {
+        lines.push(format!("  - {}", path.display()));
+    }
+
+    lines.push(String::new());
+    lines.push("Safety notes:".to_string());
+    for note in plan.safety_notes() {
+        lines.push(format!("  - {note}"));
+    }
+
+    lines.join("\n")
+}
+
+#[must_use]
+pub fn render_dependency_impact_plan_json(plan: &DependencyImpactPlan) -> String {
+    serde_json::to_string_pretty(plan).expect("dependency impact plan should serialize")
+}
+
+#[must_use]
+pub fn render_dependency_impact_apply_result(result: &DependencyImpactApplyResult) -> String {
+    let mut lines = vec![
+        "Monad dependency-impact evidence write result".to_string(),
+        String::new(),
+        "Results:".to_string(),
+    ];
+
+    for write_result in result.write_results() {
+        match write_result {
+            GatedWriteResult::Written(path) | GatedWriteResult::SkippedIdentical(path) => {
+                lines.push(format!(
+                    "  - [{}] {}",
+                    write_result.as_str(),
+                    path.display()
+                ));
+            }
+            GatedWriteResult::ApprovalRequired(message) | GatedWriteResult::Blocked(message) => {
+                lines.push(format!("  - [{}] {message}", write_result.as_str()));
+            }
+        }
+    }
+
+    lines.push(String::new());
+    lines.push("No user-owned source files were rewritten.".to_string());
+    lines.push("No native build tools were executed by Monad.".to_string());
+    lines.push("No package managers were invoked.".to_string());
+    lines.push("No remote dependency graph was fetched.".to_string());
+
+    lines.join("\n")
+}
+
+fn baseline_nodes() -> Vec<DependencyImpactNode> {
+    vec![
+        DependencyImpactNode::new(
+            "component:repository-contract",
+            DependencyImpactNodeKind::Component,
+            "repository contract and manifest state",
+        ),
+        DependencyImpactNode::new(
+            "file-class:rust-core",
+            DependencyImpactNodeKind::FileClass,
+            "Rust core runtime files",
+        ),
+        DependencyImpactNode::new(
+            "file-class:rust-cli",
+            DependencyImpactNodeKind::FileClass,
+            "Rust CLI files",
+        ),
+        DependencyImpactNode::new(
+            "file-class:docs",
+            DependencyImpactNodeKind::FileClass,
+            "documentation files",
+        ),
+        DependencyImpactNode::new(
+            "file-class:scripts",
+            DependencyImpactNodeKind::FileClass,
+            "local verification scripts",
+        ),
+        DependencyImpactNode::new(
+            "file-class:contract",
+            DependencyImpactNodeKind::FileClass,
+            "manifest, lock, and generated state files",
+        ),
+        DependencyImpactNode::new(
+            "task:E25",
+            DependencyImpactNodeKind::Task,
+            "Dependency Graph and Impact Analysis Foundation",
+        ),
+        DependencyImpactNode::new(
+            "verify:cargo-test",
+            DependencyImpactNodeKind::Verification,
+            "cargo test",
+        ),
+        DependencyImpactNode::new(
+            "verify:cargo-clippy",
+            DependencyImpactNodeKind::Verification,
+            "cargo clippy --all-targets --all-features -- -D warnings",
+        ),
+        DependencyImpactNode::new(
+            "verify:dependency-impact",
+            DependencyImpactNodeKind::Verification,
+            "tools/scripts/verify-dependency-impact.sh",
+        ),
+        DependencyImpactNode::new(
+            "verify:e25",
+            DependencyImpactNodeKind::Verification,
+            "tools/scripts/verify-e25.sh",
+        ),
+    ]
+}
+
+fn component_verification_edges() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        (
+            "component:monad-core",
+            "verify:cargo-test",
+            "core runtime changes require Rust test coverage",
+        ),
+        (
+            "component:monad-core",
+            "verify:cargo-clippy",
+            "core runtime changes must satisfy strict clippy checks",
+        ),
+        (
+            "component:monad-cli",
+            "verify:cargo-test",
+            "CLI changes require CLI tests",
+        ),
+        (
+            "component:monad-cli",
+            "verify:cargo-clippy",
+            "CLI changes must satisfy strict clippy checks",
+        ),
+        (
+            "component:scripts",
+            "verify:dependency-impact",
+            "script changes require E25 smoke verification",
+        ),
+        (
+            "component:repository-contract",
+            "verify:e25",
+            "contract-like changes should keep E25 evidence intact",
+        ),
+    ]
+}
+
+fn push_component_if_exists(
+    nodes: &mut Vec<DependencyImpactNode>,
+    root: &Path,
+    relative_path: &str,
+    id: &str,
+    label: &str,
+) {
+    if root.join(relative_path).exists() {
+        nodes.push(DependencyImpactNode::new(
+            id,
+            DependencyImpactNodeKind::Component,
+            label,
+        ));
+    }
+}
+
+fn read_changed_file_manifest(root: &Path) -> Vec<PathBuf> {
+    let manifest_path = root.join(".monad/changed-files.txt");
+    let Ok(text) = fs::read_to_string(manifest_path) else {
+        return Vec::new();
+    };
+
+    let mut paths = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .filter(|line| !line.starts_with('#'))
+        .map(PathBuf::from)
+        .collect::<Vec<_>>();
+
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_dir(test_name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after Unix epoch")
+            .as_nanos();
+
+        std::env::temp_dir().join(format!(
+            "monad-dependency-impact-{test_name}-{}-{unique}",
+            std::process::id()
+        ))
+    }
+
+    fn create_workspace(test_name: &str) -> PathBuf {
+        let root = unique_temp_dir(test_name);
+
+        fs::create_dir_all(root.join("crates/monad-core/src"))
+            .expect("core source dir should be created");
+        fs::create_dir_all(root.join("crates/monad-cli/src"))
+            .expect("cli source dir should be created");
+        fs::create_dir_all(root.join("docs")).expect("docs dir should be created");
+        fs::create_dir_all(root.join("tools/scripts")).expect("scripts dir should be created");
+        fs::create_dir_all(root.join(".monad")).expect(".monad dir should be created");
+
+        root
+    }
+
+    #[test]
+    fn graph_contains_core_and_cli_dependency_edge() {
+        let root = create_workspace("graph");
+        let graph = build_dependency_impact_graph(&root);
+
+        assert!(graph.has_node("component:monad-core"));
+        assert!(graph.has_node("component:monad-cli"));
+        assert!(graph.edges().iter().any(|edge| {
+            edge.from() == "component:monad-cli"
+                && edge.to() == "component:monad-core"
+                && edge.kind() == DependencyImpactEdgeKind::DependsOn
+        }));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn core_source_change_impacts_core_and_cli() {
+        let impact = analyze_changed_file_impact(&PathBuf::from("crates/monad-core/src/lib.rs"));
+
+        assert_eq!(impact.severity(), DependencyImpactSeverity::High);
+        assert!(
+            impact
+                .impacted_nodes()
+                .contains(&"component:monad-core".to_string())
+        );
+        assert!(
+            impact
+                .impacted_nodes()
+                .contains(&"component:monad-cli".to_string())
+        );
+        assert!(
+            impact
+                .recommended_verifications()
+                .iter()
+                .any(|command| command.contains("cargo test -p monad-core"))
+        );
+    }
+
+    #[test]
+    fn changed_file_manifest_drives_plan_recommendations() {
+        let root = create_workspace("manifest");
+        fs::write(
+            root.join(".monad/changed-files.txt"),
+            "crates/monad-core/src/lib.rs\ndocs/README.md\n",
+        )
+        .expect("changed-file manifest should be written");
+
+        let plan = build_dependency_impact_plan(&root);
+
+        assert_eq!(plan.changed_files().len(), 2);
+        assert!(
+            plan.recommendations()
+                .iter()
+                .any(|command| command.contains("cargo test -p monad-core"))
+        );
+        assert!(
+            plan.recommendations()
+                .iter()
+                .any(|command| command.contains("verify-e25"))
+        );
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn empty_changed_file_manifest_falls_back_to_full_verification() {
+        let root = create_workspace("empty");
+        let plan = build_dependency_impact_plan(&root);
+
+        assert!(plan.changed_files().is_empty());
+        assert!(
+            plan.recommendations()
+                .iter()
+                .any(|command| command == "cargo test")
+        );
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn json_render_contains_dependency_impact_command() {
+        let root = create_workspace("json");
+        let plan = build_dependency_impact_plan(&root);
+        let json = render_dependency_impact_plan_json(&plan);
+
+        assert!(json.contains("\"command\": \"impact\""));
+        assert!(json.contains("component:monad-core"));
+
+        fs::remove_dir_all(root).ok();
+    }
+}

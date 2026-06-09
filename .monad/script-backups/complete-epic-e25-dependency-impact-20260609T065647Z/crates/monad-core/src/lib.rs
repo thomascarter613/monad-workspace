@@ -13,7 +13,6 @@ pub mod component_add;
 pub mod context;
 pub mod contract_schema;
 pub mod dependency_detection;
-pub mod dependency_impact;
 pub mod diagnostics;
 pub mod doctor;
 pub mod error;
@@ -77,14 +76,6 @@ pub use contract_schema::{
 pub use dependency_detection::{
     RepositoryDependencyDetection, RepositoryDependencySignal, RepositoryDependencySignalKind,
     detect_repository_dependency_signals,
-};
-pub use dependency_impact::{
-    ChangedFileImpact, DependencyImpactApplyResult, DependencyImpactEdge, DependencyImpactEdgeKind,
-    DependencyImpactGraph, DependencyImpactNode, DependencyImpactNodeKind, DependencyImpactPlan,
-    DependencyImpactSeverity, analyze_changed_file_impact, build_dependency_impact_graph,
-    build_dependency_impact_plan, render_dependency_impact_apply_result,
-    render_dependency_impact_plan, render_dependency_impact_plan_json,
-    write_dependency_impact_evidence,
 };
 pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
 pub use doctor::{
