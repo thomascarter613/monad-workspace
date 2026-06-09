@@ -251,12 +251,8 @@ pub use agents::{
 };
 
 pub use policy::{
-    ApprovalGate, ApprovalPlan, CommandExecutionIntent, FileOperationIntent, GatedWriteRequest,
-    GatedWriteResult, OperationClassification, OperationKind, OperationMutability, PolicyFinding,
-    PolicyFindingSeverity, PolicyReport, RiskLevel, build_approval_plan, build_policy_report,
-    check_command_execution, check_file_operation, classify_operation, gated_generated_write,
-    render_policy_evidence_results, render_policy_report, render_policy_report_json,
-    write_policy_evidence,
+    ApprovalDecision, ApprovalDecisionKind, ApprovalGate, ApprovalGateId, ApprovalGateKind,
+    ApprovalRequirement, AuditActor, AuditEvent, AuditEventKind, AuditLog, ProposedAction,
 };
 
 pub use component_add::{

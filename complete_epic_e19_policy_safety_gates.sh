@@ -1,3 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Epic E19 — Policy, Safety, and Approval Gate Foundation
+#
+# Implements the first MVP-safe policy and approval-gate foundation:
+#
+#   monad policy --dry-run
+#   monad policy --dry-run --format=json
+#   monad policy --yes
+#
+# Safety:
+# - Does not execute commands.
+# - Does not rewrite user source files.
+# - Does not publish releases.
+# - Does not call AI providers.
+# - Does not approve risky operations automatically.
+# - Does not integrate remote/cloud policy services.
+# - Does not claim OPA/Rego support.
+
+echo "==> Epic E19: Policy, Safety, and Approval Gate Foundation"
+
+if git rev-parse --show-toplevel >/dev/null 2>&1; then
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+else
+  REPO_ROOT="$(pwd)"
+fi
+
+cd "$REPO_ROOT"
+
+echo "==> Repo root: $REPO_ROOT"
+
+POLICY_FILE="crates/monad-core/src/policy.rs"
+LIB_FILE="crates/monad-core/src/lib.rs"
+CLI_FILE="crates/monad-cli/src/main.rs"
+
+for required in "$LIB_FILE" "$CLI_FILE"; do
+  if [ ! -f "$required" ]; then
+    echo "ERROR: expected file not found: $required" >&2
+    echo "Run this from the Monad repository root." >&2
+    exit 1
+  fi
+done
+
+mkdir -p \
+  docs/architecture \
+  docs/commands \
+  docs/workflows \
+  docs/verification \
+  tools/scripts \
+  work/learning/E19 \
+  work/deliverables/E19 \
+  .monad/script-backups/E19/EPIC-E19
+
+BACKUP_STAMP="$(date +%Y%m%d%H%M%S)"
+[ -f "$POLICY_FILE" ] && cp "$POLICY_FILE" ".monad/script-backups/E19/EPIC-E19/policy.rs.$BACKUP_STAMP.bak"
+cp "$LIB_FILE" ".monad/script-backups/E19/EPIC-E19/lib.rs.$BACKUP_STAMP.bak"
+cp "$CLI_FILE" ".monad/script-backups/E19/EPIC-E19/main.rs.$BACKUP_STAMP.bak"
+
+cat > "$POLICY_FILE" <<'EOF'
 //! Policy, safety, and approval gate foundation.
 //!
 //! E19 provides the first MVP-safe policy model for classifying operations,
@@ -525,10 +585,7 @@ impl PolicyReport {
     /// Approval-required count.
     #[must_use]
     pub fn approval_required_count(&self) -> usize {
-        self.plans
-            .iter()
-            .filter(|plan| plan.requires_approval())
-            .count()
+        self.plans.iter().filter(|plan| plan.requires_approval()).count()
     }
 
     /// Blocked count.
@@ -670,12 +727,12 @@ pub fn check_file_operation(path: &Path, intent: FileOperationIntent) -> Approva
 #[must_use]
 pub fn check_command_execution(intent: CommandExecutionIntent) -> ApprovalPlan {
     let mut plan = build_approval_plan(match intent {
-        CommandExecutionIntent::Inspect
-        | CommandExecutionIntent::Verify
-        | CommandExecutionIntent::Build => OperationKind::Run,
-        CommandExecutionIntent::Publish
-        | CommandExecutionIntent::Remote
-        | CommandExecutionIntent::Arbitrary => OperationKind::Patch,
+        CommandExecutionIntent::Inspect | CommandExecutionIntent::Verify | CommandExecutionIntent::Build => {
+            OperationKind::Run
+        }
+        CommandExecutionIntent::Publish | CommandExecutionIntent::Remote | CommandExecutionIntent::Arbitrary => {
+            OperationKind::Patch
+        }
     });
 
     let mut findings = plan.findings().to_vec();
@@ -809,10 +866,7 @@ pub fn render_policy_report(report: &PolicyReport) -> String {
             operation.approval_gate().as_str()
         ));
         lines.push(format!("    rationale: {}", operation.rationale()));
-        lines.push(format!(
-            "    requires_approval: {}",
-            plan.requires_approval()
-        ));
+        lines.push(format!("    requires_approval: {}", plan.requires_approval()));
         lines.push(format!("    blocked: {}", plan.is_blocked()));
 
         for finding in plan.findings() {
@@ -948,20 +1002,14 @@ mod tests {
 
     #[test]
     fn user_owned_file_write_is_blocked() {
-        let plan = check_file_operation(
-            Path::new("src/main.rs"),
-            FileOperationIntent::WriteUserOwned,
-        );
+        let plan = check_file_operation(Path::new("src/main.rs"), FileOperationIntent::WriteUserOwned);
 
         assert!(plan.is_blocked());
     }
 
     #[test]
     fn absolute_file_path_is_blocked() {
-        let plan = check_file_operation(
-            Path::new("/tmp/example"),
-            FileOperationIntent::WriteGenerated,
-        );
+        let plan = check_file_operation(Path::new("/tmp/example"), FileOperationIntent::WriteGenerated);
 
         assert!(plan.is_blocked());
     }
@@ -1013,3 +1061,713 @@ mod tests {
         assert!(output.contains("\"blocked\""));
     }
 }
+EOF
+
+python3 <<'PY'
+from pathlib import Path
+import re
+
+LIB = Path("crates/monad-core/src/lib.rs")
+CLI = Path("crates/monad-cli/src/main.rs")
+
+
+def insert_before_first(text: str, markers: list[str], insertion: str, label: str) -> str:
+    if insertion.strip() in text:
+        return text
+
+    for marker in markers:
+        index = text.find(marker)
+        if index != -1:
+            return text[:index] + insertion + text[index:]
+
+    raise SystemExit(f"ERROR: could not find insertion point for {label}")
+
+
+def add_imports_to_monad_core_use(text: str, names: list[str]) -> str:
+    match = re.search(r"use monad_core::\{(?P<body>.*?)\};", text, re.DOTALL)
+    if not match:
+        raise SystemExit("ERROR: could not find monad_core import block in CLI")
+
+    body = match.group("body")
+    missing = [name for name in names if name not in body]
+
+    if not missing:
+        return text
+
+    addition = "\n    " + ", ".join(missing) + ","
+    return text[:match.start("body")] + body + addition + text[match.end("body"):]
+
+
+def ensure_cli_enum_variant_commas(text: str) -> str:
+    enum_start = text.find("enum CliCommand {")
+    if enum_start == -1:
+        return text
+
+    brace_start = text.find("{", enum_start)
+    if brace_start == -1:
+        return text
+
+    depth = 0
+    enum_end = None
+    for index in range(brace_start, len(text)):
+        char = text[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                enum_end = index
+                break
+
+    if enum_end is None:
+        return text
+
+    before = text[:brace_start + 1]
+    body = text[brace_start + 1:enum_end]
+    after = text[enum_end:]
+
+    lines = body.splitlines(keepends=True)
+    fixed = []
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped == "}":
+            next_non_empty = ""
+            for future in lines[i + 1:]:
+                if future.strip():
+                    next_non_empty = future.strip()
+                    break
+            if next_non_empty.startswith("///") or next_non_empty.startswith("#[") or next_non_empty[:1].isupper():
+                line = line.rstrip("\n") + ",\n"
+        fixed.append(line)
+
+    return before + "".join(fixed) + after
+
+
+# Patch lib.rs.
+lib = LIB.read_text()
+
+if "pub mod policy;" not in lib:
+    lib = insert_before_first(
+        lib,
+        ["pub mod release;", "pub mod repository_context_pack;", "pub mod workspace;"],
+        "pub mod policy;\n",
+        "policy module declaration",
+    )
+
+if "pub use policy::" not in lib:
+    export = """pub use policy::{
+    ApprovalGate, ApprovalPlan, CommandExecutionIntent, FileOperationIntent, GatedWriteRequest,
+    GatedWriteResult, OperationClassification, OperationKind, OperationMutability, PolicyFinding,
+    PolicyFindingSeverity, PolicyReport, RiskLevel, build_approval_plan, build_policy_report,
+    check_command_execution, check_file_operation, classify_operation, gated_generated_write,
+    render_policy_evidence_results, render_policy_report, render_policy_report_json,
+    write_policy_evidence,
+};
+"""
+    lib = insert_before_first(
+        lib,
+        ["pub use release::{", "pub use repository_context_pack::{", "pub use workspace::{"],
+        export,
+        "policy public exports",
+    )
+
+LIB.write_text(lib)
+
+
+# Patch CLI.
+cli = CLI.read_text()
+
+cli = add_imports_to_monad_core_use(
+    cli,
+    [
+        "build_policy_report",
+        "render_policy_evidence_results",
+        "render_policy_report",
+        "render_policy_report_json",
+        "write_policy_evidence",
+    ],
+)
+
+if "Policy {" not in cli:
+    variant = """    /// Render or write policy and approval-gate evidence.
+    Policy {
+        /// Whether to run in dry-run mode.
+        dry_run: bool,
+
+        /// Whether to write generated policy evidence.
+        yes: bool,
+
+        /// Requested output format.
+        output_format: OutputFormat,
+    }
+
+"""
+    cli = insert_before_first(
+        cli,
+        [
+            "    /// Generate provider-agnostic AI context and memory artifacts.\n",
+            "    AiContext {\n",
+            "    /// Plan or apply safe repository upgrades.\n",
+            "    Upgrade {\n",
+            "    /// Plan release readiness without publishing.\n",
+            "    Release {\n",
+        ],
+        variant,
+        "CliCommand::Policy variant",
+    )
+
+# Allow --yes for policy.
+if 'Some("policy")' not in cli:
+    cli = cli.replace(
+        'parts.first().copied() != Some("ai-context")',
+        'parts.first().copied() != Some("ai-context")\n            && parts.first().copied() != Some("policy")',
+        1,
+    )
+    cli = cli.replace(
+        "--yes is only supported for init, add, sync, upgrade, and ai-context commands",
+        "--yes is only supported for init, add, sync, upgrade, ai-context, and policy commands",
+    )
+
+if '["policy"] => {' not in cli:
+    parse_arm = """            ["policy"] => {
+                reject_write_for_non_context(write)?;
+                require_policy_mode(dry_run, yes)?;
+                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Policy {
+                    dry_run,
+                    yes,
+                    output_format,
+                })
+            }
+            ["policy", other, ..] => {
+                reject_write_for_non_context(write)?;
+                Err(format!("unknown policy argument: {other}"))
+            }
+"""
+    cli = insert_before_first(
+        cli,
+        [
+            '            ["ai-context"] => {\n',
+            '            ["upgrade"] => {\n',
+            '            ["release"] => {\n',
+            '            ["doctor"] => {\n',
+        ],
+        parse_arm,
+        "policy parse arm",
+    )
+
+if "CliCommand::Policy" not in cli.split("match command", 1)[-1]:
+    run_arm = """        CliCommand::Policy {
+            dry_run,
+            yes,
+            output_format,
+        } => render_policy(dry_run, yes, output_format),
+"""
+    cli = insert_before_first(
+        cli,
+        [
+            "        CliCommand::AiContext {\n",
+            "        CliCommand::Upgrade {\n",
+            "        CliCommand::Release {\n",
+            "        CliCommand::Doctor { output_format } => render_doctor(output_format),\n",
+        ],
+        run_arm,
+        "policy run arm",
+    )
+
+if "fn require_policy_mode" not in cli:
+    helper = """/// Requires exactly one policy mode.
+fn require_policy_mode(dry_run: bool, yes: bool) -> Result<(), String> {
+    match (dry_run, yes) {
+        (true, false) | (false, true) => Ok(()),
+        (false, false) => {
+            Err("policy currently requires either --dry-run to preview or --yes to write generated policy evidence".to_string())
+        }
+        (true, true) => Err("policy accepts either --dry-run or --yes, not both".to_string()),
+    }
+}
+
+"""
+    cli = insert_before_first(
+        cli,
+        [
+            "/// Requires exactly one AI context mode.\n",
+            "fn require_ai_context_mode",
+            "/// Requires exactly one upgrade mode.\n",
+            "fn require_upgrade_mode",
+            "/// Requires dry-run mode for the first release foundation.\n",
+            "fn require_release_mode",
+        ],
+        helper,
+        "require_policy_mode helper",
+    )
+
+if "fn render_policy(" not in cli:
+    renderer = """/// Renders or writes policy evidence.
+fn render_policy(dry_run: bool, yes: bool, output_format: OutputFormat) -> Result<String, String> {
+    if dry_run {
+        let report = build_policy_report();
+        return match output_format {
+            OutputFormat::Text => Ok(render_policy_report(&report)),
+            OutputFormat::Json => Ok(render_policy_report_json(&report)),
+        };
+    }
+
+    if yes {
+        let root = std::env::current_dir().map_err(|error| error.to_string())?;
+        let results = write_policy_evidence(root)?;
+        return Ok(render_policy_evidence_results(&results));
+    }
+
+    Err("policy currently requires either --dry-run to preview or --yes to write generated policy evidence".to_string())
+}
+
+"""
+    cli = insert_before_first(
+        cli,
+        [
+            "/// Renders or writes AI context artifacts.\n",
+            "fn render_ai_context",
+            "/// Renders or applies repository upgrade output.\n",
+            "fn render_upgrade",
+            "/// Renders release readiness planning output.\n",
+            "fn render_release",
+        ],
+        renderer,
+        "render_policy helper",
+    )
+
+if "policy --dry-run" not in cli:
+    cli = cli.replace(
+        '        "  ai-context --dry-run                    Preview AI context/memory artifacts",\n',
+        '        "  ai-context --dry-run                    Preview AI context/memory artifacts",\n        "  policy --dry-run                        Preview policy and approval gates",\n        "  policy --dry-run --format=json          Preview policy report as JSON",\n        "  policy --yes                            Write generated policy evidence",\n',
+        1,
+    )
+    cli = cli.replace(
+        '        "  monad ai-context --dry-run",\n',
+        '        "  monad ai-context --dry-run",\n        "  monad policy --dry-run",\n        "  monad policy --dry-run --format=json",\n',
+        1,
+    )
+    cli = cli.replace(
+        '        "  ai-context never calls providers or sends repo data remotely.",\n',
+        '        "  ai-context never calls providers or sends repo data remotely.",\n        "  policy writes generated evidence only and never approves risky work automatically.",\n',
+        1,
+    )
+
+if "fn policy_dry_run_command_parses" not in cli and "parse_arguments(&" in cli:
+    tests = """    #[test]
+    fn policy_dry_run_command_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "policy", "--dry-run"])
+                .expect("policy dry-run should parse"),
+            CliCommand::Policy {
+                dry_run: true,
+                yes: false,
+                output_format: OutputFormat::Text,
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "policy", "--dry-run", "--format=json"])
+                .expect("policy json should parse"),
+            CliCommand::Policy {
+                dry_run: true,
+                yes: false,
+                output_format: OutputFormat::Json,
+            }
+        );
+    }
+
+    #[test]
+    fn policy_yes_command_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "policy", "--yes"]).expect("policy yes should parse"),
+            CliCommand::Policy {
+                dry_run: false,
+                yes: true,
+                output_format: OutputFormat::Text,
+            }
+        );
+    }
+
+    #[test]
+    fn policy_requires_mode() {
+        let error = parse_arguments(&["monad", "policy"]).expect_err("policy should require mode");
+
+        assert!(error.contains("policy currently requires either --dry-run"));
+    }
+
+"""
+    cli = insert_before_first(
+        cli,
+        [
+            "    #[test]\n    fn ai_context_dry_run_command_parses()",
+            "    #[test]\n    fn upgrade_dry_run_command_parses()",
+            "    #[test]\n    fn release_command_parses_text_and_json_formats()",
+        ],
+        tests,
+        "policy parser tests",
+    )
+
+cli = ensure_cli_enum_variant_commas(cli)
+CLI.write_text(cli)
+PY
+
+cat > docs/commands/POLICY.md <<'EOF'
+---
+title: monad policy
+status: complete
+epic: E19
+---
+
+# `monad policy`
+
+`monad policy` previews or writes generated policy/approval-gate evidence.
+
+## Commands
+
+```bash
+monad policy --dry-run
+monad policy --dry-run --format=json
+monad policy --yes
+```
+
+## Safety contract
+
+`policy` does not:
+
+- execute commands;
+- rewrite user source files;
+- publish releases;
+- call AI providers;
+- automatically approve risky operations;
+- use a remote policy service;
+- claim OPA/Rego support.
+
+## Generated evidence
+
+`monad policy --yes` writes generated evidence only:
+
+```text
+.monad/reports/policy-report.md
+.monad/reports/policy-report.json
+```
+EOF
+
+cat > docs/architecture/POLICY-MODEL.md <<'EOF'
+---
+title: Policy Model
+status: complete
+epic: E19
+---
+
+# Policy Model
+
+E19 defines Monad's first policy and approval-gate foundation.
+
+## Core concepts
+
+```text
+OperationKind
+OperationMutability
+RiskLevel
+ApprovalGate
+OperationClassification
+ApprovalPlan
+PolicyFinding
+PolicyReport
+GatedWriteRequest
+GatedWriteResult
+```
+
+## Approval gates
+
+- `none`
+- `dry-run-review`
+- `explicit-yes`
+- `forbidden`
+
+## Principles
+
+- read-only operations are low risk;
+- generated writes require explicit approval;
+- source mutations are blocked in MVP policy;
+- publishing and remote side effects remain dry-run or blocked;
+- risky operations are never approved automatically.
+EOF
+
+cat > docs/architecture/APPROVAL-GATES.md <<'EOF'
+---
+title: Approval Gates
+status: complete
+epic: E19
+---
+
+# Approval Gates
+
+Approval gates are the boundary between planning and mutation.
+
+## Gate types
+
+| Gate | Meaning |
+|---|---|
+| none | Safe read-only operation |
+| dry-run-review | Must be reviewed before any future apply path |
+| explicit-yes | Requires explicit caller approval marker |
+| forbidden | Blocked in the MVP policy foundation |
+
+## Examples
+
+- `doctor` uses `none`.
+- `sync --yes`, `upgrade --yes`, and `ai-context --yes` require `explicit-yes`.
+- release publishing remains outside MVP.
+- patch/source mutation is `forbidden`.
+EOF
+
+cat > docs/workflows/POLICY-WORKFLOW.md <<'EOF'
+---
+title: Policy Workflow
+status: complete
+epic: E19
+---
+
+# Policy Workflow
+
+## Preview policy
+
+```bash
+monad policy --dry-run
+```
+
+## Preview JSON
+
+```bash
+monad policy --dry-run --format=json
+```
+
+## Write generated evidence
+
+```bash
+monad policy --yes
+```
+
+## Review evidence
+
+```text
+.monad/reports/policy-report.md
+.monad/reports/policy-report.json
+```
+EOF
+
+cat > docs/verification/POLICY-SMOKE-TESTS.md <<'EOF'
+---
+title: Policy Smoke Tests
+status: complete
+epic: E19
+---
+
+# Policy Smoke Tests
+
+Run:
+
+```bash
+tools/scripts/verify-policy.sh
+```
+
+This verifies:
+
+- policy dry-run output;
+- policy JSON output;
+- generated policy evidence writes;
+- dry-run writes no files;
+- blocked and approval-required examples are represented.
+EOF
+
+cat > docs/verification/E19-CLOSEOUT.md <<'EOF'
+---
+title: E19 Closeout
+status: complete
+epic: E19
+---
+
+# E19 Closeout — Policy, Safety, and Approval Gate Foundation
+
+E19 is complete when:
+
+```bash
+cargo fmt --check
+cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+tools/scripts/verify-policy.sh
+tools/scripts/verify-e19.sh
+```
+
+## Completed capability
+
+```bash
+monad policy --dry-run
+monad policy --dry-run --format=json
+monad policy --yes
+```
+
+## Safety retained
+
+No command execution.
+
+No user source rewrites.
+
+No release publishing.
+
+No AI provider calls.
+
+No automatic risky approval.
+EOF
+
+cat > tools/scripts/verify-policy.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if git rev-parse --show-toplevel >/dev/null 2>&1; then
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+else
+  REPO_ROOT="$(pwd)"
+fi
+
+echo "==> verify-policy: repo root: $REPO_ROOT"
+
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+
+(
+  cd "$tmpdir"
+
+  echo "==> verify policy dry-run writes no files"
+  cargo run --manifest-path "$REPO_ROOT/Cargo.toml" -p monad-cli -- policy --dry-run >/tmp/monad-e19-policy.out
+  grep -q "Monad policy and approval-gate report" /tmp/monad-e19-policy.out
+  grep -q "approval_required:" /tmp/monad-e19-policy.out
+  grep -q "blocked:" /tmp/monad-e19-policy.out
+  grep -q "No commands were executed." /tmp/monad-e19-policy.out
+  test ! -e .monad/reports/policy-report.md
+
+  echo "==> verify policy json"
+  cargo run --manifest-path "$REPO_ROOT/Cargo.toml" -p monad-cli -- policy --dry-run --format=json >/tmp/monad-e19-policy.json
+  grep -q '"command":"policy"' /tmp/monad-e19-policy.json
+  grep -q '"approval_required"' /tmp/monad-e19-policy.json
+  grep -q '"blocked"' /tmp/monad-e19-policy.json
+
+  echo "==> verify policy evidence write"
+  cargo run --manifest-path "$REPO_ROOT/Cargo.toml" -p monad-cli -- policy --yes >/tmp/monad-e19-policy-apply.out
+  grep -q "Monad policy evidence write result" /tmp/monad-e19-policy-apply.out
+  grep -q "No user source files were rewritten." /tmp/monad-e19-policy-apply.out
+  test -f .monad/reports/policy-report.md
+  test -f .monad/reports/policy-report.json
+  grep -q "patch" .monad/reports/policy-report.md
+  grep -q "forbidden" .monad/reports/policy-report.md
+)
+
+echo "verify-policy: PASS"
+EOF
+chmod +x tools/scripts/verify-policy.sh
+
+cat > tools/scripts/verify-e19.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> E19 verification"
+
+cargo fmt --check
+cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+tools/scripts/verify-policy.sh
+
+if [ -x tools/scripts/verify.sh ]; then
+  tools/scripts/verify.sh
+fi
+
+echo "verify-e19: PASS"
+EOF
+chmod +x tools/scripts/verify-e19.sh
+
+cat > work/learning/E19/EPIC-E19-policy-safety-gates.md <<'EOF'
+---
+title: Epic E19 Learning Note
+epic: E19
+---
+
+# Epic E19 Learning Note: Policy and Approval Gates
+
+E19 establishes a safety layer.
+
+The core pattern is:
+
+```text
+classify operation → evaluate risk → require approval or block → write evidence
+```
+
+This gives future commands a shared policy vocabulary before deeper enforcement is added.
+EOF
+
+cat > work/deliverables/E19/EPIC-E19-policy-safety-gates.md <<'EOF'
+---
+title: Epic E19 Deliverable Record
+epic: E19
+status: complete
+---
+
+# Epic E19 Deliverable Record
+
+## Epic
+
+E19 — Policy, Safety, and Approval Gate Foundation.
+
+## Completed work packets
+
+- WP-E19-001 — Define policy and approval-gate contract
+- WP-E19-002 — Add operation classification and risk model
+- WP-E19-003 — Add approval plan and approval evidence model
+- WP-E19-004 — Add policy checks for file operations and command execution
+- WP-E19-005 — Add gated write/apply foundation
+- WP-E19-006 — Add policy reports and smoke tests
+
+## Implementation files
+
+```text
+crates/monad-core/src/policy.rs
+crates/monad-core/src/lib.rs
+crates/monad-cli/src/main.rs
+tools/scripts/verify-policy.sh
+tools/scripts/verify-e19.sh
+```
+
+## Verification command
+
+```bash
+tools/scripts/verify-e19.sh
+```
+EOF
+
+echo "==> Formatting Rust code"
+cargo fmt
+
+echo
+echo "==> Epic E19 patch complete."
+echo
+echo "Recommended inspection:"
+echo "  git diff -- crates/monad-core/src/policy.rs"
+echo "  git diff -- crates/monad-core/src/lib.rs"
+echo "  git diff -- crates/monad-cli/src/main.rs"
+echo "  git diff -- docs/commands/POLICY.md"
+echo "  git diff -- tools/scripts/verify-policy.sh"
+echo
+echo "Recommended verification:"
+echo "  cargo fmt --check"
+echo "  cargo test"
+echo "  cargo clippy --all-targets --all-features -- -D warnings"
+echo "  tools/scripts/verify-policy.sh"
+echo "  tools/scripts/verify-e19.sh"
+echo
+echo "Commit:"
+echo "  git add crates/monad-core/src/policy.rs crates/monad-core/src/lib.rs crates/monad-cli/src/main.rs docs/commands/POLICY.md docs/architecture/POLICY-MODEL.md docs/architecture/APPROVAL-GATES.md docs/workflows/POLICY-WORKFLOW.md docs/verification/POLICY-SMOKE-TESTS.md docs/verification/E19-CLOSEOUT.md tools/scripts/verify-policy.sh tools/scripts/verify-e19.sh work/learning/E19/EPIC-E19-policy-safety-gates.md work/deliverables/E19/EPIC-E19-policy-safety-gates.md"
+echo "  git commit -m \"feat(policy): add approval gate foundation\""
+echo
+echo "Done."
