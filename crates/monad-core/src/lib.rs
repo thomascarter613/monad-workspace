@@ -226,8 +226,9 @@ pub use policy::{
 };
 
 pub use component_add::{
-    AddApplyResult, AddPlanOptions, ComponentKind, ComponentName, apply_add_plan, build_add_plan,
-    component_scaffold_templates, render_add_apply_result, render_add_dry_run,
+    AddApplyResult, AddPlanOptions, ComponentKind, ComponentLanguage, ComponentName,
+    apply_add_plan, build_add_plan, component_scaffold_templates, render_add_apply_result,
+    render_add_dry_run,
 };
 #[cfg(test)]
 mod tests {

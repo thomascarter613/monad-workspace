@@ -8,9 +8,9 @@
 //! artifact generation belong in `monad-core`.
 
 use monad_core::{
-    AddPlanOptions, BootstrapPromptArtifact, ComponentKind, ComponentName, ContextPackArtifact,
-    CurrentStateArtifact, HandoffArtifact, InitPlanOptions, InitPreset, OutputFormat,
-    RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
+    AddPlanOptions, BootstrapPromptArtifact, ComponentKind, ComponentLanguage, ComponentName,
+    ContextPackArtifact, CurrentStateArtifact, HandoffArtifact, InitPlanOptions, InitPreset,
+    OutputFormat, RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
     RepositoryGraphRenderFormat, WorkspaceContext, apply_add_plan, apply_init_plan,
     build_local_agent_plan, build_repository_graph, checked_runtime_identity,
     export_repository_context_pack_from_workspace, generate_bootstrap_prompt,
@@ -62,6 +62,9 @@ enum CliCommand {
 
         /// Component name to add.
         name: ComponentName,
+
+        /// Optional language-aware scaffold ID.
+        language: Option<ComponentLanguage>,
 
         /// Whether to run in dry-run mode.
         dry_run: bool,
@@ -155,12 +158,15 @@ impl CliCommand {
         let mut requested_format: Option<String> = None;
         let mut requested_preset: Option<String> = None;
         let mut requested_project_name: Option<String> = None;
+        let mut requested_add_language: Option<String> = None;
         let mut positional: Vec<String> = Vec::new();
         let mut write = false;
         let mut dry_run = false;
         let mut yes = false;
 
-        for argument in args.into_iter().skip(1) {
+        let mut arguments = args.into_iter().skip(1).peekable();
+
+        while let Some(argument) = arguments.next() {
             if argument == "--help" || argument == "-h" {
                 return Ok(Self::Help);
             }
@@ -211,6 +217,33 @@ impl CliCommand {
                 return Err("expected a value after --name, such as --name=my-project".to_string());
             }
 
+            if let Some(value) = argument.strip_prefix("--language=") {
+                if requested_add_language.is_some() {
+                    return Err("--language may only be provided once".to_string());
+                }
+                requested_add_language = Some(value.to_string());
+                continue;
+            }
+
+            if argument == "--language" {
+                let value = arguments.next().ok_or_else(|| {
+                    "expected a value after --language, such as --language rust".to_string()
+                })?;
+
+                if value.starts_with('-') {
+                    return Err(
+                        "expected a value after --language, such as --language rust".to_string()
+                    );
+                }
+
+                if requested_add_language.is_some() {
+                    return Err("--language may only be provided once".to_string());
+                }
+
+                requested_add_language = Some(value);
+                continue;
+            }
+
             if argument.starts_with('-') {
                 return Err(format!("unsupported argument: {argument}"));
             }
@@ -229,6 +262,10 @@ impl CliCommand {
             && parts.first().copied() != Some("init")
         {
             return Err("--preset and --name are only supported for init command".to_string());
+        }
+
+        if requested_add_language.is_some() && parts.first().copied() != Some("add") {
+            return Err("--language is only supported for add command".to_string());
         }
 
         match parts.as_slice() {
@@ -258,9 +295,16 @@ impl CliCommand {
                     return Err("add does not support --name yet; pass the component name positionally".to_string());
                 }
 
+                let language = requested_add_language
+                    .as_deref()
+                    .map(ComponentLanguage::parse)
+                    .transpose()
+                    .map_err(|error| error.to_string())?;
+
                 Ok(Self::Add {
                     kind: ComponentKind::parse(kind).map_err(|error| error.to_string())?,
                     name: ComponentName::parse(name).map_err(|error| error.to_string())?,
+                    language,
                     dry_run,
                     yes,
                 })
@@ -404,9 +448,10 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
         CliCommand::Add {
             kind,
             name,
+            language,
             dry_run,
             yes,
-        } => render_add(dry_run, yes, kind, name),
+        } => render_add(dry_run, yes, kind, name, language),
         CliCommand::Init {
             dry_run,
             yes,
@@ -555,10 +600,13 @@ fn help_text() -> String {
         "",
         "Usage:",
         "  monad [command] [--format=<format>] [--write] [--dry-run]",
+        "  monad add <kind> <name> --language <language> --dry-run",
         "",
         "Core commands:",
         "  add <kind> <name> --dry-run              Preview component scaffold plan",
-        "  add <kind> <name> --yes                  Apply component scaffold after review",
+        "  add <kind> <name> --language <language> --dry-run",
+        "                                             Preview language-aware scaffold plan",
+        "  add <kind> <name> --yes                  Apply generic component scaffold after review",
         "  init --dry-run                            Preview repository initialization plan",
         "  init --preset=basic --dry-run             Preview the basic repository scaffold",
         "  init --yes                                Apply repository initialization after review",
@@ -601,6 +649,8 @@ fn help_text() -> String {
         "",
         "Examples:",
         "  monad add app web --dry-run",
+        "  monad add service api --language rust --dry-run",
+        "  monad add app web --language typescript --dry-run",
         "  monad inspect",
         "  monad context --write",
         "  monad check --format=json",
@@ -612,6 +662,7 @@ fn help_text() -> String {
         "Safety notes:",
         "  plan is no-write and does not run commands.",
         "  evolve commands are dry-run only in this MVP hardening phase.",
+        "  language-aware add writes are deferred until language templates are implemented.",
         "  --write is only supported for the context command.",
     ]
     .join("\n")
@@ -684,9 +735,10 @@ fn render_add(
     yes: bool,
     kind: ComponentKind,
     name: ComponentName,
+    language: Option<ComponentLanguage>,
 ) -> Result<String, String> {
     let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
-    let options = AddPlanOptions::new(kind, name);
+    let options = AddPlanOptions::new(kind, name).with_language(language);
 
     if dry_run {
         return render_add_dry_run(&context, &options).map_err(|error| error.to_string());
@@ -1115,10 +1167,84 @@ mod tests {
             CliCommand::Add {
                 kind: ComponentKind::App,
                 name: ComponentName::parse("web").expect("test name should parse"),
+                language: None,
                 dry_run: true,
                 yes: false,
             }
         );
+    }
+
+    #[test]
+    fn add_language_dry_run_command_parses_with_space() {
+        assert_eq!(
+            parse_arguments(&[
+                "monad",
+                "add",
+                "service",
+                "api",
+                "--language",
+                "rust",
+                "--dry-run",
+            ])
+            .expect("add language dry-run should parse"),
+            CliCommand::Add {
+                kind: ComponentKind::Service,
+                name: ComponentName::parse("api").expect("test name should parse"),
+                language: Some(ComponentLanguage::Rust),
+                dry_run: true,
+                yes: false,
+            }
+        );
+    }
+
+    #[test]
+    fn add_language_dry_run_command_parses_with_equals() {
+        assert_eq!(
+            parse_arguments(&[
+                "monad",
+                "add",
+                "app",
+                "web",
+                "--language=typescript",
+                "--dry-run",
+            ])
+            .expect("add language dry-run should parse"),
+            CliCommand::Add {
+                kind: ComponentKind::App,
+                name: ComponentName::parse("web").expect("test name should parse"),
+                language: Some(ComponentLanguage::Typescript),
+                dry_run: true,
+                yes: false,
+            }
+        );
+    }
+
+    #[test]
+    fn add_language_rejects_unsupported_language() {
+        let error = parse_arguments(&[
+            "monad",
+            "add",
+            "service",
+            "api",
+            "--language",
+            "ruby",
+            "--dry-run",
+        ])
+        .expect_err("unsupported language should fail");
+
+        assert!(error.contains("unsupported component language"));
+        assert!(error.contains("rust"));
+        assert!(error.contains("typescript"));
+        assert!(error.contains("python"));
+        assert!(error.contains("go"));
+    }
+
+    #[test]
+    fn language_flag_is_only_supported_for_add() {
+        let error = parse_arguments(&["monad", "info", "--language", "rust"])
+            .expect_err("--language outside add should fail");
+
+        assert!(error.contains("--language is only supported for add command"));
     }
 
     #[test]
@@ -1146,6 +1272,7 @@ mod tests {
             CliCommand::Add {
                 kind: ComponentKind::App,
                 name: ComponentName::parse("web").expect("test name should parse"),
+                language: None,
                 dry_run: false,
                 yes: true,
             }

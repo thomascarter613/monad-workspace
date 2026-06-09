@@ -75,6 +75,59 @@ impl ComponentKind {
     }
 }
 
+/// Supported language-aware scaffold IDs.
+///
+/// WP-E13-002 adds the language model and dry-run parsing path only. Later E13
+/// packets add concrete language-specific template files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ComponentLanguage {
+    /// Rust component scaffold.
+    Rust,
+
+    /// TypeScript component scaffold.
+    Typescript,
+
+    /// Python component scaffold.
+    Python,
+
+    /// Go component scaffold.
+    Go,
+}
+
+impl ComponentLanguage {
+    /// Parses a user-facing language ID.
+    pub fn parse(value: &str) -> MonadResult<Self> {
+        match value {
+            "rust" => Ok(Self::Rust),
+            "typescript" => Ok(Self::Typescript),
+            "python" => Ok(Self::Python),
+            "go" => Ok(Self::Go),
+            other => Err(MonadError::invalid_input(format!(
+                "unsupported component language `{other}`; supported languages: {}",
+                Self::supported_values().join(", ")
+            ))),
+        }
+    }
+
+    /// Returns the stable user-facing language ID.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Rust => "rust",
+            Self::Typescript => "typescript",
+            Self::Python => "python",
+            Self::Go => "go",
+        }
+    }
+
+    /// Returns the stable list of supported language IDs.
+    #[must_use]
+    pub fn supported_values() -> &'static [&'static str] {
+        static SUPPORTED: [&str; 4] = ["rust", "typescript", "python", "go"];
+        &SUPPORTED
+    }
+}
+
 /// Filesystem-safe component name.
 ///
 /// This type is deliberately stricter than a general path. Users give Monad a
@@ -163,6 +216,7 @@ impl ComponentScaffoldTemplate {
         self.content
             .replace("{{component_kind}}", options.kind().as_str())
             .replace("{{component_name}}", options.name().as_str())
+            .replace("{{component_language}}", options.language_label())
             .replace(
                 "{{component_root}}",
                 &options.component_root().display().to_string(),
@@ -196,13 +250,50 @@ pub const fn component_scaffold_templates() -> &'static [ComponentScaffoldTempla
 pub struct AddPlanOptions {
     kind: ComponentKind,
     name: ComponentName,
+    language: Option<ComponentLanguage>,
 }
 
 impl AddPlanOptions {
     /// Creates add plan options.
     #[must_use]
     pub fn new(kind: ComponentKind, name: ComponentName) -> Self {
-        Self { kind, name }
+        Self {
+            kind,
+            name,
+            language: None,
+        }
+    }
+
+    /// Returns a copy of these options with an optional language-aware scaffold selected.
+    #[must_use]
+    pub fn with_language(mut self, language: Option<ComponentLanguage>) -> Self {
+        self.language = language;
+        self
+    }
+
+    /// Returns the optional language-aware scaffold ID.
+    #[must_use]
+    pub const fn language(&self) -> Option<ComponentLanguage> {
+        self.language
+    }
+
+    /// Returns the printable language label used in dry-run output.
+    #[must_use]
+    pub fn language_label(&self) -> &'static str {
+        match self.language {
+            Some(language) => language.as_str(),
+            None => "generic",
+        }
+    }
+
+    /// Returns the printable template source label used in dry-run output.
+    #[must_use]
+    pub fn template_source_label(&self) -> &'static str {
+        if self.language.is_some() {
+            "embedded language-aware scaffold model"
+        } else {
+            "embedded component scaffold templates"
+        }
     }
 
     /// Returns the component kind.
@@ -267,10 +358,11 @@ pub fn render_add_dry_run(
         "Component:".to_string(),
         format!("  kind: {}", options.kind().as_str()),
         format!("  name: {}", options.name().as_str()),
+        format!("  language: {}", options.language_label()),
         format!("  root: {}", root.display()),
         String::new(),
         "Template source:".to_string(),
-        "  registry: embedded component scaffold templates".to_string(),
+        format!("  registry: {}", options.template_source_label()),
         format!("  templates: {}", component_scaffold_templates().len()),
         String::new(),
         "Safety:".to_string(),
@@ -369,6 +461,13 @@ pub fn apply_add_plan(
     context: &WorkspaceContext,
     options: &AddPlanOptions,
 ) -> MonadResult<AddApplyResult> {
+    if let Some(language) = options.language() {
+        return Err(MonadError::invalid_input(format!(
+            "language-aware add writes for `{}` are deferred until E13 language templates are implemented; use --dry-run to preview the plan",
+            language.as_str()
+        )));
+    }
+
     let plan = build_add_plan(options);
     let dry_run = evaluate_file_operation_plan(context.root(), &plan);
 
@@ -481,6 +580,94 @@ mod tests {
         let error = ComponentKind::parse("website").expect_err("unknown kind should fail");
 
         assert!(error.to_string().contains("unsupported component kind"));
+    }
+
+    #[test]
+    fn component_language_parses_supported_values() -> MonadResult<()> {
+        assert_eq!(ComponentLanguage::parse("rust")?, ComponentLanguage::Rust);
+        assert_eq!(
+            ComponentLanguage::parse("typescript")?,
+            ComponentLanguage::Typescript
+        );
+        assert_eq!(
+            ComponentLanguage::parse("python")?,
+            ComponentLanguage::Python
+        );
+        assert_eq!(ComponentLanguage::parse("go")?, ComponentLanguage::Go);
+
+        Ok(())
+    }
+
+    #[test]
+    fn component_language_rejects_unknown_values() {
+        let error = ComponentLanguage::parse("ruby").expect_err("unknown language should fail");
+
+        assert!(error.to_string().contains("unsupported component language"));
+        assert!(error.to_string().contains("rust"));
+        assert!(error.to_string().contains("typescript"));
+        assert!(error.to_string().contains("python"));
+        assert!(error.to_string().contains("go"));
+    }
+
+    #[test]
+    fn add_plan_options_can_carry_language() -> MonadResult<()> {
+        let options = AddPlanOptions::new(ComponentKind::Service, ComponentName::parse("api")?)
+            .with_language(Some(ComponentLanguage::Rust));
+
+        assert_eq!(options.language(), Some(ComponentLanguage::Rust));
+        assert_eq!(options.language_label(), "rust");
+        assert_eq!(
+            options.template_source_label(),
+            "embedded language-aware scaffold model"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn language_aware_dry_run_output_lists_language() -> MonadResult<()> {
+        let root = unique_temp_root("language-render");
+        fs::create_dir_all(&root).map_err(|error| {
+            MonadError::internal(format!("test root should be created: {error}"))
+        })?;
+
+        let context = WorkspaceContext::new(&root)?;
+        let options = AddPlanOptions::new(ComponentKind::Service, ComponentName::parse("api")?)
+            .with_language(Some(ComponentLanguage::Rust));
+        let output = render_add_dry_run(&context, &options)?;
+
+        assert!(output.contains("kind: service"));
+        assert!(output.contains("name: api"));
+        assert!(output.contains("language: rust"));
+        assert!(output.contains("embedded language-aware scaffold model"));
+        assert!(output.contains("services/api/README.md"));
+        assert!(output.contains("No files were written."));
+
+        fs::remove_dir_all(&root).ok();
+
+        Ok(())
+    }
+
+    #[test]
+    fn apply_add_plan_rejects_language_aware_write_until_templates_exist() -> MonadResult<()> {
+        let root = unique_temp_root("language-apply");
+        fs::create_dir_all(&root).map_err(|error| {
+            MonadError::internal(format!("test root should be created: {error}"))
+        })?;
+
+        let context = WorkspaceContext::new(&root)?;
+        let options = AddPlanOptions::new(ComponentKind::Service, ComponentName::parse("api")?)
+            .with_language(Some(ComponentLanguage::Rust));
+
+        let error = apply_add_plan(&context, &options)
+            .expect_err("language-aware writes should be deferred in WP-E13-002");
+
+        assert!(error.to_string().contains("language-aware add writes"));
+        assert!(!root.join("services/api/README.md").exists());
+
+        fs::remove_dir_all(&root).ok();
+
+        Ok(())
     }
 
     #[test]
