@@ -210,50 +210,26 @@ impl ComponentScaffoldTemplate {
         self.description
     }
 
-    /// Renders the path relative to the component root.
-    ///
-    /// Most templates use static relative paths such as `README.md`.
-    /// Python module templates need a dynamic path segment because component
-    /// names use hyphens while Python import modules use underscores.
-    #[must_use]
-    pub fn render_relative_path(self, options: &AddPlanOptions) -> PathBuf {
-        let python_module_name = options.python_module_name();
-        let go_module_path = options.go_module_path();
-
-        let rendered = self
-            .relative_path
-            .replace("{{component_kind}}", options.kind().as_str())
-            .replace("{{component_name}}", options.name().as_str())
-            .replace("{{component_language}}", options.language_label())
-            .replace("{{python_module_name}}", &python_module_name)
-            .replace("{{go_module_path}}", &go_module_path);
-
-        PathBuf::from(rendered)
-    }
-
     /// Renders template content for a component.
     #[must_use]
     pub fn render_content(self, options: &AddPlanOptions) -> String {
-        let component_root = options.component_root().display().to_string();
-        let python_module_name = options.python_module_name();
-        let go_module_path = options.go_module_path();
-
         self.content
             .replace("{{component_kind}}", options.kind().as_str())
             .replace("{{component_name}}", options.name().as_str())
             .replace("{{component_language}}", options.language_label())
-            .replace("{{component_root}}", &component_root)
-            .replace("{{python_module_name}}", &python_module_name)
-            .replace("{{go_module_path}}", &go_module_path)
+            .replace(
+                "{{component_root}}",
+                &options.component_root().display().to_string(),
+            )
     }
 }
 
-const GENERIC_COMPONENT_SCAFFOLD_TEMPLATES: [ComponentScaffoldTemplate; 2] = [
+const COMPONENT_SCAFFOLD_TEMPLATES: [ComponentScaffoldTemplate; 2] = [
     ComponentScaffoldTemplate {
         id: "component.readme",
         relative_path: "README.md",
         description: "component documentation entry point",
-        content: "# {{component_name}}\n\nKind: `{{component_kind}}`\n\nLanguage: `{{component_language}}`\n\nRoot: `{{component_root}}`\n\nThis component was planned by Monad.\n",
+        content: "# {{component_name}}\n\nKind: `{{component_kind}}`\n\nRoot: `{{component_root}}`\n\nThis component was planned by Monad.\n",
     },
     ComponentScaffoldTemplate {
         id: "component.gitkeep",
@@ -263,157 +239,10 @@ const GENERIC_COMPONENT_SCAFFOLD_TEMPLATES: [ComponentScaffoldTemplate; 2] = [
     },
 ];
 
-const RUST_BINARY_COMPONENT_SCAFFOLD_TEMPLATES: [ComponentScaffoldTemplate; 3] = [
-    ComponentScaffoldTemplate {
-        id: "rust.readme",
-        relative_path: "README.md",
-        description: "Rust component documentation entry point",
-        content: "# {{component_name}}\n\nKind: `{{component_kind}}`\n\nLanguage: `rust`\n\nRoot: `{{component_root}}`\n\nThis Rust scaffold is local-only. Monad did not run Cargo, mutate the root workspace, or generate a lockfile.\n",
-    },
-    ComponentScaffoldTemplate {
-        id: "rust.cargo-toml",
-        relative_path: "Cargo.toml",
-        description: "standalone Rust package manifest",
-        content: "[package]\nname = \"{{component_name}}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\n",
-    },
-    ComponentScaffoldTemplate {
-        id: "rust.main",
-        relative_path: "src/main.rs",
-        description: "Rust binary entry point",
-        content: "fn main() {\n    println!(\"{{component_name}} component scaffold ready\");\n}\n",
-    },
-];
-
-const RUST_PACKAGE_COMPONENT_SCAFFOLD_TEMPLATES: [ComponentScaffoldTemplate; 3] = [
-    ComponentScaffoldTemplate {
-        id: "rust.readme",
-        relative_path: "README.md",
-        description: "Rust component documentation entry point",
-        content: "# {{component_name}}\n\nKind: `{{component_kind}}`\n\nLanguage: `rust`\n\nRoot: `{{component_root}}`\n\nThis Rust scaffold is local-only. Monad did not run Cargo, mutate the root workspace, or generate a lockfile.\n",
-    },
-    ComponentScaffoldTemplate {
-        id: "rust.cargo-toml",
-        relative_path: "Cargo.toml",
-        description: "standalone Rust package manifest",
-        content: "[package]\nname = \"{{component_name}}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\n",
-    },
-    ComponentScaffoldTemplate {
-        id: "rust.lib",
-        relative_path: "src/lib.rs",
-        description: "Rust library entry point",
-        content: "//! {{component_name}} component.\n\n#[must_use]\npub fn component_name() -> &'static str {\n    \"{{component_name}}\"\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn exposes_component_name() {\n        assert_eq!(component_name(), \"{{component_name}}\");\n    }\n}\n",
-    },
-];
-
-const TYPESCRIPT_COMPONENT_SCAFFOLD_TEMPLATES: [ComponentScaffoldTemplate; 4] = [
-    ComponentScaffoldTemplate {
-        id: "typescript.readme",
-        relative_path: "README.md",
-        description: "TypeScript component documentation entry point",
-        content: "# {{component_name}}\n\nKind: `{{component_kind}}`\n\nLanguage: `typescript`\n\nRoot: `{{component_root}}`\n\nThis TypeScript scaffold is local-only. Monad did not run Bun, npm, pnpm, yarn, mutate workspace globs, or generate a lockfile.\n",
-    },
-    ComponentScaffoldTemplate {
-        id: "typescript.package-json",
-        relative_path: "package.json",
-        description: "standalone TypeScript package manifest",
-        content: "{\n  \"name\": \"{{component_name}}\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"check\": \"tsc --noEmit\"\n  },\n  \"devDependencies\": {}\n}\n",
-    },
-    ComponentScaffoldTemplate {
-        id: "typescript.tsconfig",
-        relative_path: "tsconfig.json",
-        description: "minimal TypeScript compiler configuration",
-        content: "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"module\": \"ESNext\",\n    \"moduleResolution\": \"Bundler\",\n    \"strict\": true,\n    \"declaration\": true,\n    \"outDir\": \"dist\",\n    \"rootDir\": \"src\"\n  },\n  \"include\": [\"src/**/*.ts\"]\n}\n",
-    },
-    ComponentScaffoldTemplate {
-        id: "typescript.index",
-        relative_path: "src/index.ts",
-        description: "TypeScript module entry point",
-        content: "export const componentName = \"{{component_name}}\";\nexport const componentKind = \"{{component_kind}}\";\nexport const componentLanguage = \"typescript\";\n",
-    },
-];
-
-const PYTHON_COMPONENT_SCAFFOLD_TEMPLATES: [ComponentScaffoldTemplate; 4] = [
-    ComponentScaffoldTemplate {
-        id: "python.readme",
-        relative_path: "README.md",
-        description: "Python component documentation entry point",
-        content: "# {{component_name}}\n\nKind: `{{component_kind}}`\n\nLanguage: `python`\n\nRoot: `{{component_root}}`\n\nPython module: `{{python_module_name}}`\n\nThis Python scaffold is local-only. Monad did not run pip, uv, poetry, hatch, create a virtual environment, or generate a lockfile.\n",
-    },
-    ComponentScaffoldTemplate {
-        id: "python.pyproject",
-        relative_path: "pyproject.toml",
-        description: "minimal Python project manifest",
-        content: "[project]\nname = \"{{component_name}}\"\nversion = \"0.1.0\"\ndescription = \"{{component_kind}} component scaffolded by Monad\"\nrequires-python = \">=3.11\"\ndependencies = []\n\n[tool.pytest.ini_options]\npythonpath = [\"src\"]\n",
-    },
-    ComponentScaffoldTemplate {
-        id: "python.module-init",
-        relative_path: "src/{{python_module_name}}/__init__.py",
-        description: "Python package module entry point",
-        content: "\"\"\"{{component_name}}\" component scaffolded by Monad.\"\"\n\nCOMPONENT_NAME = \"{{component_name}}\"\nCOMPONENT_KIND = \"{{component_kind}}\"\nCOMPONENT_LANGUAGE = \"python\"\n",
-    },
-    ComponentScaffoldTemplate {
-        id: "python.smoke-test",
-        relative_path: "tests/test_smoke.py",
-        description: "Python smoke test",
-        content: "from {{python_module_name}} import COMPONENT_LANGUAGE, COMPONENT_NAME\n\n\ndef test_component_identity() -> None:\n    assert COMPONENT_NAME == \"{{component_name}}\"\n    assert COMPONENT_LANGUAGE == \"python\"\n",
-    },
-];
-
-const GO_COMPONENT_SCAFFOLD_TEMPLATES: [ComponentScaffoldTemplate; 3] = [
-    ComponentScaffoldTemplate {
-        id: "go.readme",
-        relative_path: "README.md",
-        description: "Go component documentation entry point",
-        content: "# {{component_name}}\n\nKind: `{{component_kind}}`\n\nLanguage: `go`\n\nRoot: `{{component_root}}`\n\nGo module: `{{go_module_path}}`\n\nThis Go scaffold is local-only. Monad did not run go mod tidy, mutate go.work, or generate go.sum.\n",
-    },
-    ComponentScaffoldTemplate {
-        id: "go.mod",
-        relative_path: "go.mod",
-        description: "minimal Go module manifest",
-        content: "module {{go_module_path}}\n\ngo 1.22\n",
-    },
-    ComponentScaffoldTemplate {
-        id: "go.main",
-        relative_path: "main.go",
-        description: "Go executable entry point",
-        content: "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"{{component_name}} component scaffold ready\")\n}\n",
-    },
-];
-
-/// Returns the embedded generic component scaffold templates.
-///
-/// This keeps the E12 public helper stable. Language-aware callers should use
-/// `component_scaffold_templates_for_options`.
+/// Returns the embedded component scaffold templates.
 #[must_use]
 pub const fn component_scaffold_templates() -> &'static [ComponentScaffoldTemplate] {
-    &GENERIC_COMPONENT_SCAFFOLD_TEMPLATES
-}
-
-/// Returns the embedded templates selected by add options.
-#[must_use]
-pub fn component_scaffold_templates_for_options(
-    options: &AddPlanOptions,
-) -> &'static [ComponentScaffoldTemplate] {
-    match options.language() {
-        None => component_scaffold_templates(),
-        Some(ComponentLanguage::Rust) => rust_component_scaffold_templates(options.kind()),
-        Some(ComponentLanguage::Typescript) => &TYPESCRIPT_COMPONENT_SCAFFOLD_TEMPLATES,
-        Some(ComponentLanguage::Python) => &PYTHON_COMPONENT_SCAFFOLD_TEMPLATES,
-        Some(ComponentLanguage::Go) => &GO_COMPONENT_SCAFFOLD_TEMPLATES,
-    }
-}
-
-/// Returns the Rust template set for a component kind.
-#[must_use]
-pub const fn rust_component_scaffold_templates(
-    kind: ComponentKind,
-) -> &'static [ComponentScaffoldTemplate] {
-    match kind {
-        ComponentKind::Package => &RUST_PACKAGE_COMPONENT_SCAFFOLD_TEMPLATES,
-        ComponentKind::App | ComponentKind::Service | ComponentKind::Tool => {
-            &RUST_BINARY_COMPONENT_SCAFFOLD_TEMPLATES
-        }
-    }
+    &COMPONENT_SCAFFOLD_TEMPLATES
 }
 
 /// Options used to build a component add plan.
@@ -484,18 +313,6 @@ impl AddPlanOptions {
     pub fn component_root(&self) -> PathBuf {
         Path::new(self.kind.base_dir()).join(self.name.as_str())
     }
-
-    /// Returns the Python import-safe module name for this component.
-    #[must_use]
-    pub fn python_module_name(&self) -> String {
-        self.name.as_str().replace('-', "_")
-    }
-
-    /// Returns the local Go module path for this component scaffold.
-    #[must_use]
-    pub fn go_module_path(&self) -> String {
-        format!("monad.local/{}", self.name.as_str())
-    }
 }
 
 /// Builds the component add file-operation plan.
@@ -504,12 +321,10 @@ impl AddPlanOptions {
 /// E12 work packets and future language adapter epics.
 #[must_use]
 pub fn build_add_plan(options: &AddPlanOptions) -> FileOperationPlan {
-    let operations = component_scaffold_templates_for_options(options)
+    let operations = component_scaffold_templates()
         .iter()
         .map(|template| {
-            let target_path = options
-                .component_root()
-                .join(template.render_relative_path(options));
+            let target_path = options.component_root().join(template.relative_path());
             let rendered_content = template.render_content(options);
 
             PlannedFileOperation::create(
@@ -548,10 +363,7 @@ pub fn render_add_dry_run(
         String::new(),
         "Template source:".to_string(),
         format!("  registry: {}", options.template_source_label()),
-        format!(
-            "  templates: {}",
-            component_scaffold_templates_for_options(options).len()
-        ),
+        format!("  templates: {}", component_scaffold_templates().len()),
         String::new(),
         "Safety:".to_string(),
         "  mode: dry-run".to_string(),
@@ -649,6 +461,13 @@ pub fn apply_add_plan(
     context: &WorkspaceContext,
     options: &AddPlanOptions,
 ) -> MonadResult<AddApplyResult> {
+    if let Some(language) = options.language() {
+        return Err(MonadError::invalid_input(format!(
+            "language-aware add writes for `{}` are deferred until E13 language templates are implemented; use --dry-run to preview the plan",
+            language.as_str()
+        )));
+    }
+
     let plan = build_add_plan(options);
     let dry_run = evaluate_file_operation_plan(context.root(), &plan);
 
@@ -661,10 +480,8 @@ pub fn apply_add_plan(
     let mut created_files = Vec::new();
     let mut total_bytes_written = 0usize;
 
-    for template in component_scaffold_templates_for_options(options) {
-        let relative_path = options
-            .component_root()
-            .join(template.render_relative_path(options));
+    for template in component_scaffold_templates() {
+        let relative_path = options.component_root().join(template.relative_path());
         let target_path = context.root().join(&relative_path);
 
         if target_path.exists() {
@@ -832,8 +649,8 @@ mod tests {
     }
 
     #[test]
-    fn apply_add_plan_writes_language_aware_rust_scaffold() -> MonadResult<()> {
-        let root = unique_temp_root("language-apply-rust");
+    fn apply_add_plan_rejects_language_aware_write_until_templates_exist() -> MonadResult<()> {
+        let root = unique_temp_root("language-apply");
         fs::create_dir_all(&root).map_err(|error| {
             MonadError::internal(format!("test root should be created: {error}"))
         })?;
@@ -841,16 +658,12 @@ mod tests {
         let context = WorkspaceContext::new(&root)?;
         let options = AddPlanOptions::new(ComponentKind::Service, ComponentName::parse("api")?)
             .with_language(Some(ComponentLanguage::Rust));
-        let result = apply_add_plan(&context, &options)?;
 
-        assert_eq!(result.kind(), ComponentKind::Service);
-        assert_eq!(result.name().as_str(), "api");
-        assert_eq!(result.component_root(), Path::new("services/api"));
-        assert_eq!(result.file_count(), 3);
-        assert!(root.join("services/api/README.md").is_file());
-        assert!(root.join("services/api/Cargo.toml").is_file());
-        assert!(root.join("services/api/src/main.rs").is_file());
-        assert!(!root.join("services/api/src/lib.rs").exists());
+        let error = apply_add_plan(&context, &options)
+            .expect_err("language-aware writes should be deferred in WP-E13-002");
+
+        assert!(error.to_string().contains("language-aware add writes"));
+        assert!(!root.join("services/api/README.md").exists());
 
         fs::remove_dir_all(&root).ok();
 
@@ -920,116 +733,6 @@ mod tests {
                 .iter()
                 .any(|operation| operation.explanation().contains("component.readme"))
         );
-
-        Ok(())
-    }
-
-    #[test]
-    fn rust_service_plan_uses_binary_templates() -> MonadResult<()> {
-        let options = AddPlanOptions::new(ComponentKind::Service, ComponentName::parse("api")?)
-            .with_language(Some(ComponentLanguage::Rust));
-        let targets = build_add_plan(&options)
-            .operations()
-            .iter()
-            .map(|operation| operation.target().display_path())
-            .collect::<Vec<_>>();
-
-        assert!(targets.contains(&"services/api/README.md".to_string()));
-        assert!(targets.contains(&"services/api/Cargo.toml".to_string()));
-        assert!(targets.contains(&"services/api/src/main.rs".to_string()));
-        assert!(!targets.contains(&"services/api/src/lib.rs".to_string()));
-
-        Ok(())
-    }
-
-    #[test]
-    fn rust_package_plan_uses_library_templates() -> MonadResult<()> {
-        let options =
-            AddPlanOptions::new(ComponentKind::Package, ComponentName::parse("shared-core")?)
-                .with_language(Some(ComponentLanguage::Rust));
-        let targets = build_add_plan(&options)
-            .operations()
-            .iter()
-            .map(|operation| operation.target().display_path())
-            .collect::<Vec<_>>();
-
-        assert!(targets.contains(&"packages/shared-core/README.md".to_string()));
-        assert!(targets.contains(&"packages/shared-core/Cargo.toml".to_string()));
-        assert!(targets.contains(&"packages/shared-core/src/lib.rs".to_string()));
-        assert!(!targets.contains(&"packages/shared-core/src/main.rs".to_string()));
-
-        Ok(())
-    }
-
-    #[test]
-    fn typescript_plan_uses_typescript_templates() -> MonadResult<()> {
-        let options = AddPlanOptions::new(ComponentKind::App, ComponentName::parse("web")?)
-            .with_language(Some(ComponentLanguage::Typescript));
-        let targets = build_add_plan(&options)
-            .operations()
-            .iter()
-            .map(|operation| operation.target().display_path())
-            .collect::<Vec<_>>();
-
-        assert!(targets.contains(&"apps/web/README.md".to_string()));
-        assert!(targets.contains(&"apps/web/package.json".to_string()));
-        assert!(targets.contains(&"apps/web/tsconfig.json".to_string()));
-        assert!(targets.contains(&"apps/web/src/index.ts".to_string()));
-
-        Ok(())
-    }
-
-    #[test]
-    fn template_relative_paths_render_python_module_name() -> MonadResult<()> {
-        let options =
-            AddPlanOptions::new(ComponentKind::Service, ComponentName::parse("my-worker")?)
-                .with_language(Some(ComponentLanguage::Python));
-        let python_templates = component_scaffold_templates_for_options(&options);
-        let rendered_paths = python_templates
-            .iter()
-            .map(|template| template.render_relative_path(&options))
-            .collect::<Vec<_>>();
-
-        assert!(rendered_paths.contains(&PathBuf::from("src/my_worker/__init__.py")));
-        assert!(!rendered_paths.contains(&PathBuf::from("src/{{python_module_name}}/__init__.py")));
-
-        Ok(())
-    }
-
-    #[test]
-    fn python_plan_normalizes_module_name() -> MonadResult<()> {
-        let options =
-            AddPlanOptions::new(ComponentKind::Service, ComponentName::parse("my-worker")?)
-                .with_language(Some(ComponentLanguage::Python));
-        let targets = build_add_plan(&options)
-            .operations()
-            .iter()
-            .map(|operation| operation.target().display_path())
-            .collect::<Vec<_>>();
-
-        assert_eq!(options.python_module_name(), "my_worker");
-        assert!(targets.contains(&"services/my-worker/README.md".to_string()));
-        assert!(targets.contains(&"services/my-worker/pyproject.toml".to_string()));
-        assert!(targets.contains(&"services/my-worker/src/my_worker/__init__.py".to_string()));
-        assert!(targets.contains(&"services/my-worker/tests/test_smoke.py".to_string()));
-
-        Ok(())
-    }
-
-    #[test]
-    fn go_plan_uses_go_templates() -> MonadResult<()> {
-        let options = AddPlanOptions::new(ComponentKind::Tool, ComponentName::parse("repo-lint")?)
-            .with_language(Some(ComponentLanguage::Go));
-        let targets = build_add_plan(&options)
-            .operations()
-            .iter()
-            .map(|operation| operation.target().display_path())
-            .collect::<Vec<_>>();
-
-        assert_eq!(options.go_module_path(), "monad.local/repo-lint");
-        assert!(targets.contains(&"tools/repo-lint/README.md".to_string()));
-        assert!(targets.contains(&"tools/repo-lint/go.mod".to_string()));
-        assert!(targets.contains(&"tools/repo-lint/main.go".to_string()));
 
         Ok(())
     }
@@ -1129,81 +832,6 @@ mod tests {
 
         assert!(error.to_string().contains("add plan has conflicts"));
         assert!(!root.join("apps/web/.gitkeep").exists());
-
-        fs::remove_dir_all(&root).ok();
-
-        Ok(())
-    }
-
-    #[test]
-    fn apply_add_plan_writes_language_aware_typescript_scaffold() -> MonadResult<()> {
-        let root = unique_temp_root("language-apply-typescript");
-        fs::create_dir_all(&root).map_err(|error| {
-            MonadError::internal(format!("test root should be created: {error}"))
-        })?;
-
-        let context = WorkspaceContext::new(&root)?;
-        let options = AddPlanOptions::new(ComponentKind::App, ComponentName::parse("web")?)
-            .with_language(Some(ComponentLanguage::Typescript));
-        let result = apply_add_plan(&context, &options)?;
-
-        assert_eq!(result.file_count(), 4);
-        assert!(root.join("apps/web/README.md").is_file());
-        assert!(root.join("apps/web/package.json").is_file());
-        assert!(root.join("apps/web/tsconfig.json").is_file());
-        assert!(root.join("apps/web/src/index.ts").is_file());
-
-        fs::remove_dir_all(&root).ok();
-
-        Ok(())
-    }
-
-    #[test]
-    fn apply_add_plan_writes_language_aware_python_scaffold() -> MonadResult<()> {
-        let root = unique_temp_root("language-apply-python");
-        fs::create_dir_all(&root).map_err(|error| {
-            MonadError::internal(format!("test root should be created: {error}"))
-        })?;
-
-        let context = WorkspaceContext::new(&root)?;
-        let options =
-            AddPlanOptions::new(ComponentKind::Service, ComponentName::parse("my-worker")?)
-                .with_language(Some(ComponentLanguage::Python));
-        let result = apply_add_plan(&context, &options)?;
-
-        assert_eq!(result.file_count(), 4);
-        assert!(root.join("services/my-worker/README.md").is_file());
-        assert!(root.join("services/my-worker/pyproject.toml").is_file());
-        assert!(
-            root.join("services/my-worker/src/my_worker/__init__.py")
-                .is_file()
-        );
-        assert!(
-            root.join("services/my-worker/tests/test_smoke.py")
-                .is_file()
-        );
-
-        fs::remove_dir_all(&root).ok();
-
-        Ok(())
-    }
-
-    #[test]
-    fn apply_add_plan_writes_language_aware_go_scaffold() -> MonadResult<()> {
-        let root = unique_temp_root("language-apply-go");
-        fs::create_dir_all(&root).map_err(|error| {
-            MonadError::internal(format!("test root should be created: {error}"))
-        })?;
-
-        let context = WorkspaceContext::new(&root)?;
-        let options = AddPlanOptions::new(ComponentKind::Tool, ComponentName::parse("repo-lint")?)
-            .with_language(Some(ComponentLanguage::Go));
-        let result = apply_add_plan(&context, &options)?;
-
-        assert_eq!(result.file_count(), 3);
-        assert!(root.join("tools/repo-lint/README.md").is_file());
-        assert!(root.join("tools/repo-lint/go.mod").is_file());
-        assert!(root.join("tools/repo-lint/main.go").is_file());
 
         fs::remove_dir_all(&root).ok();
 

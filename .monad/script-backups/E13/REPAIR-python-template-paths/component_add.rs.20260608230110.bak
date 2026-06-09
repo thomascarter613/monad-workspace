@@ -210,27 +210,6 @@ impl ComponentScaffoldTemplate {
         self.description
     }
 
-    /// Renders the path relative to the component root.
-    ///
-    /// Most templates use static relative paths such as `README.md`.
-    /// Python module templates need a dynamic path segment because component
-    /// names use hyphens while Python import modules use underscores.
-    #[must_use]
-    pub fn render_relative_path(self, options: &AddPlanOptions) -> PathBuf {
-        let python_module_name = options.python_module_name();
-        let go_module_path = options.go_module_path();
-
-        let rendered = self
-            .relative_path
-            .replace("{{component_kind}}", options.kind().as_str())
-            .replace("{{component_name}}", options.name().as_str())
-            .replace("{{component_language}}", options.language_label())
-            .replace("{{python_module_name}}", &python_module_name)
-            .replace("{{go_module_path}}", &go_module_path);
-
-        PathBuf::from(rendered)
-    }
-
     /// Renders template content for a component.
     #[must_use]
     pub fn render_content(self, options: &AddPlanOptions) -> String {
@@ -507,9 +486,7 @@ pub fn build_add_plan(options: &AddPlanOptions) -> FileOperationPlan {
     let operations = component_scaffold_templates_for_options(options)
         .iter()
         .map(|template| {
-            let target_path = options
-                .component_root()
-                .join(template.render_relative_path(options));
+            let target_path = options.component_root().join(template.relative_path());
             let rendered_content = template.render_content(options);
 
             PlannedFileOperation::create(
@@ -662,9 +639,7 @@ pub fn apply_add_plan(
     let mut total_bytes_written = 0usize;
 
     for template in component_scaffold_templates_for_options(options) {
-        let relative_path = options
-            .component_root()
-            .join(template.render_relative_path(options));
+        let relative_path = options.component_root().join(template.relative_path());
         let target_path = context.root().join(&relative_path);
 
         if target_path.exists() {
@@ -975,23 +950,6 @@ mod tests {
         assert!(targets.contains(&"apps/web/package.json".to_string()));
         assert!(targets.contains(&"apps/web/tsconfig.json".to_string()));
         assert!(targets.contains(&"apps/web/src/index.ts".to_string()));
-
-        Ok(())
-    }
-
-    #[test]
-    fn template_relative_paths_render_python_module_name() -> MonadResult<()> {
-        let options =
-            AddPlanOptions::new(ComponentKind::Service, ComponentName::parse("my-worker")?)
-                .with_language(Some(ComponentLanguage::Python));
-        let python_templates = component_scaffold_templates_for_options(&options);
-        let rendered_paths = python_templates
-            .iter()
-            .map(|template| template.render_relative_path(&options))
-            .collect::<Vec<_>>();
-
-        assert!(rendered_paths.contains(&PathBuf::from("src/my_worker/__init__.py")));
-        assert!(!rendered_paths.contains(&PathBuf::from("src/{{python_module_name}}/__init__.py")));
 
         Ok(())
     }

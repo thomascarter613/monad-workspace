@@ -606,7 +606,7 @@ fn help_text() -> String {
         "  add <kind> <name> --dry-run              Preview component scaffold plan",
         "  add <kind> <name> --language <language> --dry-run",
         "                                             Preview language-aware scaffold plan",
-        "  add <kind> <name> --yes                  Apply component scaffold after review",
+        "  add <kind> <name> --yes                  Apply generic component scaffold after review",
         "  init --dry-run                            Preview repository initialization plan",
         "  init --preset=basic --dry-run             Preview the basic repository scaffold",
         "  init --yes                                Apply repository initialization after review",
@@ -662,7 +662,7 @@ fn help_text() -> String {
         "Safety notes:",
         "  plan is no-write and does not run commands.",
         "  evolve commands are dry-run only in this MVP hardening phase.",
-        "  language-aware add writes use local embedded templates only.",
+        "  language-aware add writes are deferred until language templates are implemented.",
         "  --write is only supported for the context command.",
     ]
     .join("\n")
@@ -1215,29 +1215,6 @@ mod tests {
                 language: Some(ComponentLanguage::Typescript),
                 dry_run: true,
                 yes: false,
-            }
-        );
-    }
-
-    #[test]
-    fn add_language_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&[
-                "monad",
-                "add",
-                "service",
-                "api",
-                "--language",
-                "rust",
-                "--yes",
-            ])
-            .expect("add language --yes should parse"),
-            CliCommand::Add {
-                kind: ComponentKind::Service,
-                name: ComponentName::parse("api").expect("test name should parse"),
-                language: Some(ComponentLanguage::Rust),
-                dry_run: false,
-                yes: true,
             }
         );
     }
