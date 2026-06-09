@@ -1,6 +1,5 @@
 # scripts
-complete_*
-fix_*
+.artifacts/scripts/*
 
 # Rust build output
 /target/
