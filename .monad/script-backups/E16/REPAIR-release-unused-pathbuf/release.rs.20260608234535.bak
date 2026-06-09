@@ -1,0 +1,900 @@
+//! Release readiness planning and bounded distribution evidence.
+//!
+//! E16 introduces `monad release --dry-run`, a non-publishing release planning
+//! command. It validates release readiness, version/tag shape, release notes,
+//! changelog evidence, and local packaging prerequisites without creating tags,
+//! uploading artifacts, publishing packages, or launching hosted services.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+/// Release readiness severity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ReleaseCheckSeverity {
+    /// Required release evidence is present.
+    Pass,
+
+    /// Non-blocking issue that should be reviewed.
+    Warn,
+
+    /// Blocking issue that prevents a go recommendation.
+    Blocker,
+
+    /// Informational release state.
+    Info,
+
+    /// Check does not apply to this MVP release path.
+    Skipped,
+}
+
+impl ReleaseCheckSeverity {
+    /// Stable label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pass => "pass",
+            Self::Warn => "warn",
+            Self::Blocker => "blocker",
+            Self::Info => "info",
+            Self::Skipped => "skipped",
+        }
+    }
+
+    /// Whether this check blocks release readiness.
+    #[must_use]
+    pub const fn blocks_release(self) -> bool {
+        matches!(self, Self::Blocker)
+    }
+}
+
+/// Release readiness category.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ReleaseCheckCategory {
+    /// Version and tag readiness.
+    Version,
+
+    /// Verification readiness.
+    Verification,
+
+    /// Artifact/package readiness.
+    Artifact,
+
+    /// Release notes and changelog readiness.
+    Documentation,
+
+    /// GitHub release draft readiness.
+    GitHub,
+
+    /// Publishing boundary.
+    Boundary,
+}
+
+impl ReleaseCheckCategory {
+    /// Stable label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Version => "version",
+            Self::Verification => "verification",
+            Self::Artifact => "artifact",
+            Self::Documentation => "documentation",
+            Self::GitHub => "github",
+            Self::Boundary => "boundary",
+        }
+    }
+}
+
+/// One release readiness check.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReleaseCheck {
+    id: String,
+    category: ReleaseCheckCategory,
+    severity: ReleaseCheckSeverity,
+    subject: String,
+    message: String,
+    remediation: Option<String>,
+}
+
+impl ReleaseCheck {
+    /// Creates a release check.
+    #[must_use]
+    pub fn new(
+        id: impl Into<String>,
+        category: ReleaseCheckCategory,
+        severity: ReleaseCheckSeverity,
+        subject: impl Into<String>,
+        message: impl Into<String>,
+        remediation: Option<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            category,
+            severity,
+            subject: subject.into(),
+            message: message.into(),
+            remediation,
+        }
+    }
+
+    /// Stable check ID.
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Check category.
+    #[must_use]
+    pub const fn category(&self) -> ReleaseCheckCategory {
+        self.category
+    }
+
+    /// Check severity.
+    #[must_use]
+    pub const fn severity(&self) -> ReleaseCheckSeverity {
+        self.severity
+    }
+
+    /// Check subject.
+    #[must_use]
+    pub fn subject(&self) -> &str {
+        &self.subject
+    }
+
+    /// Check message.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    /// Optional remediation.
+    #[must_use]
+    pub fn remediation(&self) -> Option<&str> {
+        self.remediation.as_deref()
+    }
+}
+
+/// Go/no-go release decision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReleaseDecision {
+    /// Release appears ready according to MVP checks.
+    Go,
+
+    /// Release is blocked by one or more required checks.
+    NoGo,
+}
+
+impl ReleaseDecision {
+    /// Stable label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Go => "go",
+            Self::NoGo => "no-go",
+        }
+    }
+}
+
+/// Options for release readiness planning.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReleasePlanOptions {
+    version: Option<String>,
+}
+
+impl ReleasePlanOptions {
+    /// Creates default release options.
+    #[must_use]
+    pub const fn new(version: Option<String>) -> Self {
+        Self { version }
+    }
+
+    /// Requested version override.
+    #[must_use]
+    pub fn version(&self) -> Option<&str> {
+        self.version.as_deref()
+    }
+}
+
+/// Release readiness plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReleasePlan {
+    version: String,
+    tag: String,
+    artifact_name: String,
+    decision: ReleaseDecision,
+    checks: Vec<ReleaseCheck>,
+}
+
+impl ReleasePlan {
+    /// Creates a deterministic release plan.
+    #[must_use]
+    pub fn new(
+        version: String,
+        tag: String,
+        artifact_name: String,
+        mut checks: Vec<ReleaseCheck>,
+    ) -> Self {
+        checks.sort_by(|left, right| {
+            left.category()
+                .cmp(&right.category())
+                .then(left.severity().cmp(&right.severity()))
+                .then(left.id().cmp(right.id()))
+        });
+
+        let decision = if checks.iter().any(|check| check.severity().blocks_release()) {
+            ReleaseDecision::NoGo
+        } else {
+            ReleaseDecision::Go
+        };
+
+        Self {
+            version,
+            tag,
+            artifact_name,
+            decision,
+            checks,
+        }
+    }
+
+    /// Release version.
+    #[must_use]
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+
+    /// Proposed release tag.
+    #[must_use]
+    pub fn tag(&self) -> &str {
+        &self.tag
+    }
+
+    /// Proposed artifact name.
+    #[must_use]
+    pub fn artifact_name(&self) -> &str {
+        &self.artifact_name
+    }
+
+    /// Release decision.
+    #[must_use]
+    pub const fn decision(&self) -> ReleaseDecision {
+        self.decision
+    }
+
+    /// Release checks.
+    #[must_use]
+    pub fn checks(&self) -> &[ReleaseCheck] {
+        &self.checks
+    }
+
+    /// Total check count.
+    #[must_use]
+    pub fn check_count(&self) -> usize {
+        self.checks.len()
+    }
+
+    /// Blocker count.
+    #[must_use]
+    pub fn blocker_count(&self) -> usize {
+        self.count_by_severity(ReleaseCheckSeverity::Blocker)
+    }
+
+    /// Warning count.
+    #[must_use]
+    pub fn warning_count(&self) -> usize {
+        self.count_by_severity(ReleaseCheckSeverity::Warn)
+    }
+
+    /// Pass count.
+    #[must_use]
+    pub fn pass_count(&self) -> usize {
+        self.count_by_severity(ReleaseCheckSeverity::Pass)
+    }
+
+    fn count_by_severity(&self, severity: ReleaseCheckSeverity) -> usize {
+        self.checks
+            .iter()
+            .filter(|check| check.severity() == severity)
+            .count()
+    }
+}
+
+/// Builds a release readiness plan for a root directory.
+#[must_use]
+pub fn build_release_plan(root: impl AsRef<Path>, options: &ReleasePlanOptions) -> ReleasePlan {
+    let root = root.as_ref();
+    let version = options
+        .version()
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| detect_release_version(root));
+    let tag = format!("v{version}");
+    let artifact_name = format!("monad-{version}-local");
+
+    let mut checks = Vec::new();
+
+    add_release_boundary_checks(&mut checks);
+    add_version_and_tag_checks(root, &version, &tag, &mut checks);
+    add_verification_checks(root, &mut checks);
+    add_artifact_checks(root, &artifact_name, &mut checks);
+    add_release_documentation_checks(root, &mut checks);
+    add_github_release_draft_checks(root, &mut checks);
+
+    ReleasePlan::new(version, tag, artifact_name, checks)
+}
+
+fn add_release_boundary_checks(checks: &mut Vec<ReleaseCheck>) {
+    for (id, subject, message) in [
+        (
+            "release.boundary.crates-io-disabled",
+            "Crates.io publishing",
+            "Crates.io publishing is out of scope for this MVP release foundation.",
+        ),
+        (
+            "release.boundary.homebrew-disabled",
+            "Homebrew publishing",
+            "Homebrew publishing is out of scope for this MVP release foundation.",
+        ),
+        (
+            "release.boundary.npm-disabled",
+            "npm publishing",
+            "npm package publishing is out of scope for this MVP release foundation.",
+        ),
+        (
+            "release.boundary.hosted-launch-disabled",
+            "Hosted launch",
+            "Hosted/SaaS launch is out of scope for this MVP release foundation.",
+        ),
+    ] {
+        checks.push(ReleaseCheck::new(
+            id,
+            ReleaseCheckCategory::Boundary,
+            ReleaseCheckSeverity::Skipped,
+            subject,
+            message,
+            None,
+        ));
+    }
+}
+
+fn add_version_and_tag_checks(
+    root: &Path,
+    version: &str,
+    tag: &str,
+    checks: &mut Vec<ReleaseCheck>,
+) {
+    if is_valid_semver_like(version) {
+        checks.push(ReleaseCheck::new(
+            "release.version.valid",
+            ReleaseCheckCategory::Version,
+            ReleaseCheckSeverity::Pass,
+            "version",
+            format!("Release version `{version}` is semver-like."),
+            None,
+        ));
+    } else {
+        checks.push(ReleaseCheck::new(
+            "release.version.invalid",
+            ReleaseCheckCategory::Version,
+            ReleaseCheckSeverity::Blocker,
+            "version",
+            format!("Release version `{version}` is not semver-like."),
+            Some("Use a version such as 0.1.0 or 0.1.0-internal.1.".to_string()),
+        ));
+    }
+
+    if is_valid_release_tag(tag) {
+        checks.push(ReleaseCheck::new(
+            "release.tag.valid",
+            ReleaseCheckCategory::Version,
+            ReleaseCheckSeverity::Pass,
+            "tag",
+            format!("Release tag `{tag}` has a valid shape."),
+            None,
+        ));
+    } else {
+        checks.push(ReleaseCheck::new(
+            "release.tag.invalid",
+            ReleaseCheckCategory::Version,
+            ReleaseCheckSeverity::Blocker,
+            "tag",
+            format!("Release tag `{tag}` is malformed."),
+            Some("Use a tag shaped like v0.1.0.".to_string()),
+        ));
+    }
+
+    if git_tag_exists(root, tag) {
+        checks.push(ReleaseCheck::new(
+            "release.tag.conflict",
+            ReleaseCheckCategory::Version,
+            ReleaseCheckSeverity::Blocker,
+            "tag conflict",
+            format!("Git tag `{tag}` already exists."),
+            Some(
+                "Choose a new version or delete the conflicting local tag deliberately."
+                    .to_string(),
+            ),
+        ));
+    } else {
+        checks.push(ReleaseCheck::new(
+            "release.tag.available",
+            ReleaseCheckCategory::Version,
+            ReleaseCheckSeverity::Pass,
+            "tag conflict",
+            format!("Git tag `{tag}` was not found locally."),
+            None,
+        ));
+    }
+}
+
+fn add_verification_checks(root: &Path, checks: &mut Vec<ReleaseCheck>) {
+    if root.join("tools/scripts/verify.sh").is_file() {
+        checks.push(ReleaseCheck::new(
+            "release.verification.root-script-present",
+            ReleaseCheckCategory::Verification,
+            ReleaseCheckSeverity::Pass,
+            "root verification",
+            "tools/scripts/verify.sh is present.",
+            None,
+        ));
+    } else {
+        checks.push(ReleaseCheck::new(
+            "release.verification.root-script-missing",
+            ReleaseCheckCategory::Verification,
+            ReleaseCheckSeverity::Warn,
+            "root verification",
+            "tools/scripts/verify.sh is missing.",
+            Some("Add or confirm the canonical root verification script.".to_string()),
+        ));
+    }
+
+    if root.join("tools/scripts/verify-e15.sh").is_file() {
+        checks.push(ReleaseCheck::new(
+            "release.verification.latest-epic-present",
+            ReleaseCheckCategory::Verification,
+            ReleaseCheckSeverity::Pass,
+            "latest epic verification",
+            "E15 verification script is present.",
+            None,
+        ));
+    } else {
+        checks.push(ReleaseCheck::new(
+            "release.verification.latest-epic-missing",
+            ReleaseCheckCategory::Verification,
+            ReleaseCheckSeverity::Warn,
+            "latest epic verification",
+            "E15 verification script was not found.",
+            Some("Complete and verify E15 before preparing an E16 release candidate.".to_string()),
+        ));
+    }
+}
+
+fn add_artifact_checks(root: &Path, artifact_name: &str, checks: &mut Vec<ReleaseCheck>) {
+    let binary = root.join("target/release/monad-cli");
+
+    if binary.is_file() {
+        checks.push(ReleaseCheck::new(
+            "release.artifact.binary-present",
+            ReleaseCheckCategory::Artifact,
+            ReleaseCheckSeverity::Pass,
+            "release binary",
+            "target/release/monad-cli exists.",
+            None,
+        ));
+    } else {
+        checks.push(ReleaseCheck::new(
+            "release.artifact.binary-missing",
+            ReleaseCheckCategory::Artifact,
+            ReleaseCheckSeverity::Blocker,
+            "release binary",
+            "target/release/monad-cli is missing.",
+            Some("Run `cargo build --release -p monad-cli` before packaging.".to_string()),
+        ));
+    }
+
+    if root.join("tools/scripts/package-release.sh").is_file() {
+        checks.push(ReleaseCheck::new(
+            "release.artifact.package-script-present",
+            ReleaseCheckCategory::Artifact,
+            ReleaseCheckSeverity::Pass,
+            "package script",
+            "tools/scripts/package-release.sh is present.",
+            None,
+        ));
+    } else {
+        checks.push(ReleaseCheck::new(
+            "release.artifact.package-script-missing",
+            ReleaseCheckCategory::Artifact,
+            ReleaseCheckSeverity::Warn,
+            "package script",
+            "tools/scripts/package-release.sh is missing.",
+            Some("Add the release package script before preparing artifacts.".to_string()),
+        ));
+    }
+
+    checks.push(ReleaseCheck::new(
+        "release.artifact.name-planned",
+        ReleaseCheckCategory::Artifact,
+        ReleaseCheckSeverity::Info,
+        "artifact name",
+        format!("Planned local artifact name is `{artifact_name}`."),
+        None,
+    ));
+}
+
+fn add_release_documentation_checks(root: &Path, checks: &mut Vec<ReleaseCheck>) {
+    check_release_doc(
+        root,
+        checks,
+        ReleaseDocSpec {
+            relative_path: "CHANGELOG.md",
+            present_id: "release.docs.changelog-present",
+            missing_id: "release.docs.changelog-missing",
+            subject: "CHANGELOG",
+            missing_remediation: "Add CHANGELOG.md before preparing a public release candidate.",
+        },
+    );
+
+    check_release_doc(
+        root,
+        checks,
+        ReleaseDocSpec {
+            relative_path: "docs/release/PUBLIC-PRERELEASE-NOTES.md",
+            present_id: "release.docs.notes-present",
+            missing_id: "release.docs.notes-missing",
+            subject: "public prerelease notes",
+            missing_remediation: "Add docs/release/PUBLIC-PRERELEASE-NOTES.md before drafting a release.",
+        },
+    );
+
+    let notes_path = root.join("docs/release/PUBLIC-PRERELEASE-NOTES.md");
+    if let Ok(notes) = fs::read_to_string(notes_path) {
+        for (id, heading, remediation) in [
+            (
+                "release.docs.notes-implemented-section",
+                "Implemented",
+                "Add an Implemented section to release notes.",
+            ),
+            (
+                "release.docs.notes-deferred-section",
+                "Deferred",
+                "Add a Deferred section to release notes.",
+            ),
+            (
+                "release.docs.notes-not-implemented-section",
+                "Not implemented",
+                "Add a Not implemented section to avoid accidental overclaims.",
+            ),
+        ] {
+            if contains_heading_or_phrase(&notes, heading) {
+                checks.push(ReleaseCheck::new(
+                    id,
+                    ReleaseCheckCategory::Documentation,
+                    ReleaseCheckSeverity::Pass,
+                    heading,
+                    format!("Release notes include `{heading}` evidence."),
+                    None,
+                ));
+            } else {
+                checks.push(ReleaseCheck::new(
+                    format!("{id}.missing"),
+                    ReleaseCheckCategory::Documentation,
+                    ReleaseCheckSeverity::Warn,
+                    heading,
+                    format!("Release notes do not clearly include `{heading}` evidence."),
+                    Some(remediation.to_string()),
+                ));
+            }
+        }
+    }
+}
+
+fn add_github_release_draft_checks(root: &Path, checks: &mut Vec<ReleaseCheck>) {
+    if root.join(".github/workflows/release-draft.yml").is_file()
+        || root.join("docs/release/GITHUB-RELEASE-DRAFT.md").is_file()
+    {
+        checks.push(ReleaseCheck::new(
+            "release.github.draft-path-present",
+            ReleaseCheckCategory::GitHub,
+            ReleaseCheckSeverity::Pass,
+            "GitHub release draft",
+            "GitHub release draft workflow or documentation is present.",
+            None,
+        ));
+    } else {
+        checks.push(ReleaseCheck::new(
+            "release.github.draft-path-missing",
+            ReleaseCheckCategory::GitHub,
+            ReleaseCheckSeverity::Warn,
+            "GitHub release draft",
+            "No GitHub release draft workflow or documentation was found.",
+            Some("Add a bounded GitHub release draft workflow or documentation.".to_string()),
+        ));
+    }
+}
+
+struct ReleaseDocSpec<'a> {
+    relative_path: &'a str,
+    present_id: &'a str,
+    missing_id: &'a str,
+    subject: &'a str,
+    missing_remediation: &'a str,
+}
+
+fn check_release_doc(root: &Path, checks: &mut Vec<ReleaseCheck>, spec: ReleaseDocSpec<'_>) {
+    if root.join(spec.relative_path).is_file() {
+        checks.push(ReleaseCheck::new(
+            spec.present_id,
+            ReleaseCheckCategory::Documentation,
+            ReleaseCheckSeverity::Pass,
+            spec.subject,
+            format!("`{}` is present.", spec.relative_path),
+            None,
+        ));
+    } else {
+        checks.push(ReleaseCheck::new(
+            spec.missing_id,
+            ReleaseCheckCategory::Documentation,
+            ReleaseCheckSeverity::Warn,
+            spec.subject,
+            format!("`{}` is missing.", spec.relative_path),
+            Some(spec.missing_remediation.to_string()),
+        ));
+    }
+}
+
+fn contains_heading_or_phrase(text: &str, phrase: &str) -> bool {
+    let normalized = text.to_lowercase();
+    normalized.contains(&phrase.to_lowercase())
+}
+
+fn detect_release_version(root: &Path) -> String {
+    let candidates = [
+        root.join("Cargo.toml"),
+        root.join("crates/monad-cli/Cargo.toml"),
+        root.join("crates/monad-core/Cargo.toml"),
+    ];
+
+    for candidate in candidates {
+        let Ok(text) = fs::read_to_string(candidate) else {
+            continue;
+        };
+
+        if let Some(version) = parse_first_version_assignment(&text) {
+            return version;
+        }
+    }
+
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+fn parse_first_version_assignment(text: &str) -> Option<String> {
+    text.lines().find_map(|line| {
+        let trimmed = line.trim();
+        let value = trimmed.strip_prefix("version")?.trim();
+        let value = value.strip_prefix('=')?.trim();
+        let value = value.strip_prefix('"')?;
+        let end = value.find('"')?;
+
+        Some(value[..end].to_string())
+    })
+}
+
+fn is_valid_release_tag(tag: &str) -> bool {
+    tag.strip_prefix('v').is_some_and(is_valid_semver_like)
+}
+
+fn is_valid_semver_like(version: &str) -> bool {
+    let Some((major, rest)) = version.split_once('.') else {
+        return false;
+    };
+    let Some((minor, patch_and_suffix)) = rest.split_once('.') else {
+        return false;
+    };
+
+    if major.is_empty() || minor.is_empty() || patch_and_suffix.is_empty() {
+        return false;
+    }
+
+    if !major.chars().all(|ch| ch.is_ascii_digit()) {
+        return false;
+    }
+
+    if !minor.chars().all(|ch| ch.is_ascii_digit()) {
+        return false;
+    }
+
+    let patch = patch_and_suffix
+        .split(['-', '+'])
+        .next()
+        .unwrap_or_default();
+
+    !patch.is_empty() && patch.chars().all(|ch| ch.is_ascii_digit())
+}
+
+fn git_tag_exists(root: &Path, tag: &str) -> bool {
+    Command::new("git")
+        .args([
+            "-C",
+            &root.display().to_string(),
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("refs/tags/{tag}"),
+        ])
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+/// Renders a human-readable release plan.
+#[must_use]
+pub fn render_release_plan(plan: &ReleasePlan) -> String {
+    let mut lines = vec![
+        "Monad release dry-run plan".to_string(),
+        String::new(),
+        "Summary:".to_string(),
+        format!("  decision: {}", plan.decision().as_str()),
+        format!("  version: {}", plan.version()),
+        format!("  tag: {}", plan.tag()),
+        format!("  artifact: {}", plan.artifact_name()),
+        format!("  checks: {}", plan.check_count()),
+        format!("  passed: {}", plan.pass_count()),
+        format!("  warnings: {}", plan.warning_count()),
+        format!("  blockers: {}", plan.blocker_count()),
+        String::new(),
+        "Checks:".to_string(),
+    ];
+
+    for check in plan.checks() {
+        lines.push(format!(
+            "  - [{}] {} {}",
+            check.severity().as_str(),
+            check.category().as_str(),
+            check.subject()
+        ));
+        lines.push(format!("    id: {}", check.id()));
+        lines.push(format!("    message: {}", check.message()));
+        if let Some(remediation) = check.remediation() {
+            lines.push(format!("    remediation: {remediation}"));
+        }
+    }
+
+    lines.push(String::new());
+    lines.push("No tags were created.".to_string());
+    lines.push("No packages were published.".to_string());
+    lines.push("No GitHub release was created.".to_string());
+    lines.push("No installers were generated.".to_string());
+
+    lines.join("\n")
+}
+
+/// Renders release plan JSON without adding a JSON dependency.
+#[must_use]
+pub fn render_release_plan_json(plan: &ReleasePlan) -> String {
+    let checks = plan
+        .checks()
+        .iter()
+        .map(|check| {
+            let remediation = check
+                .remediation()
+                .map(|value| format!("\"{}\"", json_escape(value)))
+                .unwrap_or_else(|| "null".to_string());
+
+            format!(
+                "{{\"id\":\"{}\",\"category\":\"{}\",\"severity\":\"{}\",\"subject\":\"{}\",\"message\":\"{}\",\"remediation\":{}}}",
+                json_escape(check.id()),
+                check.category().as_str(),
+                check.severity().as_str(),
+                json_escape(check.subject()),
+                json_escape(check.message()),
+                remediation
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+
+    format!(
+        "{{\"command\":\"release\",\"mode\":\"dry-run\",\"decision\":\"{}\",\"version\":\"{}\",\"tag\":\"{}\",\"artifact\":\"{}\",\"checks\":{},\"warnings\":{},\"blockers\":{},\"items\":[{}]}}",
+        plan.decision().as_str(),
+        json_escape(plan.version()),
+        json_escape(plan.tag()),
+        json_escape(plan.artifact_name()),
+        plan.check_count(),
+        plan.warning_count(),
+        plan.blocker_count(),
+        checks
+    )
+}
+
+fn json_escape(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::*;
+
+    fn unique_temp_root(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+
+        std::env::temp_dir().join(format!("monad-release-{name}-{unique}"))
+    }
+
+    #[test]
+    fn semver_like_validation_accepts_normal_versions() {
+        assert!(is_valid_semver_like("0.1.0"));
+        assert!(is_valid_semver_like("1.2.3-alpha.1"));
+        assert!(is_valid_release_tag("v0.1.0"));
+    }
+
+    #[test]
+    fn semver_like_validation_rejects_bad_versions() {
+        assert!(!is_valid_semver_like("0.1"));
+        assert!(!is_valid_semver_like("v0.1.0"));
+        assert!(!is_valid_release_tag("0.1.0"));
+    }
+
+    #[test]
+    fn release_plan_reports_blocker_when_binary_missing() {
+        let root = unique_temp_root("binary-missing");
+        fs::create_dir_all(&root).expect("temp root should be created");
+        fs::write(root.join("Cargo.toml"), "[package]\nversion = \"0.1.0\"\n")
+            .expect("Cargo.toml should be written");
+
+        let plan = build_release_plan(&root, &ReleasePlanOptions::new(None));
+
+        assert_eq!(plan.version(), "0.1.0");
+        assert_eq!(plan.tag(), "v0.1.0");
+        assert_eq!(plan.decision(), ReleaseDecision::NoGo);
+        assert!(
+            plan.checks()
+                .iter()
+                .any(|check| check.id() == "release.artifact.binary-missing")
+        );
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn release_plan_json_contains_core_fields() {
+        let root = unique_temp_root("json");
+        fs::create_dir_all(&root).expect("temp root should be created");
+        fs::write(root.join("Cargo.toml"), "[package]\nversion = \"0.1.0\"\n")
+            .expect("Cargo.toml should be written");
+
+        let plan = build_release_plan(&root, &ReleasePlanOptions::new(None));
+        let output = render_release_plan_json(&plan);
+
+        assert!(output.contains("\"command\":\"release\""));
+        assert!(output.contains("\"mode\":\"dry-run\""));
+        assert!(output.contains("\"tag\":\"v0.1.0\""));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn release_plan_text_states_no_public_actions() {
+        let root = unique_temp_root("text");
+        fs::create_dir_all(&root).expect("temp root should be created");
+        fs::write(root.join("Cargo.toml"), "[package]\nversion = \"0.1.0\"\n")
+            .expect("Cargo.toml should be written");
+
+        let plan = build_release_plan(&root, &ReleasePlanOptions::new(None));
+        let output = render_release_plan(&plan);
+
+        assert!(output.contains("Monad release dry-run plan"));
+        assert!(output.contains("No tags were created."));
+        assert!(output.contains("No packages were published."));
+        assert!(output.contains("No GitHub release was created."));
+
+        fs::remove_dir_all(root).ok();
+    }
+}

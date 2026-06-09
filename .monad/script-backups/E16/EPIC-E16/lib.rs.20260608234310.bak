@@ -22,7 +22,6 @@ pub mod init;
 pub mod manifest;
 pub mod output;
 pub mod policy;
-pub mod release;
 pub mod repo_contract;
 pub mod repository_context_pack;
 pub mod repository_graph;
@@ -87,10 +86,6 @@ pub use output::{
     RepositoryInspectionSummaryEntry, RepositoryPolicySummaryDiagnostic,
     RepositoryToolchainSummaryEntry, WorkspaceSummary, render_diagnostic_report,
     render_repository_inspection_summary, render_workspace_summary,
-};
-pub use release::{
-    ReleaseCheck, ReleaseCheckCategory, ReleaseCheckSeverity, ReleaseDecision, ReleasePlan,
-    ReleasePlanOptions, build_release_plan, render_release_plan, render_release_plan_json,
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,

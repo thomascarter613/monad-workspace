@@ -10,16 +10,15 @@
 use monad_core::{
     AddPlanOptions, BootstrapPromptArtifact, ComponentKind, ComponentLanguage, ComponentName,
     ContextPackArtifact, CurrentStateArtifact, HandoffArtifact, InitPlanOptions, InitPreset,
-    OutputFormat, ReleasePlanOptions, RepositoryContextPackExportResult,
-    RepositoryContextPackRenderFormat, RepositoryGraphRenderFormat, WorkspaceContext,
-    apply_add_plan, apply_init_plan, apply_sync_plan, build_local_agent_plan, build_release_plan,
-    build_repository_graph, build_sync_plan, checked_runtime_identity,
-    export_repository_context_pack_from_workspace, generate_bootstrap_prompt,
-    generate_context_pack, generate_current_state, generate_handoff, inspect_workspace,
-    load_manifest_from_workspace, render_add_apply_result, render_add_dry_run, render_agent_plan,
-    render_check_run_report, render_check_run_report_json, render_context_baseline_dry_run,
-    render_context_verify_summary, render_doctor_report, render_doctor_report_json,
-    render_init_apply_result, render_init_dry_run, render_release_plan, render_release_plan_json,
+    OutputFormat, RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
+    RepositoryGraphRenderFormat, WorkspaceContext, apply_add_plan, apply_init_plan,
+    apply_sync_plan, build_local_agent_plan, build_repository_graph, build_sync_plan,
+    checked_runtime_identity, export_repository_context_pack_from_workspace,
+    generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
+    inspect_workspace, load_manifest_from_workspace, render_add_apply_result, render_add_dry_run,
+    render_agent_plan, render_check_run_report, render_check_run_report_json,
+    render_context_baseline_dry_run, render_context_verify_summary, render_doctor_report,
+    render_doctor_report_json, render_init_apply_result, render_init_dry_run,
     render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
     render_sync_apply_result, render_sync_plan, render_sync_plan_json,
     render_verify_baseline_dry_run, render_workspace_summary,
@@ -77,18 +76,6 @@ enum CliCommand {
     },
 
     Info {
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
-    /// Plan release readiness without publishing.
-    Release {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Optional release version override.
-        version: Option<String>,
-
         /// Requested output format.
         output_format: OutputFormat,
     },
@@ -192,7 +179,6 @@ impl CliCommand {
         let mut requested_preset: Option<String> = None;
         let mut requested_project_name: Option<String> = None;
         let mut requested_add_language: Option<String> = None;
-        let mut requested_release_version: Option<String> = None;
         let mut positional: Vec<String> = Vec::new();
         let mut write = false;
         let mut dry_run = false;
@@ -207,14 +193,6 @@ impl CliCommand {
 
             if argument == "--version" || argument == "-V" {
                 return Ok(Self::Version);
-            }
-
-            if let Some(value) = argument.strip_prefix("--release-version=") {
-                if requested_release_version.is_some() {
-                    return Err("--release-version may only be provided once".to_string());
-                }
-                requested_release_version = Some(value.to_string());
-                continue;
             }
 
             if argument == "--write" {
@@ -314,10 +292,6 @@ impl CliCommand {
             return Err("--language is only supported for add command".to_string());
         }
 
-        if requested_release_version.is_some() && parts.first().copied() != Some("release") {
-            return Err("--release-version is only supported for release command".to_string());
-        }
-
         match parts.as_slice() {
             [] => {
                 reject_write_for_non_context(write)?;
@@ -393,20 +367,6 @@ impl CliCommand {
             ["sync", other, ..] => {
                 reject_write_for_non_context(write)?;
                 Err(format!("unknown sync argument: {other}"))
-            }
-            ["release"] => {
-                reject_write_for_non_context(write)?;
-                require_release_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::Release {
-                    dry_run,
-                    version: requested_release_version,
-                    output_format,
-                })
-            }
-            ["release", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown release argument: {other}"))
             }
             ["doctor"] => {
                 reject_write_for_non_context(write)?;
@@ -542,11 +502,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             project_name,
         } => render_init(dry_run, yes, preset, project_name),
         CliCommand::Info { output_format } => render_info(output_format),
-        CliCommand::Release {
-            dry_run,
-            version,
-            output_format,
-        } => render_release(dry_run, version, output_format),
         CliCommand::Doctor { output_format } => render_doctor(output_format),
         CliCommand::Check { output_format } => render_check(output_format),
         CliCommand::Sync {
@@ -585,19 +540,6 @@ fn require_add_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("add currently requires either --dry-run to preview or --yes to apply".to_string())
         }
         (true, true) => Err("add accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires dry-run mode for the first release foundation.
-fn require_release_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) => Ok(()),
-        (false, false) => Err(
-            "release currently requires --dry-run; tag creation and publishing are not implemented"
-                .to_string(),
-        ),
-        (false, true) => Err("release does not support --yes; use --dry-run only".to_string()),
-        (true, true) => Err("release accepts --dry-run only, not --yes".to_string()),
     }
 }
 
@@ -731,8 +673,6 @@ fn help_text() -> String {
         "  info                                      Show workspace summary",
         "  check                                     Run workspace checks",
         "  doctor                                   Diagnose local environment and repo readiness",
-        "  release --dry-run                       Plan release readiness without publishing",
-        "  release --dry-run --format=json         Render release readiness as JSON",
         "  doctor --format=json                     Render doctor report as JSON",
         "  sync --dry-run                            Preview repository sync plan",
         "  sync --dry-run --format=json              Preview repository sync plan as JSON",
@@ -780,8 +720,6 @@ fn help_text() -> String {
         "  monad context --write",
         "  monad check --format=json",
         "  monad doctor",
-        "  monad release --dry-run",
-        "  monad release --dry-run --format=json",
         "  monad doctor --format=json",
         "  monad sync --dry-run",
         "  monad sync --dry-run --format=json",
@@ -792,7 +730,6 @@ fn help_text() -> String {
         "",
         "Safety notes:",
         "  doctor is read-only and does not install tools or mutate the environment.",
-        "  release dry-run creates no tags and publishes no packages.",
         "  plan is no-write and does not run commands.",
         "  evolve commands are dry-run only in this MVP hardening phase.",
         "  language-aware add writes use local embedded templates only.",
@@ -879,29 +816,6 @@ fn render_sync(dry_run: bool, yes: bool, output_format: OutputFormat) -> Result<
         "sync currently requires either --dry-run to preview or --yes to write generated evidence"
             .to_string(),
     )
-}
-
-/// Renders release readiness planning output.
-fn render_release(
-    dry_run: bool,
-    version: Option<String>,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    if !dry_run {
-        return Err(
-            "release currently requires --dry-run; tag creation and publishing are not implemented"
-                .to_string(),
-        );
-    }
-
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-    let options = ReleasePlanOptions::new(version);
-    let plan = build_release_plan(root, &options);
-
-    match output_format {
-        OutputFormat::Text => Ok(render_release_plan(&plan)),
-        OutputFormat::Json => Ok(render_release_plan_json(&plan)),
-    }
 }
 
 /// Renders doctor diagnostics.
@@ -1608,46 +1522,6 @@ mod tests {
                 output_format: OutputFormat::Json
             }
         );
-    }
-
-    #[test]
-    fn release_command_parses_text_and_json_formats() {
-        assert_eq!(
-            parse_arguments(&["monad", "release", "--dry-run"]).expect("release should parse"),
-            CliCommand::Release {
-                dry_run: true,
-                version: None,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "release", "--dry-run", "--format=json"])
-                .expect("release json should parse"),
-            CliCommand::Release {
-                dry_run: true,
-                version: None,
-                output_format: OutputFormat::Json,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "release", "--dry-run", "--release-version=0.1.0"])
-                .expect("release version override should parse"),
-            CliCommand::Release {
-                dry_run: true,
-                version: Some("0.1.0".to_string()),
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn release_requires_dry_run() {
-        let error =
-            parse_arguments(&["monad", "release"]).expect_err("release should require dry-run");
-
-        assert!(error.contains("release currently requires --dry-run"));
     }
 
     #[test]

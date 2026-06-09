@@ -12,7 +12,6 @@ pub mod component_add;
 pub mod context;
 pub mod dependency_detection;
 pub mod diagnostics;
-pub mod doctor;
 pub mod error;
 pub mod evolution;
 pub mod exec;
@@ -22,7 +21,6 @@ pub mod init;
 pub mod manifest;
 pub mod output;
 pub mod policy;
-pub mod release;
 pub mod repo_contract;
 pub mod repository_context_pack;
 pub mod repository_graph;
@@ -56,10 +54,6 @@ pub use dependency_detection::{
     detect_repository_dependency_signals,
 };
 pub use diagnostics::{Diagnostic, DiagnosticReport, Severity};
-pub use doctor::{
-    DoctorCategory, DoctorCheck, DoctorReport, DoctorSeverity, render_doctor_report,
-    render_doctor_report_json, run_doctor, run_doctor_for_root,
-};
 pub use error::{MonadError, MonadResult};
 pub use evolution::{
     build_context_baseline_plan, build_verify_baseline_plan, render_context_baseline_dry_run,
@@ -87,10 +81,6 @@ pub use output::{
     RepositoryInspectionSummaryEntry, RepositoryPolicySummaryDiagnostic,
     RepositoryToolchainSummaryEntry, WorkspaceSummary, render_diagnostic_report,
     render_repository_inspection_summary, render_workspace_summary,
-};
-pub use release::{
-    ReleaseCheck, ReleaseCheckCategory, ReleaseCheckSeverity, ReleaseDecision, ReleasePlan,
-    ReleasePlanOptions, build_release_plan, render_release_plan, render_release_plan_json,
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
