@@ -14,6 +14,7 @@
 //!
 //! WP-E12-003 remains dry-run only. It does not write component files.
 
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::{
@@ -275,8 +276,8 @@ pub fn render_add_dry_run(
         "Safety:".to_string(),
         "  mode: dry-run".to_string(),
         "  writes: disabled".to_string(),
-        "  apply: not implemented in WP-E12-003".to_string(),
-        "  approval_flag: --yes reserved for a later E12 work packet".to_string(),
+        "  apply: guarded by --yes".to_string(),
+        "  approval_flag: --yes".to_string(),
         String::new(),
         render_dry_run_plan(&dry_run),
         String::new(),
@@ -292,6 +293,158 @@ pub fn render_add_dry_run(
     }
 
     Ok(output.join("\n"))
+}
+
+/// Result of guarded component add application.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddApplyResult {
+    kind: ComponentKind,
+    name: ComponentName,
+    component_root: PathBuf,
+    created_files: Vec<PathBuf>,
+    total_bytes_written: usize,
+}
+
+impl AddApplyResult {
+    /// Creates an add apply result.
+    #[must_use]
+    pub fn new(
+        kind: ComponentKind,
+        name: ComponentName,
+        component_root: PathBuf,
+        created_files: Vec<PathBuf>,
+        total_bytes_written: usize,
+    ) -> Self {
+        Self {
+            kind,
+            name,
+            component_root,
+            created_files,
+            total_bytes_written,
+        }
+    }
+
+    /// Returns component kind.
+    #[must_use]
+    pub const fn kind(&self) -> ComponentKind {
+        self.kind
+    }
+
+    /// Returns component name.
+    #[must_use]
+    pub const fn name(&self) -> &ComponentName {
+        &self.name
+    }
+
+    /// Returns component root.
+    #[must_use]
+    pub fn component_root(&self) -> &Path {
+        &self.component_root
+    }
+
+    /// Returns created files.
+    #[must_use]
+    pub fn created_files(&self) -> &[PathBuf] {
+        &self.created_files
+    }
+
+    /// Returns created file count.
+    #[must_use]
+    pub fn file_count(&self) -> usize {
+        self.created_files.len()
+    }
+
+    /// Returns total bytes written.
+    #[must_use]
+    pub const fn total_bytes_written(&self) -> usize {
+        self.total_bytes_written
+    }
+}
+
+/// Applies the component scaffold after a conflict-free dry-run evaluation.
+///
+/// This is the guarded write path for `monad add <kind> <name> --yes`.
+/// It refuses to overwrite existing files and performs no Git operations.
+pub fn apply_add_plan(
+    context: &WorkspaceContext,
+    options: &AddPlanOptions,
+) -> MonadResult<AddApplyResult> {
+    let plan = build_add_plan(options);
+    let dry_run = evaluate_file_operation_plan(context.root(), &plan);
+
+    if dry_run.has_conflicts() {
+        return Err(MonadError::invalid_input(
+            "add plan has conflicts; run `monad add <kind> <name> --dry-run` and resolve existing target paths before using --yes",
+        ));
+    }
+
+    let mut created_files = Vec::new();
+    let mut total_bytes_written = 0usize;
+
+    for template in component_scaffold_templates() {
+        let relative_path = options.component_root().join(template.relative_path());
+        let target_path = context.root().join(&relative_path);
+
+        if target_path.exists() {
+            return Err(MonadError::invalid_input(format!(
+                "add target `{}` already exists; refusing to overwrite",
+                relative_path.display()
+            )));
+        }
+
+        if let Some(parent) = target_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+        {
+            fs::create_dir_all(parent).map_err(|error| {
+                MonadError::internal(format!(
+                    "failed to create parent directory `{}`: {error}",
+                    parent.display()
+                ))
+            })?;
+        }
+
+        let content = template.render_content(options);
+        fs::write(&target_path, content.as_bytes()).map_err(|error| {
+            MonadError::internal(format!(
+                "failed to write add target `{}`: {error}",
+                relative_path.display()
+            ))
+        })?;
+
+        total_bytes_written += content.len();
+        created_files.push(relative_path);
+    }
+
+    Ok(AddApplyResult::new(
+        options.kind(),
+        options.name().clone(),
+        options.component_root(),
+        created_files,
+        total_bytes_written,
+    ))
+}
+
+/// Renders the guarded component add apply result.
+#[must_use]
+pub fn render_add_apply_result(result: &AddApplyResult) -> String {
+    let mut lines = vec![
+        "Monad add applied".to_string(),
+        format!("  kind: {}", result.kind().as_str()),
+        format!("  name: {}", result.name().as_str()),
+        format!("  root: {}", result.component_root().display()),
+        format!("  files_created: {}", result.file_count()),
+        format!("  bytes_written: {}", result.total_bytes_written()),
+        "  created_files:".to_string(),
+    ];
+
+    for path in result.created_files() {
+        lines.push(format!("    - {}", path.display()));
+    }
+
+    lines.push("No Git commands were run.".to_string());
+
+    lines.join("\n")
 }
 
 #[cfg(test)]
@@ -448,6 +601,76 @@ mod tests {
         );
 
         fs::remove_dir_all(&root).ok();
+
+        Ok(())
+    }
+
+    #[test]
+    fn apply_add_plan_writes_component_scaffold() -> MonadResult<()> {
+        let root = unique_temp_root("apply");
+        fs::create_dir_all(&root).map_err(|error| {
+            MonadError::internal(format!("test root should be created: {error}"))
+        })?;
+
+        let context = WorkspaceContext::new(&root)?;
+        let options = AddPlanOptions::new(ComponentKind::App, ComponentName::parse("web")?);
+        let result = apply_add_plan(&context, &options)?;
+
+        assert_eq!(result.kind(), ComponentKind::App);
+        assert_eq!(result.name().as_str(), "web");
+        assert_eq!(result.component_root(), Path::new("apps/web"));
+        assert_eq!(result.file_count(), 2);
+        assert!(root.join("apps/web/README.md").is_file());
+        assert!(root.join("apps/web/.gitkeep").is_file());
+
+        fs::remove_dir_all(&root).ok();
+
+        Ok(())
+    }
+
+    #[test]
+    fn apply_add_plan_refuses_existing_component_file() -> MonadResult<()> {
+        let root = unique_temp_root("apply-conflict");
+        fs::create_dir_all(root.join("apps/web")).map_err(|error| {
+            MonadError::internal(format!("test component root should be created: {error}"))
+        })?;
+        fs::write(root.join("apps/web/README.md"), "# Existing\n").map_err(|error| {
+            MonadError::internal(format!("test README should be written: {error}"))
+        })?;
+
+        let context = WorkspaceContext::new(&root)?;
+        let options = AddPlanOptions::new(ComponentKind::App, ComponentName::parse("web")?);
+        let error = apply_add_plan(&context, &options)
+            .expect_err("existing component file should block add apply");
+
+        assert!(error.to_string().contains("add plan has conflicts"));
+        assert!(!root.join("apps/web/.gitkeep").exists());
+
+        fs::remove_dir_all(&root).ok();
+
+        Ok(())
+    }
+
+    #[test]
+    fn render_add_apply_result_lists_created_files() -> MonadResult<()> {
+        let result = AddApplyResult::new(
+            ComponentKind::Tool,
+            ComponentName::parse("repo-lint")?,
+            PathBuf::from("tools/repo-lint"),
+            vec![
+                PathBuf::from("tools/repo-lint/README.md"),
+                PathBuf::from("tools/repo-lint/.gitkeep"),
+            ],
+            99,
+        );
+
+        let rendered = render_add_apply_result(&result);
+
+        assert!(rendered.contains("Monad add applied"));
+        assert!(rendered.contains("kind: tool"));
+        assert!(rendered.contains("name: repo-lint"));
+        assert!(rendered.contains("files_created: 2"));
+        assert!(rendered.contains("No Git commands were run."));
 
         Ok(())
     }

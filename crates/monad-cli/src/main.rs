@@ -11,19 +11,19 @@ use monad_core::{
     AddPlanOptions, BootstrapPromptArtifact, ComponentKind, ComponentName, ContextPackArtifact,
     CurrentStateArtifact, HandoffArtifact, InitPlanOptions, InitPreset, OutputFormat,
     RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
-    RepositoryGraphRenderFormat, WorkspaceContext, apply_init_plan, build_local_agent_plan,
-    build_repository_graph, checked_runtime_identity,
+    RepositoryGraphRenderFormat, WorkspaceContext, apply_add_plan, apply_init_plan,
+    build_local_agent_plan, build_repository_graph, checked_runtime_identity,
     export_repository_context_pack_from_workspace, generate_bootstrap_prompt,
     generate_context_pack, generate_current_state, generate_handoff, inspect_workspace,
-    load_manifest_from_workspace, render_add_dry_run, render_agent_plan, render_check_run_report,
-    render_check_run_report_json, render_context_baseline_dry_run, render_context_verify_summary,
-    render_init_apply_result, render_init_dry_run, render_repository_context_pack,
-    render_repository_graph, render_repository_inspection_summary, render_verify_baseline_dry_run,
-    render_workspace_summary, repository_context_pack_from_workspace,
-    repository_inspection_summary_from_workspace, run_monad_workspace_checks,
-    traverse_workspace_bounded, verify_context, workspace_summary_from_manifest,
-    write_bootstrap_prompt_artifact, write_check_evidence_packet, write_context_pack_artifact,
-    write_current_state_artifact, write_handoff_artifact,
+    load_manifest_from_workspace, render_add_apply_result, render_add_dry_run, render_agent_plan,
+    render_check_run_report, render_check_run_report_json, render_context_baseline_dry_run,
+    render_context_verify_summary, render_init_apply_result, render_init_dry_run,
+    render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
+    render_verify_baseline_dry_run, render_workspace_summary,
+    repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
+    run_monad_workspace_checks, traverse_workspace_bounded, verify_context,
+    workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_check_evidence_packet,
+    write_context_pack_artifact, write_current_state_artifact, write_handoff_artifact,
 };
 use std::env;
 use std::process::ExitCode;
@@ -65,6 +65,9 @@ enum CliCommand {
 
         /// Whether to run in dry-run mode.
         dry_run: bool,
+
+        /// Whether to apply after explicit approval.
+        yes: bool,
     },
 
     Info {
@@ -218,8 +221,8 @@ impl CliCommand {
         // Convert positional args to string slices for pattern matching.
         let parts: Vec<&str> = positional.iter().map(|s| s.as_str()).collect();
 
-        if yes && parts.first().copied() != Some("init") {
-            return Err("--yes is only supported for init command".to_string());
+        if yes && parts.first().copied() != Some("init") && parts.first().copied() != Some("add") {
+            return Err("--yes is only supported for init and add commands".to_string());
         }
 
         if (requested_preset.is_some() || requested_project_name.is_some())
@@ -244,12 +247,7 @@ impl CliCommand {
             }
             ["add", kind, name] => {
                 reject_write_for_non_context(write)?;
-                if yes {
-                    return Err("add --yes is reserved for a later guarded write path; WP-E12-002 is dry-run only".to_string());
-                }
-                if !dry_run {
-                    return Err("add currently requires --dry-run; write behavior is not implemented".to_string());
-                }
+                require_add_mode(dry_run, yes)?;
                 if requested_format.is_some() {
                     return Err("add does not support --format yet".to_string());
                 }
@@ -264,9 +262,9 @@ impl CliCommand {
                     kind: ComponentKind::parse(kind).map_err(|error| error.to_string())?,
                     name: ComponentName::parse(name).map_err(|error| error.to_string())?,
                     dry_run,
+                    yes,
                 })
             }
-
             ["init"] => {
                 reject_write_for_non_context(write)?;
                 require_init_mode(dry_run, yes)?;
@@ -407,7 +405,8 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             kind,
             name,
             dry_run,
-        } => render_add(dry_run, kind, name),
+            yes,
+        } => render_add(dry_run, yes, kind, name),
         CliCommand::Init {
             dry_run,
             yes,
@@ -439,6 +438,17 @@ fn reject_write_for_non_context(write: bool) -> Result<(), String> {
         Ok(())
     }
 }
+/// Requires exactly one add mode for the guarded add implementation.
+fn require_add_mode(dry_run: bool, yes: bool) -> Result<(), String> {
+    match (dry_run, yes) {
+        (true, false) | (false, true) => Ok(()),
+        (false, false) => {
+            Err("add currently requires either --dry-run to preview or --yes to apply".to_string())
+        }
+        (true, true) => Err("add accepts either --dry-run or --yes, not both".to_string()),
+    }
+}
+
 /// Requires exactly one init mode for the guarded init implementation.
 fn require_init_mode(dry_run: bool, yes: bool) -> Result<(), String> {
     match (dry_run, yes) {
@@ -548,6 +558,7 @@ fn help_text() -> String {
         "",
         "Core commands:",
         "  add <kind> <name> --dry-run              Preview component scaffold plan",
+        "  add <kind> <name> --yes                  Apply component scaffold after review",
         "  init --dry-run                            Preview repository initialization plan",
         "  init --preset=basic --dry-run             Preview the basic repository scaffold",
         "  init --yes                                Apply repository initialization after review",
@@ -667,18 +678,26 @@ fn render_check(output_format: OutputFormat) -> Result<String, String> {
     }
 }
 
-/// Renders component add dry-run output.
-fn render_add(dry_run: bool, kind: ComponentKind, name: ComponentName) -> Result<String, String> {
-    if !dry_run {
-        return Err(
-            "add currently requires --dry-run; write behavior is not implemented".to_string(),
-        );
-    }
-
+/// Renders or applies component add output.
+fn render_add(
+    dry_run: bool,
+    yes: bool,
+    kind: ComponentKind,
+    name: ComponentName,
+) -> Result<String, String> {
     let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
     let options = AddPlanOptions::new(kind, name);
 
-    render_add_dry_run(&context, &options).map_err(|error| error.to_string())
+    if dry_run {
+        return render_add_dry_run(&context, &options).map_err(|error| error.to_string());
+    }
+
+    if yes {
+        let result = apply_add_plan(&context, &options).map_err(|error| error.to_string())?;
+        return Ok(render_add_apply_result(&result));
+    }
+
+    Err("add currently requires either --dry-run to preview or --yes to apply".to_string())
 }
 
 /// Renders or applies repository initialization.
@@ -1097,33 +1116,8 @@ mod tests {
                 kind: ComponentKind::App,
                 name: ComponentName::parse("web").expect("test name should parse"),
                 dry_run: true,
+                yes: false,
             }
-        );
-    }
-
-    #[test]
-    fn add_requires_dry_run_for_now() {
-        let error = parse_arguments(&["monad", "add", "app", "web"])
-            .expect_err("add without dry-run should fail");
-
-        assert!(error.contains("add currently requires --dry-run"));
-    }
-
-    #[test]
-    fn add_rejects_yes_until_guarded_write_exists() {
-        let error = parse_arguments(&["monad", "add", "app", "web", "--yes"])
-            .expect_err("add --yes should fail in WP-E12-002");
-
-        assert!(
-            error.contains("--yes"),
-            "expected --yes-related safety error, got: {error}"
-        );
-        assert!(
-            error.contains("only supported")
-                || error.contains("reserved")
-                || error.contains("write behavior")
-                || error.contains("dry-run"),
-            "expected add write-safety boundary error, got: {error}"
         );
     }
 
@@ -1133,6 +1127,38 @@ mod tests {
             .expect_err("unsafe component name should fail");
 
         assert!(error.contains("invalid component name"));
+    }
+
+    #[test]
+    fn add_requires_dry_run_or_yes() {
+        let error = parse_arguments(&["monad", "add", "app", "web"])
+            .expect_err("add without mode should fail");
+
+        assert!(error.contains("add currently requires either --dry-run"));
+        assert!(error.contains("--yes"));
+    }
+
+    #[test]
+    fn add_yes_command_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "add", "app", "web", "--yes"])
+                .expect("add --yes should parse"),
+            CliCommand::Add {
+                kind: ComponentKind::App,
+                name: ComponentName::parse("web").expect("test name should parse"),
+                dry_run: false,
+                yes: true,
+            }
+        );
+    }
+
+    #[test]
+    fn add_rejects_dry_run_and_yes_together() {
+        let error = parse_arguments(&["monad", "add", "app", "web", "--dry-run", "--yes"])
+            .expect_err("add should reject conflicting modes");
+
+        assert!(error.contains("either --dry-run or --yes"));
+        assert!(error.contains("not both"));
     }
 
     #[test]
