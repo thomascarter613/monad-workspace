@@ -12,34 +12,30 @@ use monad_core::{
     ContextPackArtifact, CurrentStateArtifact, HandoffArtifact, InitPlanOptions, InitPreset,
     OutputFormat, ReleasePlanOptions, RepositoryContextPackExportResult,
     RepositoryContextPackRenderFormat, RepositoryGraphRenderFormat, WorkspaceContext,
-    apply_add_plan, apply_ai_context_plan, apply_init_plan, apply_patch_plan,
-    apply_static_analysis_plan, apply_sync_plan, apply_upgrade_plan,
-    apply_work_packet_execution_plan, build_ai_context_plan, build_local_agent_plan,
-    build_patch_plan, build_policy_report, build_release_plan, build_repository_graph,
-    build_static_analysis_plan, build_sync_plan, build_upgrade_plan,
-    build_work_packet_execution_plan, checked_runtime_identity,
-    export_repository_context_pack_from_workspace, generate_bootstrap_prompt,
-    generate_context_pack, generate_current_state, generate_handoff, inspect_workspace,
-    load_manifest_from_workspace, render_add_apply_result, render_add_dry_run, render_agent_plan,
-    render_ai_context_apply_result, render_ai_context_apply_result_json, render_ai_context_plan,
-    render_ai_context_plan_json, render_check_run_report, render_check_run_report_json,
-    render_context_baseline_dry_run, render_context_verify_summary, render_doctor_report,
-    render_doctor_report_json, render_init_apply_result, render_init_dry_run,
+    apply_add_plan, apply_ai_context_plan, apply_init_plan, apply_patch_plan, apply_sync_plan,
+    apply_upgrade_plan, apply_work_packet_execution_plan, build_ai_context_plan,
+    build_local_agent_plan, build_patch_plan, build_policy_report, build_release_plan,
+    build_repository_graph, build_sync_plan, build_upgrade_plan, build_work_packet_execution_plan,
+    checked_runtime_identity, export_repository_context_pack_from_workspace,
+    generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
+    inspect_workspace, load_manifest_from_workspace, render_add_apply_result, render_add_dry_run,
+    render_agent_plan, render_ai_context_apply_result, render_ai_context_apply_result_json,
+    render_ai_context_plan, render_ai_context_plan_json, render_check_run_report,
+    render_check_run_report_json, render_context_baseline_dry_run, render_context_verify_summary,
+    render_doctor_report, render_doctor_report_json, render_init_apply_result, render_init_dry_run,
     render_patch_apply_result, render_patch_apply_result_json, render_patch_plan,
     render_patch_plan_json, render_policy_evidence_results, render_policy_report,
     render_policy_report_json, render_release_plan, render_release_plan_json,
     render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
-    render_static_analysis_apply_result, render_static_analysis_plan,
-    render_static_analysis_plan_json, render_sync_apply_result, render_sync_plan,
-    render_sync_plan_json, render_upgrade_apply_result, render_upgrade_plan,
-    render_upgrade_plan_json, render_verify_baseline_dry_run, render_work_packet_apply_result,
-    render_work_packet_apply_result_json, render_work_packet_execution_plan,
-    render_work_packet_execution_plan_json, render_workspace_summary,
-    repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
-    run_doctor, run_monad_workspace_checks, traverse_workspace_bounded, verify_context,
-    workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_check_evidence_packet,
-    write_context_pack_artifact, write_current_state_artifact, write_handoff_artifact,
-    write_policy_evidence,
+    render_sync_apply_result, render_sync_plan, render_sync_plan_json, render_upgrade_apply_result,
+    render_upgrade_plan, render_upgrade_plan_json, render_verify_baseline_dry_run,
+    render_work_packet_apply_result, render_work_packet_apply_result_json,
+    render_work_packet_execution_plan, render_work_packet_execution_plan_json,
+    render_workspace_summary, repository_context_pack_from_workspace,
+    repository_inspection_summary_from_workspace, run_doctor, run_monad_workspace_checks,
+    traverse_workspace_bounded, verify_context, workspace_summary_from_manifest,
+    write_bootstrap_prompt_artifact, write_check_evidence_packet, write_context_pack_artifact,
+    write_current_state_artifact, write_handoff_artifact, write_policy_evidence,
 };
 use monad_core::{
     build_language_adapter_registry, render_language_adapter_evidence_results,
@@ -142,18 +138,6 @@ enum CliCommand {
         dry_run: bool,
 
         /// Whether to write generated contract schema evidence/state.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
-    /// Plan or write local static-analysis evidence.
-    StaticAnalysis {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated static-analysis evidence.
         yes: bool,
 
         /// Requested output format.
@@ -422,8 +406,6 @@ impl CliCommand {
             && parts.first().copied() != Some("contract")
             && parts.first().copied() != Some("patch")
             && parts.first().copied() != Some("work-packet")
-            && parts.first().copied() != Some("analysis")
-            && parts.first().copied() != Some("static-analysis")
             && parts.first().copied() != Some("sync")
             && parts.first().copied() != Some("upgrade")
         {
@@ -522,20 +504,6 @@ impl CliCommand {
             ["sync", other, ..] => {
                 reject_write_for_non_context(write)?;
                 Err(format!("unknown sync argument: {other}"))
-            }
-            ["analysis"] | ["static-analysis"] => {
-                reject_write_for_non_context(write)?;
-                require_static_analysis_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::StaticAnalysis {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["analysis", other, ..] | ["static-analysis", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown analysis argument: {other}"))
             }
             ["policy"] => {
                 reject_write_for_non_context(write)?;
@@ -786,11 +754,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             project_name,
         } => render_init(dry_run, yes, preset, project_name),
         CliCommand::Info { output_format } => render_info(output_format),
-        CliCommand::StaticAnalysis {
-            dry_run,
-            yes,
-            output_format,
-        } => render_static_analysis(dry_run, yes, output_format),
         CliCommand::Policy {
             dry_run,
             yes,
@@ -917,17 +880,6 @@ fn require_contract_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("contract currently requires either --dry-run to preview or --yes to write generated contract evidence/state".to_string())
         }
         (true, true) => Err("contract accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one static-analysis mode.
-fn require_static_analysis_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => {
-            Err("analysis currently requires either --dry-run to preview or --yes to write generated evidence".to_string())
-        }
-        (true, true) => Err("analysis accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -1113,9 +1065,6 @@ fn help_text() -> String {
         "  release --dry-run                       Plan release readiness without publishing",
         "  upgrade --dry-run                       Preview safe repository upgrade steps",
         "  ai-context --dry-run                    Preview AI context/memory artifacts",
-        "  analysis --dry-run                      Preview local static-analysis plan",
-        "  analysis --dry-run --format=json        Preview static-analysis plan as JSON",
-        "  analysis --yes                          Write generated static-analysis evidence",
         "  policy --dry-run                        Preview policy and approval gates",
         "  policy --dry-run --format=json          Preview policy report as JSON",
         "  policy --yes                            Write generated policy evidence",
@@ -1185,8 +1134,6 @@ fn help_text() -> String {
         "  monad release --dry-run",
         "  monad upgrade --dry-run",
         "  monad ai-context --dry-run",
-        "  monad analysis --dry-run",
-        "  monad analysis --dry-run --format=json",
         "  monad policy --dry-run",
         "  monad policy --dry-run --format=json",
         "  monad contract --dry-run",
@@ -1213,7 +1160,6 @@ fn help_text() -> String {
         "  release dry-run creates no tags and publishes no packages.",
         "  upgrade writes generated metadata/evidence only after --yes.",
         "  ai-context never calls providers or sends repo data remotely.",
-        "  analysis never launches language servers or external analyzers.",
         "  policy writes generated evidence only and never approves risky work automatically.",
         "  contract writes generated contract evidence/state only and never rewrites monad.toml.",
         "  patch applies generated local evidence only; user-owned source mutation remains blocked.",
@@ -1355,30 +1301,6 @@ fn render_patch(dry_run: bool, yes: bool, output_format: OutputFormat) -> Result
     }
 
     Err("patch currently requires either --dry-run to preview or --yes to apply generated patch artifacts".to_string())
-}
-
-/// Renders or writes static-analysis evidence.
-fn render_static_analysis(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = build_static_analysis_plan(&root)?;
-        return match output_format {
-            OutputFormat::Text => Ok(render_static_analysis_plan(&plan)),
-            OutputFormat::Json => Ok(render_static_analysis_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result = apply_static_analysis_plan(&root)?;
-        return Ok(render_static_analysis_apply_result(&result));
-    }
-
-    Err("analysis currently requires either --dry-run to preview or --yes to write generated evidence".to_string())
 }
 
 /// Renders or writes policy evidence.

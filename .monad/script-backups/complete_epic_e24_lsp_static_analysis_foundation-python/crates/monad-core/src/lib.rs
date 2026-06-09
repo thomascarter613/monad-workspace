@@ -32,7 +32,6 @@ pub mod repository_context_pack;
 pub mod repository_graph;
 pub mod repository_inspection;
 pub mod repository_policy;
-pub mod static_analysis;
 pub mod sync;
 pub mod templates;
 pub mod toolchain_detection;
@@ -145,13 +144,6 @@ pub use repository_inspection::{
 pub use repository_policy::{
     RepositoryPolicyDiagnostic, RepositoryPolicyReport, RepositoryPolicySeverity,
     evaluate_repository_intelligence_policy,
-};
-pub use static_analysis::{
-    LspCapability, LspServerDescriptor, ParserDescriptor, ParserStrategy, SourceFileAnalysis,
-    SourceOwner, SourceSpan, SourceSymbol, StaticAnalysisApplyResult, StaticAnalysisLanguage,
-    StaticAnalysisPlan, StaticSymbolKind, apply_static_analysis_plan, build_static_analysis_plan,
-    render_static_analysis_apply_result, render_static_analysis_plan,
-    render_static_analysis_plan_json,
 };
 pub use sync::{
     SyncApplyResult, SyncFinding, SyncFindingKind, SyncFindingSeverity, SyncPlan, apply_sync_plan,

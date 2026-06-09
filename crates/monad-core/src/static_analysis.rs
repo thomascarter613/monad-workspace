@@ -1,0 +1,1207 @@
+//! LSP and static-analysis foundation for Monad.
+//!
+//! E24 introduces local, deterministic static-analysis planning without
+//! launching language servers, installing tools, calling AI providers, or
+//! sending repository data over the network. The MVP deliberately models LSP
+//! capability discovery separately from execution so future work can add guarded
+//! integrations without weakening Monad's local-first safety posture.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use crate::{GatedWriteRequest, GatedWriteResult, gated_generated_write};
+
+/// Maximum source files scanned by the first static-analysis foundation.
+const MAX_SOURCE_FILES: usize = 250;
+
+/// Supported language families for static-analysis planning.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum StaticAnalysisLanguage {
+    /// Rust source files.
+    Rust,
+
+    /// TypeScript source files.
+    TypeScript,
+
+    /// JavaScript source files.
+    JavaScript,
+
+    /// Python source files.
+    Python,
+
+    /// Go source files.
+    Go,
+
+    /// Java source files.
+    Java,
+}
+
+impl StaticAnalysisLanguage {
+    /// Stable language label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Rust => "rust",
+            Self::TypeScript => "typescript",
+            Self::JavaScript => "javascript",
+            Self::Python => "python",
+            Self::Go => "go",
+            Self::Java => "java",
+        }
+    }
+
+    /// Infers a language from a repository-relative path.
+    #[must_use]
+    pub fn from_path(path: &Path) -> Option<Self> {
+        match path.extension().and_then(|extension| extension.to_str()) {
+            Some("rs") => Some(Self::Rust),
+            Some("ts") | Some("tsx") => Some(Self::TypeScript),
+            Some("js") | Some("jsx") | Some("mjs") | Some("cjs") => Some(Self::JavaScript),
+            Some("py") => Some(Self::Python),
+            Some("go") => Some(Self::Go),
+            Some("java") => Some(Self::Java),
+            _ => None,
+        }
+    }
+}
+
+/// Parser abstraction strategy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ParserStrategy {
+    /// Lightweight line-oriented parser used for the MVP.
+    HeuristicLineScan,
+
+    /// Placeholder for future tree-sitter style parsing.
+    StructuredParserDeferred,
+}
+
+impl ParserStrategy {
+    /// Stable strategy label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::HeuristicLineScan => "heuristic-line-scan",
+            Self::StructuredParserDeferred => "structured-parser-deferred",
+        }
+    }
+}
+
+/// Parser descriptor used by the static-analysis plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParserDescriptor {
+    language: StaticAnalysisLanguage,
+    strategy: ParserStrategy,
+    notes: String,
+}
+
+impl ParserDescriptor {
+    /// Creates a parser descriptor.
+    #[must_use]
+    pub fn new(
+        language: StaticAnalysisLanguage,
+        strategy: ParserStrategy,
+        notes: impl Into<String>,
+    ) -> Self {
+        Self {
+            language,
+            strategy,
+            notes: notes.into(),
+        }
+    }
+
+    /// Language handled by the parser.
+    #[must_use]
+    pub const fn language(&self) -> StaticAnalysisLanguage {
+        self.language
+    }
+
+    /// Parser strategy.
+    #[must_use]
+    pub const fn strategy(&self) -> ParserStrategy {
+        self.strategy
+    }
+
+    /// Human-readable notes.
+    #[must_use]
+    pub fn notes(&self) -> &str {
+        &self.notes
+    }
+}
+
+/// LSP capability classification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum LspCapability {
+    /// Document symbols.
+    DocumentSymbols,
+
+    /// Workspace symbols.
+    WorkspaceSymbols,
+
+    /// Go-to-definition.
+    Definition,
+
+    /// Reference search.
+    References,
+
+    /// Diagnostics.
+    Diagnostics,
+}
+
+impl LspCapability {
+    /// Stable capability label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DocumentSymbols => "document-symbols",
+            Self::WorkspaceSymbols => "workspace-symbols",
+            Self::Definition => "definition",
+            Self::References => "references",
+            Self::Diagnostics => "diagnostics",
+        }
+    }
+}
+
+/// Planned language-server descriptor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LspServerDescriptor {
+    language: StaticAnalysisLanguage,
+    command: &'static str,
+    capabilities: Vec<LspCapability>,
+    execution_enabled: bool,
+}
+
+impl LspServerDescriptor {
+    /// Creates a language-server descriptor.
+    #[must_use]
+    pub fn new(
+        language: StaticAnalysisLanguage,
+        command: &'static str,
+        mut capabilities: Vec<LspCapability>,
+    ) -> Self {
+        capabilities.sort();
+        capabilities.dedup();
+        Self {
+            language,
+            command,
+            capabilities,
+            execution_enabled: false,
+        }
+    }
+
+    /// Language served by this descriptor.
+    #[must_use]
+    pub const fn language(&self) -> StaticAnalysisLanguage {
+        self.language
+    }
+
+    /// Expected command name, not executed by E24.
+    #[must_use]
+    pub const fn command(&self) -> &'static str {
+        self.command
+    }
+
+    /// Planned capabilities.
+    #[must_use]
+    pub fn capabilities(&self) -> &[LspCapability] {
+        &self.capabilities
+    }
+
+    /// Whether execution is enabled. E24 always returns false.
+    #[must_use]
+    pub const fn execution_enabled(&self) -> bool {
+        self.execution_enabled
+    }
+}
+
+/// Symbol kind identified by the MVP extractor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum StaticSymbolKind {
+    /// Function or method.
+    Function,
+
+    /// Type/class/struct/interface/trait.
+    Type,
+
+    /// Module or package declaration.
+    Module,
+
+    /// Constant or variable-like exported binding.
+    Binding,
+}
+
+impl StaticSymbolKind {
+    /// Stable kind label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Function => "function",
+            Self::Type => "type",
+            Self::Module => "module",
+            Self::Binding => "binding",
+        }
+    }
+}
+
+/// Source range metadata for a symbol.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SourceSpan {
+    line: usize,
+    column: usize,
+}
+
+impl SourceSpan {
+    /// Creates a source span.
+    #[must_use]
+    pub const fn new(line: usize, column: usize) -> Self {
+        Self { line, column }
+    }
+
+    /// One-based line.
+    #[must_use]
+    pub const fn line(self) -> usize {
+        self.line
+    }
+
+    /// One-based column.
+    #[must_use]
+    pub const fn column(self) -> usize {
+        self.column
+    }
+}
+
+/// Ownership metadata for extracted symbols.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SourceOwner {
+    area: String,
+    confidence: &'static str,
+}
+
+impl SourceOwner {
+    /// Creates ownership metadata.
+    #[must_use]
+    pub fn new(area: impl Into<String>, confidence: &'static str) -> Self {
+        Self {
+            area: area.into(),
+            confidence,
+        }
+    }
+
+    /// Owner area label.
+    #[must_use]
+    pub fn area(&self) -> &str {
+        &self.area
+    }
+
+    /// Confidence label.
+    #[must_use]
+    pub const fn confidence(&self) -> &'static str {
+        self.confidence
+    }
+}
+
+/// One extracted source symbol.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceSymbol {
+    name: String,
+    kind: StaticSymbolKind,
+    language: StaticAnalysisLanguage,
+    relative_path: PathBuf,
+    span: SourceSpan,
+    owner: SourceOwner,
+}
+
+impl SourceSymbol {
+    /// Creates an extracted symbol.
+    #[must_use]
+    pub fn new(
+        name: impl Into<String>,
+        kind: StaticSymbolKind,
+        language: StaticAnalysisLanguage,
+        relative_path: impl Into<PathBuf>,
+        span: SourceSpan,
+        owner: SourceOwner,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            kind,
+            language,
+            relative_path: relative_path.into(),
+            span,
+            owner,
+        }
+    }
+
+    /// Symbol name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Symbol kind.
+    #[must_use]
+    pub const fn kind(&self) -> StaticSymbolKind {
+        self.kind
+    }
+
+    /// Symbol language.
+    #[must_use]
+    pub const fn language(&self) -> StaticAnalysisLanguage {
+        self.language
+    }
+
+    /// Repository-relative path.
+    #[must_use]
+    pub fn relative_path(&self) -> &Path {
+        &self.relative_path
+    }
+
+    /// Source span.
+    #[must_use]
+    pub const fn span(&self) -> SourceSpan {
+        self.span
+    }
+
+    /// Ownership metadata.
+    #[must_use]
+    pub const fn owner(&self) -> &SourceOwner {
+        &self.owner
+    }
+}
+
+/// One analyzed source file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceFileAnalysis {
+    relative_path: PathBuf,
+    language: StaticAnalysisLanguage,
+    symbols: Vec<SourceSymbol>,
+}
+
+impl SourceFileAnalysis {
+    /// Creates a file analysis record.
+    #[must_use]
+    pub fn new(
+        relative_path: impl Into<PathBuf>,
+        language: StaticAnalysisLanguage,
+        mut symbols: Vec<SourceSymbol>,
+    ) -> Self {
+        symbols.sort_by(|left, right| {
+            left.relative_path()
+                .cmp(right.relative_path())
+                .then(left.span().line().cmp(&right.span().line()))
+                .then(left.name().cmp(right.name()))
+        });
+        Self {
+            relative_path: relative_path.into(),
+            language,
+            symbols,
+        }
+    }
+
+    /// Repository-relative path.
+    #[must_use]
+    pub fn relative_path(&self) -> &Path {
+        &self.relative_path
+    }
+
+    /// File language.
+    #[must_use]
+    pub const fn language(&self) -> StaticAnalysisLanguage {
+        self.language
+    }
+
+    /// Symbols extracted from this file.
+    #[must_use]
+    pub fn symbols(&self) -> &[SourceSymbol] {
+        &self.symbols
+    }
+}
+
+/// Deterministic static-analysis plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticAnalysisPlan {
+    parsers: Vec<ParserDescriptor>,
+    lsp_servers: Vec<LspServerDescriptor>,
+    files: Vec<SourceFileAnalysis>,
+    findings: Vec<String>,
+}
+
+impl StaticAnalysisPlan {
+    /// Creates a static-analysis plan.
+    #[must_use]
+    pub fn new(
+        mut parsers: Vec<ParserDescriptor>,
+        mut lsp_servers: Vec<LspServerDescriptor>,
+        mut files: Vec<SourceFileAnalysis>,
+        mut findings: Vec<String>,
+    ) -> Self {
+        parsers.sort_by_key(ParserDescriptor::language);
+        lsp_servers.sort_by_key(LspServerDescriptor::language);
+        files.sort_by(|left, right| left.relative_path().cmp(right.relative_path()));
+        findings.sort();
+        Self {
+            parsers,
+            lsp_servers,
+            files,
+            findings,
+        }
+    }
+
+    /// Parser descriptors.
+    #[must_use]
+    pub fn parsers(&self) -> &[ParserDescriptor] {
+        &self.parsers
+    }
+
+    /// LSP descriptors.
+    #[must_use]
+    pub fn lsp_servers(&self) -> &[LspServerDescriptor] {
+        &self.lsp_servers
+    }
+
+    /// Analyzed source files.
+    #[must_use]
+    pub fn files(&self) -> &[SourceFileAnalysis] {
+        &self.files
+    }
+
+    /// Findings.
+    #[must_use]
+    pub fn findings(&self) -> &[String] {
+        &self.findings
+    }
+
+    /// Number of extracted symbols.
+    #[must_use]
+    pub fn symbol_count(&self) -> usize {
+        self.files().iter().map(|file| file.symbols().len()).sum()
+    }
+
+    /// Number of analyzed files.
+    #[must_use]
+    pub fn file_count(&self) -> usize {
+        self.files.len()
+    }
+}
+
+/// Result from writing static-analysis evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticAnalysisApplyResult {
+    writes: Vec<GatedWriteResult>,
+}
+
+impl StaticAnalysisApplyResult {
+    /// Creates an apply result.
+    #[must_use]
+    pub fn new(writes: Vec<GatedWriteResult>) -> Self {
+        Self { writes }
+    }
+
+    /// Write results.
+    #[must_use]
+    pub fn writes(&self) -> &[GatedWriteResult] {
+        &self.writes
+    }
+}
+
+/// Builds the static-analysis plan for a repository root.
+pub fn build_static_analysis_plan(root: impl AsRef<Path>) -> Result<StaticAnalysisPlan, String> {
+    let root = root.as_ref();
+    let parsers = default_parser_descriptors();
+    let lsp_servers = default_lsp_server_descriptors();
+    let mut files = Vec::new();
+    let mut findings = Vec::new();
+    let source_paths = discover_source_paths(root, MAX_SOURCE_FILES)?;
+
+    if source_paths.len() >= MAX_SOURCE_FILES {
+        findings.push(format!(
+            "source scan reached bounded limit of {MAX_SOURCE_FILES} files"
+        ));
+    }
+
+    for relative_path in source_paths {
+        if let Some(language) = StaticAnalysisLanguage::from_path(&relative_path) {
+            let absolute_path = root.join(&relative_path);
+            let text = fs::read_to_string(&absolute_path).unwrap_or_default();
+            let symbols = extract_symbols_from_text(language, &relative_path, &text);
+            files.push(SourceFileAnalysis::new(relative_path, language, symbols));
+        }
+    }
+
+    findings.push("no language servers were launched".to_string());
+    findings.push("no external static-analysis tools were executed".to_string());
+    findings.push("no repository data was sent remotely".to_string());
+
+    Ok(StaticAnalysisPlan::new(
+        parsers,
+        lsp_servers,
+        files,
+        findings,
+    ))
+}
+
+/// Writes generated static-analysis evidence reports.
+pub fn apply_static_analysis_plan(
+    root: impl AsRef<Path>,
+) -> Result<StaticAnalysisApplyResult, String> {
+    let plan = build_static_analysis_plan(root.as_ref())?;
+    let requests = [
+        GatedWriteRequest::new(
+            ".monad/reports/static-analysis-plan.md",
+            render_static_analysis_plan(&plan),
+            true,
+        ),
+        GatedWriteRequest::new(
+            ".monad/reports/static-analysis-plan.json",
+            render_static_analysis_plan_json(&plan),
+            true,
+        ),
+    ];
+    let writes = requests
+        .iter()
+        .map(|request| gated_generated_write(root.as_ref(), request))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(StaticAnalysisApplyResult::new(writes))
+}
+
+fn default_parser_descriptors() -> Vec<ParserDescriptor> {
+    [
+        StaticAnalysisLanguage::Rust,
+        StaticAnalysisLanguage::TypeScript,
+        StaticAnalysisLanguage::JavaScript,
+        StaticAnalysisLanguage::Python,
+        StaticAnalysisLanguage::Go,
+        StaticAnalysisLanguage::Java,
+    ]
+    .into_iter()
+    .map(|language| {
+        ParserDescriptor::new(
+            language,
+            ParserStrategy::HeuristicLineScan,
+            "MVP parser abstraction uses deterministic local line scanning only",
+        )
+    })
+    .collect()
+}
+
+fn default_lsp_server_descriptors() -> Vec<LspServerDescriptor> {
+    vec![
+        LspServerDescriptor::new(
+            StaticAnalysisLanguage::Rust,
+            "rust-analyzer",
+            vec![
+                LspCapability::Definition,
+                LspCapability::Diagnostics,
+                LspCapability::DocumentSymbols,
+                LspCapability::References,
+                LspCapability::WorkspaceSymbols,
+            ],
+        ),
+        LspServerDescriptor::new(
+            StaticAnalysisLanguage::TypeScript,
+            "typescript-language-server",
+            vec![
+                LspCapability::Definition,
+                LspCapability::Diagnostics,
+                LspCapability::DocumentSymbols,
+                LspCapability::References,
+            ],
+        ),
+        LspServerDescriptor::new(
+            StaticAnalysisLanguage::JavaScript,
+            "typescript-language-server",
+            vec![
+                LspCapability::Definition,
+                LspCapability::Diagnostics,
+                LspCapability::DocumentSymbols,
+                LspCapability::References,
+            ],
+        ),
+        LspServerDescriptor::new(
+            StaticAnalysisLanguage::Python,
+            "pyright-langserver",
+            vec![
+                LspCapability::Definition,
+                LspCapability::Diagnostics,
+                LspCapability::DocumentSymbols,
+            ],
+        ),
+        LspServerDescriptor::new(
+            StaticAnalysisLanguage::Go,
+            "gopls",
+            vec![
+                LspCapability::Definition,
+                LspCapability::Diagnostics,
+                LspCapability::DocumentSymbols,
+            ],
+        ),
+        LspServerDescriptor::new(
+            StaticAnalysisLanguage::Java,
+            "jdtls",
+            vec![
+                LspCapability::Definition,
+                LspCapability::Diagnostics,
+                LspCapability::DocumentSymbols,
+            ],
+        ),
+    ]
+}
+
+fn discover_source_paths(root: &Path, limit: usize) -> Result<Vec<PathBuf>, String> {
+    let mut paths = Vec::new();
+    collect_source_paths(root, Path::new(""), limit, &mut paths)?;
+    paths.sort();
+    Ok(paths)
+}
+
+fn collect_source_paths(
+    root: &Path,
+    relative_dir: &Path,
+    limit: usize,
+    paths: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    if paths.len() >= limit {
+        return Ok(());
+    }
+
+    let absolute_dir = root.join(relative_dir);
+    let entries = match fs::read_dir(&absolute_dir) {
+        Ok(entries) => entries,
+        Err(error) => {
+            return Err(format!(
+                "failed to read directory {}: {error}",
+                absolute_dir.display()
+            ));
+        }
+    };
+
+    let mut entries = entries.collect::<Result<Vec<_>, _>>().map_err(|error| {
+        format!(
+            "failed to read directory entry in {}: {error}",
+            absolute_dir.display()
+        )
+    })?;
+    entries.sort_by_key(|entry| entry.file_name());
+
+    for entry in entries {
+        if paths.len() >= limit {
+            break;
+        }
+
+        let file_name = entry.file_name();
+        let file_name = file_name.to_string_lossy();
+        if should_skip_entry(&file_name) {
+            continue;
+        }
+
+        let relative_path = relative_dir.join(file_name.as_ref());
+        let file_type = entry.file_type().map_err(|error| error.to_string())?;
+
+        if file_type.is_dir() {
+            collect_source_paths(root, &relative_path, limit, paths)?;
+        } else if file_type.is_file() && StaticAnalysisLanguage::from_path(&relative_path).is_some()
+        {
+            paths.push(relative_path);
+        }
+    }
+
+    Ok(())
+}
+
+fn should_skip_entry(file_name: &str) -> bool {
+    matches!(
+        file_name,
+        ".git"
+            | ".monad"
+            | "target"
+            | "node_modules"
+            | "vendor"
+            | "dist"
+            | "build"
+            | ".next"
+            | ".turbo"
+            | ".venv"
+            | "__pycache__"
+    )
+}
+
+fn extract_symbols_from_text(
+    language: StaticAnalysisLanguage,
+    relative_path: &Path,
+    text: &str,
+) -> Vec<SourceSymbol> {
+    let mut symbols = Vec::new();
+
+    for (index, line) in text.lines().enumerate() {
+        let trimmed = line.trim_start();
+        let column = line.len().saturating_sub(trimmed.len()) + 1;
+        let span = SourceSpan::new(index + 1, column);
+        if let Some((name, kind)) = extract_symbol_from_line(language, trimmed) {
+            symbols.push(SourceSymbol::new(
+                name,
+                kind,
+                language,
+                relative_path,
+                span,
+                infer_owner(relative_path),
+            ));
+        }
+    }
+
+    symbols.sort_by(|left, right| {
+        left.span()
+            .line()
+            .cmp(&right.span().line())
+            .then(left.name().cmp(right.name()))
+    });
+    symbols
+}
+
+fn extract_symbol_from_line(
+    language: StaticAnalysisLanguage,
+    line: &str,
+) -> Option<(String, StaticSymbolKind)> {
+    match language {
+        StaticAnalysisLanguage::Rust => extract_rust_symbol(line),
+        StaticAnalysisLanguage::TypeScript | StaticAnalysisLanguage::JavaScript => {
+            extract_js_like_symbol(line)
+        }
+        StaticAnalysisLanguage::Python => extract_python_symbol(line),
+        StaticAnalysisLanguage::Go => extract_go_symbol(line),
+        StaticAnalysisLanguage::Java => extract_java_symbol(line),
+    }
+}
+
+fn extract_rust_symbol(line: &str) -> Option<(String, StaticSymbolKind)> {
+    let line = line
+        .strip_prefix("pub ")
+        .or_else(|| line.strip_prefix("pub(crate) "))
+        .unwrap_or(line);
+    if let Some(rest) = line.strip_prefix("fn ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Function));
+    }
+    if let Some(rest) = line.strip_prefix("struct ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Type));
+    }
+    if let Some(rest) = line.strip_prefix("enum ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Type));
+    }
+    if let Some(rest) = line.strip_prefix("trait ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Type));
+    }
+    if let Some(rest) = line.strip_prefix("mod ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Module));
+    }
+    if let Some(rest) = line.strip_prefix("const ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Binding));
+    }
+    None
+}
+
+fn extract_js_like_symbol(line: &str) -> Option<(String, StaticSymbolKind)> {
+    let line = line
+        .strip_prefix("export default ")
+        .or_else(|| line.strip_prefix("export "))
+        .unwrap_or(line);
+    if let Some(rest) = line.strip_prefix("async function ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Function));
+    }
+    if let Some(rest) = line.strip_prefix("function ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Function));
+    }
+    if let Some(rest) = line.strip_prefix("class ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Type));
+    }
+    if let Some(rest) = line.strip_prefix("interface ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Type));
+    }
+    if let Some(rest) = line.strip_prefix("type ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Type));
+    }
+    for prefix in ["const ", "let ", "var "] {
+        if let Some(rest) = line.strip_prefix(prefix) {
+            return Some((take_identifier(rest), StaticSymbolKind::Binding));
+        }
+    }
+    None
+}
+
+fn extract_python_symbol(line: &str) -> Option<(String, StaticSymbolKind)> {
+    if let Some(rest) = line.strip_prefix("def ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Function));
+    }
+    if let Some(rest) = line.strip_prefix("async def ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Function));
+    }
+    if let Some(rest) = line.strip_prefix("class ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Type));
+    }
+    None
+}
+
+fn extract_go_symbol(line: &str) -> Option<(String, StaticSymbolKind)> {
+    if let Some(rest) = line.strip_prefix("package ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Module));
+    }
+    if let Some(rest) = line.strip_prefix("func ") {
+        let rest = rest.strip_prefix('(').map_or(rest, |receiver| {
+            receiver
+                .split_once(')')
+                .map_or(receiver, |(_, after)| after.trim())
+        });
+        return Some((take_identifier(rest), StaticSymbolKind::Function));
+    }
+    if let Some(rest) = line.strip_prefix("type ") {
+        return Some((take_identifier(rest), StaticSymbolKind::Type));
+    }
+    None
+}
+
+fn extract_java_symbol(line: &str) -> Option<(String, StaticSymbolKind)> {
+    let tokens = line
+        .split(|character: char| !character.is_alphanumeric() && character != '_')
+        .filter(|token| !token.is_empty())
+        .collect::<Vec<_>>();
+
+    for marker in ["class", "interface", "enum", "record"] {
+        if let Some(index) = tokens.iter().position(|token| *token == marker)
+            && let Some(name) = tokens.get(index + 1)
+        {
+            return Some(((*name).to_string(), StaticSymbolKind::Type));
+        }
+    }
+
+    None
+}
+
+fn take_identifier(input: &str) -> String {
+    input
+        .trim_start()
+        .chars()
+        .take_while(|character| character.is_alphanumeric() || *character == '_')
+        .collect()
+}
+
+fn infer_owner(relative_path: &Path) -> SourceOwner {
+    let area = relative_path
+        .components()
+        .next()
+        .map(|component| component.as_os_str().to_string_lossy().to_string())
+        .unwrap_or_else(|| "root".to_string());
+    SourceOwner::new(area, "path-prefix")
+}
+
+/// Renders a static-analysis plan as text.
+#[must_use]
+pub fn render_static_analysis_plan(plan: &StaticAnalysisPlan) -> String {
+    let mut lines = vec![
+        "Monad LSP and static-analysis plan".to_string(),
+        String::new(),
+        "Summary:".to_string(),
+        format!("  parsers: {}", plan.parsers().len()),
+        format!("  lsp_servers: {}", plan.lsp_servers().len()),
+        format!("  source_files: {}", plan.file_count()),
+        format!("  symbols: {}", plan.symbol_count()),
+        String::new(),
+        "Parser abstraction:".to_string(),
+    ];
+
+    for parser in plan.parsers() {
+        lines.push(format!(
+            "  - {} strategy={} notes={}",
+            parser.language().as_str(),
+            parser.strategy().as_str(),
+            parser.notes()
+        ));
+    }
+
+    lines.push(String::new());
+    lines.push("LSP capability model:".to_string());
+    for server in plan.lsp_servers() {
+        let capabilities = server
+            .capabilities()
+            .iter()
+            .map(|capability| capability.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        lines.push(format!(
+            "  - {} command={} execution_enabled={} capabilities={}",
+            server.language().as_str(),
+            server.command(),
+            server.execution_enabled(),
+            capabilities
+        ));
+    }
+
+    lines.push(String::new());
+    lines.push("Source map:".to_string());
+    for file in plan.files() {
+        lines.push(format!(
+            "  - {} language={} symbols={}",
+            file.relative_path().display(),
+            file.language().as_str(),
+            file.symbols().len()
+        ));
+        for symbol in file.symbols() {
+            lines.push(format!(
+                "    - {} kind={} line={} column={} owner={} confidence={}",
+                symbol.name(),
+                symbol.kind().as_str(),
+                symbol.span().line(),
+                symbol.span().column(),
+                symbol.owner().area(),
+                symbol.owner().confidence()
+            ));
+        }
+    }
+
+    lines.push(String::new());
+    lines.push("Findings:".to_string());
+    for finding in plan.findings() {
+        lines.push(format!("  - {finding}"));
+    }
+
+    lines.push(String::new());
+    lines.push("No language servers were launched.".to_string());
+    lines.push("No external analyzers were executed.".to_string());
+    lines.push("No source files were modified.".to_string());
+    lines.push("No AI providers were called.".to_string());
+
+    lines.join("\n")
+}
+
+/// Renders a static-analysis plan as JSON.
+#[must_use]
+pub fn render_static_analysis_plan_json(plan: &StaticAnalysisPlan) -> String {
+    let parsers = plan
+        .parsers()
+        .iter()
+        .map(|parser| {
+            format!(
+                "{{\"language\":\"{}\",\"strategy\":\"{}\",\"notes\":\"{}\"}}",
+                parser.language().as_str(),
+                parser.strategy().as_str(),
+                json_escape(parser.notes())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+
+    let lsp_servers = plan
+        .lsp_servers()
+        .iter()
+        .map(|server| {
+            let capabilities = server
+                .capabilities()
+                .iter()
+                .map(|capability| format!("\"{}\"", capability.as_str()))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!(
+                "{{\"language\":\"{}\",\"command\":\"{}\",\"execution_enabled\":{},\"capabilities\":[{}]}}",
+                server.language().as_str(),
+                server.command(),
+                server.execution_enabled(),
+                capabilities
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+
+    let files = plan
+        .files()
+        .iter()
+        .map(|file| {
+            let symbols = file
+                .symbols()
+                .iter()
+                .map(|symbol| {
+                    format!(
+                        "{{\"name\":\"{}\",\"kind\":\"{}\",\"line\":{},\"column\":{},\"owner\":\"{}\",\"owner_confidence\":\"{}\"}}",
+                        json_escape(symbol.name()),
+                        symbol.kind().as_str(),
+                        symbol.span().line(),
+                        symbol.span().column(),
+                        json_escape(symbol.owner().area()),
+                        symbol.owner().confidence()
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            format!(
+                "{{\"path\":\"{}\",\"language\":\"{}\",\"symbols\":[{}]}}",
+                json_escape(&file.relative_path().display().to_string()),
+                file.language().as_str(),
+                symbols
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+
+    let findings = plan
+        .findings()
+        .iter()
+        .map(|finding| format!("\"{}\"", json_escape(finding)))
+        .collect::<Vec<_>>()
+        .join(",");
+
+    format!(
+        "{{\"command\":\"analysis\",\"parsers\":{},\"lsp_servers\":{},\"source_files\":{},\"symbols\":{},\"parser_descriptors\":[{}],\"lsp_descriptors\":[{}],\"files\":[{}],\"findings\":[{}]}}",
+        plan.parsers().len(),
+        plan.lsp_servers().len(),
+        plan.file_count(),
+        plan.symbol_count(),
+        parsers,
+        lsp_servers,
+        files,
+        findings
+    )
+}
+
+/// Renders static-analysis apply results.
+#[must_use]
+pub fn render_static_analysis_apply_result(result: &StaticAnalysisApplyResult) -> String {
+    let mut lines = vec![
+        "Monad static-analysis evidence write result".to_string(),
+        String::new(),
+        "Results:".to_string(),
+    ];
+
+    for write in result.writes() {
+        match write {
+            GatedWriteResult::Written(path) | GatedWriteResult::SkippedIdentical(path) => {
+                lines.push(format!("  - [{}] {}", write.as_str(), path.display()));
+            }
+            GatedWriteResult::ApprovalRequired(message) | GatedWriteResult::Blocked(message) => {
+                lines.push(format!("  - [{}] {message}", write.as_str()));
+            }
+        }
+    }
+
+    lines.push(String::new());
+    lines.push("No language servers were launched.".to_string());
+    lines.push("No external analyzers were executed.".to_string());
+    lines.push("No source files were modified.".to_string());
+    lines.push("No AI providers were called.".to_string());
+
+    lines.join("\n")
+}
+
+fn json_escape(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_dir(test_name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after Unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "monad-static-analysis-{test_name}-{}-{unique}",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn language_detection_uses_file_extensions() {
+        assert_eq!(
+            StaticAnalysisLanguage::from_path(Path::new("src/lib.rs")),
+            Some(StaticAnalysisLanguage::Rust)
+        );
+        assert_eq!(
+            StaticAnalysisLanguage::from_path(Path::new("src/main.py")),
+            Some(StaticAnalysisLanguage::Python)
+        );
+        assert_eq!(
+            StaticAnalysisLanguage::from_path(Path::new("README.md")),
+            None
+        );
+    }
+
+    #[test]
+    fn rust_symbol_extraction_finds_functions_and_types() {
+        let symbols = extract_symbols_from_text(
+            StaticAnalysisLanguage::Rust,
+            Path::new("src/lib.rs"),
+            "pub struct Demo {}\nfn helper() {}\npub enum Mode {}\n",
+        );
+
+        let names = symbols.iter().map(SourceSymbol::name).collect::<Vec<_>>();
+        assert!(names.contains(&"Demo"));
+        assert!(names.contains(&"helper"));
+        assert!(names.contains(&"Mode"));
+    }
+
+    #[test]
+    fn python_symbol_extraction_finds_functions_and_classes() {
+        let symbols = extract_symbols_from_text(
+            StaticAnalysisLanguage::Python,
+            Path::new("app/main.py"),
+            "class Service:\n    pass\ndef run():\n    pass\n",
+        );
+
+        let names = symbols.iter().map(SourceSymbol::name).collect::<Vec<_>>();
+        assert!(names.contains(&"Service"));
+        assert!(names.contains(&"run"));
+    }
+
+    #[test]
+    fn lsp_descriptors_are_non_executing() {
+        let descriptors = default_lsp_server_descriptors();
+
+        assert!(
+            descriptors
+                .iter()
+                .all(|descriptor| !descriptor.execution_enabled())
+        );
+        assert!(
+            descriptors
+                .iter()
+                .any(|descriptor| descriptor.command() == "rust-analyzer")
+        );
+    }
+
+    #[test]
+    fn plan_scans_source_files_without_external_execution() {
+        let root = unique_temp_dir("plan");
+        fs::create_dir_all(root.join("crates/example/src"))
+            .expect("source directory should be created");
+        fs::write(
+            root.join("crates/example/src/lib.rs"),
+            "pub struct Example {}\npub fn run() {}\n",
+        )
+        .expect("source file should be written");
+
+        let plan = build_static_analysis_plan(&root).expect("plan should build");
+
+        assert_eq!(plan.file_count(), 1);
+        assert_eq!(plan.symbol_count(), 2);
+        assert!(render_static_analysis_plan(&plan).contains("No language servers were launched."));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn json_render_contains_summary_counts() {
+        let plan = StaticAnalysisPlan::new(
+            default_parser_descriptors(),
+            default_lsp_server_descriptors(),
+            Vec::new(),
+            vec!["no external static-analysis tools were executed".to_string()],
+        );
+        let json = render_static_analysis_plan_json(&plan);
+
+        assert!(json.contains("\"command\":\"analysis\""));
+        assert!(json.contains("\"symbols\":0"));
+    }
+}
