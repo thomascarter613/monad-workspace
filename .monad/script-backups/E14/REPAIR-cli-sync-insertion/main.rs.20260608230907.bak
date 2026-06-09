@@ -12,15 +12,14 @@ use monad_core::{
     ContextPackArtifact, CurrentStateArtifact, HandoffArtifact, InitPlanOptions, InitPreset,
     OutputFormat, RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
     RepositoryGraphRenderFormat, WorkspaceContext, apply_add_plan, apply_init_plan,
-    apply_sync_plan, build_local_agent_plan, build_repository_graph, build_sync_plan,
-    checked_runtime_identity, export_repository_context_pack_from_workspace,
-    generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
-    inspect_workspace, load_manifest_from_workspace, render_add_apply_result, render_add_dry_run,
-    render_agent_plan, render_check_run_report, render_check_run_report_json,
-    render_context_baseline_dry_run, render_context_verify_summary, render_init_apply_result,
-    render_init_dry_run, render_repository_context_pack, render_repository_graph,
-    render_repository_inspection_summary, render_sync_apply_result, render_sync_plan,
-    render_sync_plan_json, render_verify_baseline_dry_run, render_workspace_summary,
+    build_local_agent_plan, build_repository_graph, checked_runtime_identity,
+    export_repository_context_pack_from_workspace, generate_bootstrap_prompt,
+    generate_context_pack, generate_current_state, generate_handoff, inspect_workspace,
+    load_manifest_from_workspace, render_add_apply_result, render_add_dry_run, render_agent_plan,
+    render_check_run_report, render_check_run_report_json, render_context_baseline_dry_run,
+    render_context_verify_summary, render_init_apply_result, render_init_dry_run,
+    render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
+    render_verify_baseline_dry_run, render_workspace_summary,
     repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
     run_monad_workspace_checks, traverse_workspace_bounded, verify_context,
     workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_check_evidence_packet,
@@ -81,18 +80,6 @@ enum CliCommand {
 
     /// Run workspace checks.
     Check {
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
-    /// Synchronize declared repository intent with discovered state.
-    Sync {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write approved generated sync evidence.
-        yes: bool,
-
         /// Requested output format.
         output_format: OutputFormat,
     },
@@ -267,12 +254,8 @@ impl CliCommand {
         // Convert positional args to string slices for pattern matching.
         let parts: Vec<&str> = positional.iter().map(|s| s.as_str()).collect();
 
-        if yes
-            && parts.first().copied() != Some("init")
-            && parts.first().copied() != Some("add")
-            && parts.first().copied() != Some("sync")
-        {
-            return Err("--yes is only supported for init, add, and sync commands".to_string());
+        if yes && parts.first().copied() != Some("init") && parts.first().copied() != Some("add") {
+            return Err("--yes is only supported for init and add commands".to_string());
         }
 
         if (requested_preset.is_some() || requested_project_name.is_some())
@@ -346,20 +329,6 @@ impl CliCommand {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Info { output_format })
-            }
-            ["sync"] => {
-                reject_write_for_non_context(write)?;
-                require_sync_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::Sync {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["sync", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown sync argument: {other}"))
             }
             ["check"] => {
                 reject_write_for_non_context(write)?;
@@ -491,11 +460,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
         } => render_init(dry_run, yes, preset, project_name),
         CliCommand::Info { output_format } => render_info(output_format),
         CliCommand::Check { output_format } => render_check(output_format),
-        CliCommand::Sync {
-            dry_run,
-            yes,
-            output_format,
-        } => render_sync(dry_run, yes, output_format),
         CliCommand::Inspect { output_format } => render_inspect(output_format),
         CliCommand::Graph { graph_format } => render_graph(graph_format),
         CliCommand::Context {
@@ -527,17 +491,6 @@ fn require_add_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("add currently requires either --dry-run to preview or --yes to apply".to_string())
         }
         (true, true) => Err("add accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one sync mode for the guarded sync implementation.
-fn require_sync_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => {
-            Err("sync currently requires either --dry-run to preview or --yes to write generated evidence".to_string())
-        }
-        (true, true) => Err("sync accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -659,9 +612,6 @@ fn help_text() -> String {
         "  init --yes                                Apply repository initialization after review",
         "  info                                      Show workspace summary",
         "  check                                     Run workspace checks",
-        "  sync --dry-run                            Preview repository sync plan",
-        "  sync --dry-run --format=json              Preview repository sync plan as JSON",
-        "  sync --yes                                Write generated sync evidence reports",
         "  inspect                                   Inspect repository structure",
         "  graph                                     Render repository graph",
         "  plan \"<intent>\"                          Produce a supervised no-write plan",
@@ -704,8 +654,6 @@ fn help_text() -> String {
         "  monad inspect",
         "  monad context --write",
         "  monad check --format=json",
-        "  monad sync --dry-run",
-        "  monad sync --dry-run --format=json",
         "  monad graph --format=mermaid",
         "  monad plan \"explain this repository\"",
         "  monad evolve verify-baseline --dry-run",
@@ -715,7 +663,6 @@ fn help_text() -> String {
         "  plan is no-write and does not run commands.",
         "  evolve commands are dry-run only in this MVP hardening phase.",
         "  language-aware add writes use local embedded templates only.",
-        "  sync writes generated evidence reports only.",
         "  --write is only supported for the context command.",
     ]
     .join("\n")
@@ -761,43 +708,6 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
     Ok(render_workspace_summary(&summary, output_format))
-}
-
-/// Discovers a workspace context for sync.
-///
-/// Most commands should require an initialized Monad workspace. Sync is a
-/// little different: it is the command that reports whether the current
-/// directory is missing the core Monad contract. If normal discovery fails, we
-/// intentionally fall back to treating `.` as the root so the planner can emit
-/// `monad.toml` / `.monad` missing findings instead of failing early.
-fn discover_sync_context() -> Result<WorkspaceContext, String> {
-    match WorkspaceContext::discover_from(".") {
-        Ok(context) => Ok(context),
-        Err(_) => WorkspaceContext::new(".").map_err(|error| error.to_string()),
-    }
-}
-
-/// Renders or applies repository sync output.
-fn render_sync(dry_run: bool, yes: bool, output_format: OutputFormat) -> Result<String, String> {
-    let context = discover_sync_context()?;
-
-    if dry_run {
-        let plan = build_sync_plan(&context).map_err(|error| error.to_string())?;
-        return match output_format {
-            OutputFormat::Text => Ok(render_sync_plan(&plan)),
-            OutputFormat::Json => Ok(render_sync_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result = apply_sync_plan(&context).map_err(|error| error.to_string())?;
-        return Ok(render_sync_apply_result(&result));
-    }
-
-    Err(
-        "sync currently requires either --dry-run to preview or --yes to write generated evidence"
-            .to_string(),
-    )
 }
 
 /// Renders workspace checks.
@@ -1399,84 +1309,6 @@ mod tests {
 
         assert!(error.contains("either --dry-run or --yes"));
         assert!(error.contains("not both"));
-    }
-
-    #[test]
-    fn sync_discovery_falls_back_to_current_directory() {
-        let current = std::env::current_dir().expect("test current directory should be available");
-        let temp_root = std::env::temp_dir().join(format!(
-            "monad-sync-cli-fallback-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("system clock should be after unix epoch")
-                .as_nanos()
-        ));
-
-        std::fs::create_dir_all(&temp_root).expect("temp root should be created");
-        std::env::set_current_dir(&temp_root).expect("test should enter temp root");
-
-        let output = render_sync(true, false, OutputFormat::Text)
-            .expect("sync dry-run should fall back to current directory");
-
-        assert!(output.contains("Monad sync dry-run plan"));
-        assert!(output.contains("monad.manifest.missing"));
-        assert!(output.contains("No files were written."));
-
-        std::env::set_current_dir(current).expect("test should restore current directory");
-        std::fs::remove_dir_all(temp_root).ok();
-    }
-
-    #[test]
-    fn sync_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "sync", "--dry-run"]).expect("sync dry-run should parse"),
-            CliCommand::Sync {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn sync_dry_run_json_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "sync", "--dry-run", "--format=json"])
-                .expect("sync dry-run json should parse"),
-            CliCommand::Sync {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn sync_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "sync", "--yes"]).expect("sync yes should parse"),
-            CliCommand::Sync {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn sync_requires_dry_run_or_yes() {
-        let error = parse_arguments(&["monad", "sync"]).expect_err("sync without mode should fail");
-
-        assert!(error.contains("sync currently requires either --dry-run"));
-        assert!(error.contains("--yes"));
-    }
-
-    #[test]
-    fn sync_rejects_dry_run_and_yes_together() {
-        let error = parse_arguments(&["monad", "sync", "--dry-run", "--yes"])
-            .expect_err("sync should reject conflicting modes");
-
-        assert!(error.contains("sync accepts either --dry-run or --yes"));
     }
 
     #[test]

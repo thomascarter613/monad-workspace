@@ -26,7 +26,6 @@ pub mod repository_context_pack;
 pub mod repository_graph;
 pub mod repository_inspection;
 pub mod repository_policy;
-pub mod sync;
 pub mod templates;
 pub mod toolchain_detection;
 pub mod workspace;
@@ -107,11 +106,6 @@ pub use repository_inspection::{
 pub use repository_policy::{
     RepositoryPolicyDiagnostic, RepositoryPolicyReport, RepositoryPolicySeverity,
     evaluate_repository_intelligence_policy,
-};
-pub use sync::{
-    SyncApplyResult, SyncFinding, SyncFindingKind, SyncFindingSeverity, SyncPlan, apply_sync_plan,
-    build_sync_plan, render_sync_apply_result, render_sync_evidence_markdown, render_sync_plan,
-    render_sync_plan_json,
 };
 pub use templates::{
     TemplateDefinition, TemplateId, TemplateMetadata, TemplateRegistry, TemplateSourceKind,

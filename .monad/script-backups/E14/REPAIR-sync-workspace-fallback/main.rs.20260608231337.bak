@@ -763,23 +763,9 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
     Ok(render_workspace_summary(&summary, output_format))
 }
 
-/// Discovers a workspace context for sync.
-///
-/// Most commands should require an initialized Monad workspace. Sync is a
-/// little different: it is the command that reports whether the current
-/// directory is missing the core Monad contract. If normal discovery fails, we
-/// intentionally fall back to treating `.` as the root so the planner can emit
-/// `monad.toml` / `.monad` missing findings instead of failing early.
-fn discover_sync_context() -> Result<WorkspaceContext, String> {
-    match WorkspaceContext::discover_from(".") {
-        Ok(context) => Ok(context),
-        Err(_) => WorkspaceContext::new(".").map_err(|error| error.to_string()),
-    }
-}
-
 /// Renders or applies repository sync output.
 fn render_sync(dry_run: bool, yes: bool, output_format: OutputFormat) -> Result<String, String> {
-    let context = discover_sync_context()?;
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
 
     if dry_run {
         let plan = build_sync_plan(&context).map_err(|error| error.to_string())?;
@@ -1399,31 +1385,6 @@ mod tests {
 
         assert!(error.contains("either --dry-run or --yes"));
         assert!(error.contains("not both"));
-    }
-
-    #[test]
-    fn sync_discovery_falls_back_to_current_directory() {
-        let current = std::env::current_dir().expect("test current directory should be available");
-        let temp_root = std::env::temp_dir().join(format!(
-            "monad-sync-cli-fallback-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("system clock should be after unix epoch")
-                .as_nanos()
-        ));
-
-        std::fs::create_dir_all(&temp_root).expect("temp root should be created");
-        std::env::set_current_dir(&temp_root).expect("test should enter temp root");
-
-        let output = render_sync(true, false, OutputFormat::Text)
-            .expect("sync dry-run should fall back to current directory");
-
-        assert!(output.contains("Monad sync dry-run plan"));
-        assert!(output.contains("monad.manifest.missing"));
-        assert!(output.contains("No files were written."));
-
-        std::env::set_current_dir(current).expect("test should restore current directory");
-        std::fs::remove_dir_all(temp_root).ok();
     }
 
     #[test]
