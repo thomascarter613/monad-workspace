@@ -12,18 +12,17 @@ use monad_core::{
     ContextPackArtifact, CurrentStateArtifact, HandoffArtifact, InitPlanOptions, InitPreset,
     OutputFormat, ReleasePlanOptions, RepositoryContextPackExportResult,
     RepositoryContextPackRenderFormat, RepositoryGraphRenderFormat, WorkspaceContext,
-    apply_add_plan, apply_init_plan, apply_sync_plan, apply_upgrade_plan, build_local_agent_plan,
-    build_release_plan, build_repository_graph, build_sync_plan, build_upgrade_plan,
-    checked_runtime_identity, export_repository_context_pack_from_workspace,
-    generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
-    inspect_workspace, load_manifest_from_workspace, render_add_apply_result, render_add_dry_run,
-    render_agent_plan, render_check_run_report, render_check_run_report_json,
-    render_context_baseline_dry_run, render_context_verify_summary, render_doctor_report,
-    render_doctor_report_json, render_init_apply_result, render_init_dry_run, render_release_plan,
-    render_release_plan_json, render_repository_context_pack, render_repository_graph,
-    render_repository_inspection_summary, render_sync_apply_result, render_sync_plan,
-    render_sync_plan_json, render_upgrade_apply_result, render_upgrade_plan,
-    render_upgrade_plan_json, render_verify_baseline_dry_run, render_workspace_summary,
+    apply_add_plan, apply_init_plan, apply_sync_plan, build_local_agent_plan, build_release_plan,
+    build_repository_graph, build_sync_plan, checked_runtime_identity,
+    export_repository_context_pack_from_workspace, generate_bootstrap_prompt,
+    generate_context_pack, generate_current_state, generate_handoff, inspect_workspace,
+    load_manifest_from_workspace, render_add_apply_result, render_add_dry_run, render_agent_plan,
+    render_check_run_report, render_check_run_report_json, render_context_baseline_dry_run,
+    render_context_verify_summary, render_doctor_report, render_doctor_report_json,
+    render_init_apply_result, render_init_dry_run, render_release_plan, render_release_plan_json,
+    render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
+    render_sync_apply_result, render_sync_plan, render_sync_plan_json,
+    render_verify_baseline_dry_run, render_workspace_summary,
     repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
     run_doctor, run_monad_workspace_checks, traverse_workspace_bounded, verify_context,
     workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_check_evidence_packet,
@@ -78,18 +77,6 @@ enum CliCommand {
     },
 
     Info {
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
-    /// Plan or apply safe repository upgrades.
-    Upgrade {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to apply guarded generated upgrade writes.
-        yes: bool,
-
         /// Requested output format.
         output_format: OutputFormat,
     },
@@ -312,13 +299,9 @@ impl CliCommand {
         if yes
             && parts.first().copied() != Some("init")
             && parts.first().copied() != Some("add")
-            && parts.first().copied() != Some("upgrade")
             && parts.first().copied() != Some("sync")
-            && parts.first().copied() != Some("upgrade")
         {
-            return Err(
-                "--yes is only supported for init, add, sync, and upgrade commands".to_string(),
-            );
+            return Err("--yes is only supported for init, add, and sync commands".to_string());
         }
 
         if (requested_preset.is_some() || requested_project_name.is_some())
@@ -410,20 +393,6 @@ impl CliCommand {
             ["sync", other, ..] => {
                 reject_write_for_non_context(write)?;
                 Err(format!("unknown sync argument: {other}"))
-            }
-            ["upgrade"] => {
-                reject_write_for_non_context(write)?;
-                require_upgrade_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::Upgrade {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["upgrade", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown upgrade argument: {other}"))
             }
             ["release"] => {
                 reject_write_for_non_context(write)?;
@@ -573,11 +542,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             project_name,
         } => render_init(dry_run, yes, preset, project_name),
         CliCommand::Info { output_format } => render_info(output_format),
-        CliCommand::Upgrade {
-            dry_run,
-            yes,
-            output_format,
-        } => render_upgrade(dry_run, yes, output_format),
         CliCommand::Release {
             dry_run,
             version,
@@ -621,17 +585,6 @@ fn require_add_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("add currently requires either --dry-run to preview or --yes to apply".to_string())
         }
         (true, true) => Err("add accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one upgrade mode.
-fn require_upgrade_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => {
-            Err("upgrade currently requires either --dry-run to preview or --yes to apply guarded generated metadata".to_string())
-        }
-        (true, true) => Err("upgrade accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -779,9 +732,6 @@ fn help_text() -> String {
         "  check                                     Run workspace checks",
         "  doctor                                   Diagnose local environment and repo readiness",
         "  release --dry-run                       Plan release readiness without publishing",
-        "  upgrade --dry-run                       Preview safe repository upgrade steps",
-        "  upgrade --dry-run --format=json         Preview upgrade plan as JSON",
-        "  upgrade --yes                           Apply guarded generated upgrade metadata",
         "  release --dry-run --format=json         Render release readiness as JSON",
         "  doctor --format=json                     Render doctor report as JSON",
         "  sync --dry-run                            Preview repository sync plan",
@@ -831,8 +781,6 @@ fn help_text() -> String {
         "  monad check --format=json",
         "  monad doctor",
         "  monad release --dry-run",
-        "  monad upgrade --dry-run",
-        "  monad upgrade --dry-run --format=json",
         "  monad release --dry-run --format=json",
         "  monad doctor --format=json",
         "  monad sync --dry-run",
@@ -845,7 +793,6 @@ fn help_text() -> String {
         "Safety notes:",
         "  doctor is read-only and does not install tools or mutate the environment.",
         "  release dry-run creates no tags and publishes no packages.",
-        "  upgrade writes generated metadata/evidence only after --yes.",
         "  plan is no-write and does not run commands.",
         "  evolve commands are dry-run only in this MVP hardening phase.",
         "  language-aware add writes use local embedded templates only.",
@@ -932,26 +879,6 @@ fn render_sync(dry_run: bool, yes: bool, output_format: OutputFormat) -> Result<
         "sync currently requires either --dry-run to preview or --yes to write generated evidence"
             .to_string(),
     )
-}
-
-/// Renders or applies repository upgrade output.
-fn render_upgrade(dry_run: bool, yes: bool, output_format: OutputFormat) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = build_upgrade_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(render_upgrade_plan(&plan)),
-            OutputFormat::Json => Ok(render_upgrade_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result = apply_upgrade_plan(&root)?;
-        return Ok(render_upgrade_apply_result(&result));
-    }
-
-    Err("upgrade currently requires either --dry-run to preview or --yes to apply guarded generated metadata".to_string())
 }
 
 /// Renders release readiness planning output.
@@ -1681,49 +1608,6 @@ mod tests {
                 output_format: OutputFormat::Json
             }
         );
-    }
-
-    #[test]
-    fn upgrade_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "upgrade", "--dry-run"])
-                .expect("upgrade dry-run should parse"),
-            CliCommand::Upgrade {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "upgrade", "--dry-run", "--format=json"])
-                .expect("upgrade dry-run json should parse"),
-            CliCommand::Upgrade {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn upgrade_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "upgrade", "--yes"]).expect("upgrade yes should parse"),
-            CliCommand::Upgrade {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn upgrade_requires_mode() {
-        let error =
-            parse_arguments(&["monad", "upgrade"]).expect_err("upgrade should require mode");
-
-        assert!(error.contains("upgrade currently requires either --dry-run"));
     }
 
     #[test]

@@ -31,7 +31,6 @@ pub mod repository_policy;
 pub mod sync;
 pub mod templates;
 pub mod toolchain_detection;
-pub mod upgrade;
 pub mod workspace;
 
 pub use checks::{
@@ -131,12 +130,6 @@ pub use templates::{
 pub use toolchain_detection::{
     RepositoryToolchainDetection, RepositoryToolchainKind, RepositoryToolchainSignal,
     RepositoryToolchainSignalKind, detect_repository_toolchains,
-};
-pub use upgrade::{
-    SUPPORTED_REPOSITORY_CONTRACT_VERSION, UpgradeApplyResult, UpgradePlan, UpgradeStatus,
-    UpgradeStep, UpgradeStepSafety, apply_upgrade_plan, build_upgrade_plan,
-    render_upgrade_apply_result, render_upgrade_apply_result_json,
-    render_upgrade_evidence_markdown, render_upgrade_plan, render_upgrade_plan_json,
 };
 pub use workspace::{WorkspaceContext, discover_workspace_root, is_workspace_root};
 
