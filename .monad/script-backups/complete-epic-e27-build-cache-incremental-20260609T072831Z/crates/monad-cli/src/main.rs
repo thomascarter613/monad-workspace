@@ -289,18 +289,6 @@ enum CliCommand {
         output_format: OutputFormat,
     },
 
-    /// Plan build-cache and incremental execution decisions without executing tasks.
-    CachePlan {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated cache-planning evidence.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
     /// Plan targeted verification without executing test commands.
     VerifyPlan {
         /// Whether to run in dry-run mode.
@@ -461,9 +449,6 @@ impl CliCommand {
             && parts.first().copied() != Some("analysis")
             && parts.first().copied() != Some("static-analysis")
             && parts.first().copied() != Some("sync")
-            && parts.first().copied() != Some("cache-plan")
-            && parts.first().copied() != Some("build-cache")
-            && parts.first().copied() != Some("incremental-plan")
             && parts.first().copied() != Some("verify-plan")
             && parts.first().copied() != Some("test-intelligence")
             && parts.first().copied() != Some("verification-plan")
@@ -706,22 +691,6 @@ impl CliCommand {
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Check { output_format })
             }
-            ["cache-plan"] | ["build-cache"] | ["incremental-plan"] => {
-                reject_write_for_non_context(write)?;
-                require_cache_plan_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::CachePlan {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["cache-plan", other, ..]
-            | ["build-cache", other, ..]
-            | ["incremental-plan", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown cache-plan argument: {other}"))
-            }
             ["verify-plan"] | ["test-intelligence"] | ["verification-plan"] => {
                 reject_write_for_non_context(write)?;
                 require_verify_plan_mode(dry_run, yes)?;
@@ -944,11 +913,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             yes,
             output_format,
         } => render_sync(dry_run, yes, output_format),
-        CliCommand::CachePlan {
-            dry_run,
-            yes,
-            output_format,
-        } => render_cache_plan(dry_run, yes, output_format),
         CliCommand::VerifyPlan {
             dry_run,
             yes,
@@ -1069,17 +1033,6 @@ fn require_upgrade_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("upgrade currently requires either --dry-run to preview or --yes to apply guarded generated metadata".to_string())
         }
         (true, true) => Err("upgrade accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one cache-plan mode.
-fn require_cache_plan_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => Err(
-            "cache-plan currently requires either --dry-run to preview or --yes to write generated cache-planning evidence".to_string(),
-        ),
-        (true, true) => Err("cache-plan accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -1295,9 +1248,6 @@ fn help_text() -> String {
         "  verify-plan --dry-run                     Preview verification plan",
         "  verify-plan --dry-run --format=json       Preview verification plan as JSON",
         "  verify-plan --yes                         Write generated verification-plan evidence",
-        "  cache-plan --dry-run                      Preview cache-aware incremental plan",
-        "  cache-plan --dry-run --format=json        Preview cache plan as JSON",
-        "  cache-plan --yes                          Write generated cache-plan evidence",
         "  inspect                                   Inspect repository structure",
         "  graph                                     Render repository graph",
         "  plan \"<intent>\"                          Produce a supervised no-write plan",
@@ -1370,10 +1320,6 @@ fn help_text() -> String {
         "  monad verify-plan --dry-run",
         "  monad verify-plan --dry-run --format=json",
         "  monad test-intelligence --dry-run",
-        "  monad cache-plan --dry-run",
-        "  monad cache-plan --dry-run --format=json",
-        "  monad build-cache --dry-run",
-        "  monad incremental-plan --dry-run",
         "  monad graph --format=mermaid",
         "  monad plan \"explain this repository\"",
         "  monad evolve verify-baseline --dry-run",
@@ -1395,7 +1341,6 @@ fn help_text() -> String {
         "  sync writes generated evidence reports only.",
         "  impact writes generated evidence only and does not execute tools.",
         "  verify-plan writes generated evidence only and does not execute tests.",
-        "  cache-plan writes generated evidence only and does not execute tasks.",
         "  adapters records command suggestions only; it does not run native tools.",
         "  --write is only supported for the context command.",
     ]
@@ -1442,31 +1387,6 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
     Ok(render_workspace_summary(&summary, output_format))
-}
-
-/// Renders or writes build-cache planning evidence.
-fn render_cache_plan(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = monad_core::build_cache_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(monad_core::render_build_cache_plan(&plan)),
-            OutputFormat::Json => Ok(monad_core::render_build_cache_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result =
-            monad_core::write_build_cache_evidence(&root).map_err(|error| error.to_string())?;
-        return Ok(monad_core::render_build_cache_apply_result(&result));
-    }
-
-    Err("cache-plan currently requires either --dry-run to preview or --yes to write generated cache-planning evidence".to_string())
 }
 
 /// Renders or writes test-intelligence verification-planning evidence.
@@ -2442,73 +2362,6 @@ mod tests {
                 output_format: OutputFormat::Text,
             }
         );
-    }
-
-    #[test]
-    fn cache_plan_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "cache-plan", "--dry-run"])
-                .expect("cache-plan dry-run should parse"),
-            CliCommand::CachePlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "cache-plan", "--dry-run", "--format=json"])
-                .expect("cache-plan dry-run json should parse"),
-            CliCommand::CachePlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn cache_plan_aliases_parse() {
-        assert_eq!(
-            parse_arguments(&["monad", "build-cache", "--dry-run"])
-                .expect("build-cache alias should parse"),
-            CliCommand::CachePlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "incremental-plan", "--dry-run"])
-                .expect("incremental-plan alias should parse"),
-            CliCommand::CachePlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn cache_plan_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "cache-plan", "--yes"])
-                .expect("cache-plan yes should parse"),
-            CliCommand::CachePlan {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn cache_plan_requires_mode() {
-        let error =
-            parse_arguments(&["monad", "cache-plan"]).expect_err("cache-plan should require mode");
-
-        assert!(error.contains("cache-plan currently requires either --dry-run"));
     }
 
     #[test]

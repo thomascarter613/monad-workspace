@@ -8,7 +8,6 @@
 
 pub mod agents;
 pub mod ai_context;
-pub mod build_cache;
 pub mod checks;
 pub mod component_add;
 pub mod context;
@@ -48,12 +47,6 @@ pub use ai_context::{
     MemoryRecord, MemoryRecordKind, apply_ai_context_plan, build_ai_context_plan,
     render_ai_context_apply_result, render_ai_context_apply_result_json, render_ai_context_plan,
     render_ai_context_plan_json,
-};
-pub use build_cache::{
-    BuildCacheApplyResult, BuildCachePlan, CacheDecision, CachePlanEntry, CacheTask,
-    ExecutionMetadata, IncrementalAction, TaskFingerprint, build_cache_plan, fingerprint_task,
-    render_build_cache_apply_result, render_build_cache_plan, render_build_cache_plan_json,
-    write_build_cache_evidence,
 };
 pub use checks::{
     AdapterCheckRun, CheckDefinition, CheckId, CheckRegistry, CheckResult, CheckRunReport,
