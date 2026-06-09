@@ -22,7 +22,6 @@ pub mod git;
 pub mod init;
 pub mod manifest;
 pub mod output;
-pub mod patch;
 pub mod policy;
 pub mod release;
 pub mod repo_contract;
@@ -96,12 +95,6 @@ pub use output::{
     RepositoryInspectionSummaryEntry, RepositoryPolicySummaryDiagnostic,
     RepositoryToolchainSummaryEntry, WorkspaceSummary, render_diagnostic_report,
     render_repository_inspection_summary, render_workspace_summary,
-};
-pub use patch::{
-    PatchApplyResult, PatchChangeKind, PatchChangeSet, PatchFileChange, PatchPlan,
-    PatchValidationFinding, PatchValidationReport, PatchValidationSeverity, apply_patch_plan,
-    build_patch_plan, render_patch_apply_result, render_patch_apply_result_json, render_patch_plan,
-    render_patch_plan_json,
 };
 pub use release::{
     ReleaseCheck, ReleaseCheckCategory, ReleaseCheckSeverity, ReleaseDecision, ReleasePlan,

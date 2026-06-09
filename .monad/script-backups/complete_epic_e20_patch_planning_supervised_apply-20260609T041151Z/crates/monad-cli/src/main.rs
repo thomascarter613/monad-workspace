@@ -12,27 +12,26 @@ use monad_core::{
     ContextPackArtifact, CurrentStateArtifact, HandoffArtifact, InitPlanOptions, InitPreset,
     OutputFormat, ReleasePlanOptions, RepositoryContextPackExportResult,
     RepositoryContextPackRenderFormat, RepositoryGraphRenderFormat, WorkspaceContext,
-    apply_add_plan, apply_ai_context_plan, apply_init_plan, apply_patch_plan, apply_sync_plan,
-    apply_upgrade_plan, build_ai_context_plan, build_local_agent_plan, build_patch_plan,
-    build_policy_report, build_release_plan, build_repository_graph, build_sync_plan,
-    build_upgrade_plan, checked_runtime_identity, export_repository_context_pack_from_workspace,
-    generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
-    inspect_workspace, load_manifest_from_workspace, render_add_apply_result, render_add_dry_run,
-    render_agent_plan, render_ai_context_apply_result, render_ai_context_apply_result_json,
-    render_ai_context_plan, render_ai_context_plan_json, render_check_run_report,
-    render_check_run_report_json, render_context_baseline_dry_run, render_context_verify_summary,
-    render_doctor_report, render_doctor_report_json, render_init_apply_result, render_init_dry_run,
-    render_patch_apply_result, render_patch_apply_result_json, render_patch_plan,
-    render_patch_plan_json, render_policy_evidence_results, render_policy_report,
-    render_policy_report_json, render_release_plan, render_release_plan_json,
-    render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
-    render_sync_apply_result, render_sync_plan, render_sync_plan_json, render_upgrade_apply_result,
-    render_upgrade_plan, render_upgrade_plan_json, render_verify_baseline_dry_run,
-    render_workspace_summary, repository_context_pack_from_workspace,
-    repository_inspection_summary_from_workspace, run_doctor, run_monad_workspace_checks,
-    traverse_workspace_bounded, verify_context, workspace_summary_from_manifest,
-    write_bootstrap_prompt_artifact, write_check_evidence_packet, write_context_pack_artifact,
-    write_current_state_artifact, write_handoff_artifact, write_policy_evidence,
+    apply_add_plan, apply_ai_context_plan, apply_init_plan, apply_sync_plan, apply_upgrade_plan,
+    build_ai_context_plan, build_local_agent_plan, build_policy_report, build_release_plan,
+    build_repository_graph, build_sync_plan, build_upgrade_plan, checked_runtime_identity,
+    export_repository_context_pack_from_workspace, generate_bootstrap_prompt,
+    generate_context_pack, generate_current_state, generate_handoff, inspect_workspace,
+    load_manifest_from_workspace, render_add_apply_result, render_add_dry_run, render_agent_plan,
+    render_ai_context_apply_result, render_ai_context_apply_result_json, render_ai_context_plan,
+    render_ai_context_plan_json, render_check_run_report, render_check_run_report_json,
+    render_context_baseline_dry_run, render_context_verify_summary, render_doctor_report,
+    render_doctor_report_json, render_init_apply_result, render_init_dry_run,
+    render_policy_evidence_results, render_policy_report, render_policy_report_json,
+    render_release_plan, render_release_plan_json, render_repository_context_pack,
+    render_repository_graph, render_repository_inspection_summary, render_sync_apply_result,
+    render_sync_plan, render_sync_plan_json, render_upgrade_apply_result, render_upgrade_plan,
+    render_upgrade_plan_json, render_verify_baseline_dry_run, render_workspace_summary,
+    repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
+    run_doctor, run_monad_workspace_checks, traverse_workspace_bounded, verify_context,
+    workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_check_evidence_packet,
+    write_context_pack_artifact, write_current_state_artifact, write_handoff_artifact,
+    write_policy_evidence,
 };
 use std::env;
 use std::process::ExitCode;
@@ -93,18 +92,6 @@ enum CliCommand {
         dry_run: bool,
 
         /// Whether to write generated policy evidence.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
-    /// Plan or apply generated patch artifacts under E19 approval gates.
-    Patch {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to apply generated patch artifacts after explicit approval.
         yes: bool,
 
         /// Requested output format.
@@ -356,12 +343,11 @@ impl CliCommand {
             && parts.first().copied() != Some("upgrade")
             && parts.first().copied() != Some("ai-context")
             && parts.first().copied() != Some("policy")
-            && parts.first().copied() != Some("patch")
             && parts.first().copied() != Some("sync")
             && parts.first().copied() != Some("upgrade")
         {
             return Err(
-                "--yes is only supported for init, add, sync, upgrade, ai-context, policy, and patch commands"
+                "--yes is only supported for init, add, sync, upgrade, ai-context, and policy commands"
                     .to_string(),
             );
         }
@@ -469,21 +455,6 @@ impl CliCommand {
             ["policy", other, ..] => {
                 reject_write_for_non_context(write)?;
                 Err(format!("unknown policy argument: {other}"))
-            }
-
-            ["patch"] => {
-                reject_write_for_non_context(write)?;
-                require_patch_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::Patch {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["patch", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown patch argument: {other}"))
             }
             ["ai-context"] => {
                 reject_write_for_non_context(write)?;
@@ -666,12 +637,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             yes,
             output_format,
         } => render_policy(dry_run, yes, output_format),
-
-        CliCommand::Patch {
-            dry_run,
-            yes,
-            output_format,
-        } => render_patch(dry_run, yes, output_format),
         CliCommand::AiContext {
             dry_run,
             yes,
@@ -725,18 +690,6 @@ fn require_add_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("add currently requires either --dry-run to preview or --yes to apply".to_string())
         }
         (true, true) => Err("add accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one patch mode.
-fn require_patch_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => Err(
-            "patch currently requires either --dry-run to preview or --yes to apply generated patch artifacts"
-                .to_string(),
-        ),
-        (true, true) => Err("patch accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -922,9 +875,6 @@ fn help_text() -> String {
         "  policy --dry-run                        Preview policy and approval gates",
         "  policy --dry-run --format=json          Preview policy report as JSON",
         "  policy --yes                            Write generated policy evidence",
-        "  patch --dry-run                         Preview supervised patch plan",
-        "  patch --dry-run --format=json           Preview supervised patch plan as JSON",
-        "  patch --yes                             Apply generated patch artifacts after review",
         "  ai-context --dry-run --format=json      Preview AI context plan as JSON",
         "  ai-context --yes                        Write generated local AI context artifacts",
         "  upgrade --dry-run --format=json         Preview upgrade plan as JSON",
@@ -982,9 +932,6 @@ fn help_text() -> String {
         "  monad ai-context --dry-run",
         "  monad policy --dry-run",
         "  monad policy --dry-run --format=json",
-        "  monad patch --dry-run",
-        "  monad patch --dry-run --format=json",
-        "  monad patch --yes",
         "  monad ai-context --dry-run --format=json",
         "  monad upgrade --dry-run --format=json",
         "  monad release --dry-run --format=json",
@@ -1002,7 +949,6 @@ fn help_text() -> String {
         "  upgrade writes generated metadata/evidence only after --yes.",
         "  ai-context never calls providers or sends repo data remotely.",
         "  policy writes generated evidence only and never approves risky work automatically.",
-        "  patch applies generated local evidence only; user-owned source mutation remains blocked.",
         "  plan is no-write and does not run commands.",
         "  evolve commands are dry-run only in this MVP hardening phase.",
         "  language-aware add writes use local embedded templates only.",
@@ -1089,29 +1035,6 @@ fn render_sync(dry_run: bool, yes: bool, output_format: OutputFormat) -> Result<
         "sync currently requires either --dry-run to preview or --yes to write generated evidence"
             .to_string(),
     )
-}
-
-/// Renders or applies generated patch artifacts under E19 approval gates.
-fn render_patch(dry_run: bool, yes: bool, output_format: OutputFormat) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = build_patch_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(render_patch_plan(&plan)),
-            OutputFormat::Json => Ok(render_patch_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result = apply_patch_plan(&root)?;
-        return match output_format {
-            OutputFormat::Text => Ok(render_patch_apply_result(&result)),
-            OutputFormat::Json => Ok(render_patch_apply_result_json(&result)),
-        };
-    }
-
-    Err("patch currently requires either --dry-run to preview or --yes to apply generated patch artifacts".to_string())
 }
 
 /// Renders or writes policy evidence.
@@ -2506,55 +2429,5 @@ mod tests {
         assert!(text.contains("evolve context-baseline --dry-run"));
         assert!(text.contains("dry-run only"));
         assert!(text.contains("plan is no-write"));
-    }
-
-    #[test]
-    fn patch_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "patch", "--dry-run"]).expect("patch dry-run should parse"),
-            CliCommand::Patch {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "patch", "--dry-run", "--format=json"])
-                .expect("patch dry-run json should parse"),
-            CliCommand::Patch {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn patch_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "patch", "--yes"]).expect("patch yes should parse"),
-            CliCommand::Patch {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn patch_requires_mode() {
-        let error = parse_arguments(&["monad", "patch"]).expect_err("patch should require mode");
-
-        assert!(error.contains("patch currently requires either --dry-run"));
-        assert!(error.contains("--yes"));
-    }
-
-    #[test]
-    fn patch_rejects_dry_run_and_yes_together() {
-        let error = parse_arguments(&["monad", "patch", "--dry-run", "--yes"])
-            .expect_err("patch should reject conflicting modes");
-
-        assert!(error.contains("patch accepts either --dry-run or --yes"));
     }
 }
