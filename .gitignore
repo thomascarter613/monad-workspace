@@ -1,5 +1,5 @@
 # scripts
-.artifacts/scripts/*
+.artifacts/scripts/*.sh
 
 # Rust build output
 /target/
