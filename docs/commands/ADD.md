@@ -344,3 +344,14 @@ git status --short
 Accepted.
 
 E12 may proceed to WP-E12-002 — Add add-command dry-run plan.
+
+
+## WP-E12-005 Verification Note
+
+The reusable add-command smoke verification script is:
+
+```bash
+tools/scripts/verify-add.sh
+```
+
+It verifies dry-run behavior, guarded writes in initialized temp workspaces, conflict refusal, and mode conflict rejection.
