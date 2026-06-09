@@ -355,3 +355,23 @@ tools/scripts/verify-add.sh
 ```
 
 It verifies dry-run behavior, guarded writes in initialized temp workspaces, conflict refusal, and mode conflict rejection.
+
+## WP-E12-006 Workflow Closeout Note
+
+The add workflow guide is:
+
+```text
+docs/workflows/ADD-WORKFLOW.md
+```
+
+The E12 closeout verification record is:
+
+```text
+docs/verification/E12-CLOSEOUT.md
+```
+
+The reusable E12 verification command is:
+
+```bash
+tools/scripts/verify-e12.sh
+```
