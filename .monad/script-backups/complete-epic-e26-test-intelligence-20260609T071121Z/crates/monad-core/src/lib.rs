@@ -36,7 +36,6 @@ pub mod repository_policy;
 pub mod static_analysis;
 pub mod sync;
 pub mod templates;
-pub mod test_intelligence;
 pub mod toolchain_detection;
 pub mod upgrade;
 pub mod work_packet;
@@ -171,13 +170,6 @@ pub use sync::{
 pub use templates::{
     TemplateDefinition, TemplateId, TemplateMetadata, TemplateRegistry, TemplateSourceKind,
     initial_template_registry,
-};
-pub use test_intelligence::{
-    TestCommand, TestCommandSource, TestComponentMapping, TestIntelligenceApplyResult,
-    TestIntelligencePlan, VerificationConfidence, VerificationRecommendation,
-    build_test_intelligence_plan, discover_test_commands, generate_verification_recommendations,
-    map_tests_to_components, render_test_intelligence_apply_result, render_test_intelligence_plan,
-    render_test_intelligence_plan_json, write_test_intelligence_evidence,
 };
 pub use toolchain_detection::{
     RepositoryToolchainDetection, RepositoryToolchainKind, RepositoryToolchainSignal,

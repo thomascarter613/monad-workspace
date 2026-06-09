@@ -289,18 +289,6 @@ enum CliCommand {
         output_format: OutputFormat,
     },
 
-    /// Plan targeted verification without executing test commands.
-    VerifyPlan {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated verification-planning evidence.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
     /// Produce a supervised plan from a user intent.
     Plan {
         /// User intent to plan from.
@@ -449,9 +437,6 @@ impl CliCommand {
             && parts.first().copied() != Some("analysis")
             && parts.first().copied() != Some("static-analysis")
             && parts.first().copied() != Some("sync")
-            && parts.first().copied() != Some("verify-plan")
-            && parts.first().copied() != Some("test-intelligence")
-            && parts.first().copied() != Some("verification-plan")
             && parts.first().copied() != Some("impact")
             && parts.first().copied() != Some("dependency-impact")
             && parts.first().copied() != Some("upgrade")
@@ -691,22 +676,6 @@ impl CliCommand {
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Check { output_format })
             }
-            ["verify-plan"] | ["test-intelligence"] | ["verification-plan"] => {
-                reject_write_for_non_context(write)?;
-                require_verify_plan_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::VerifyPlan {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["verify-plan", other, ..]
-            | ["test-intelligence", other, ..]
-            | ["verification-plan", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown verify-plan argument: {other}"))
-            }
             ["impact"] => {
                 reject_write_for_non_context(write)?;
                 require_dependency_impact_mode(dry_run, yes)?;
@@ -913,11 +882,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             yes,
             output_format,
         } => render_sync(dry_run, yes, output_format),
-        CliCommand::VerifyPlan {
-            dry_run,
-            yes,
-            output_format,
-        } => render_verify_plan(dry_run, yes, output_format),
         CliCommand::Impact {
             dry_run,
             yes,
@@ -1033,17 +997,6 @@ fn require_upgrade_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("upgrade currently requires either --dry-run to preview or --yes to apply guarded generated metadata".to_string())
         }
         (true, true) => Err("upgrade accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one verify-plan mode.
-fn require_verify_plan_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => Err(
-            "verify-plan currently requires either --dry-run to preview or --yes to write generated verification-planning evidence".to_string(),
-        ),
-        (true, true) => Err("verify-plan accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -1245,9 +1198,6 @@ fn help_text() -> String {
         "  impact --dry-run                          Preview dependency impact analysis",
         "  impact --dry-run --format=json            Preview dependency impact analysis as JSON",
         "  impact --yes                              Write generated dependency-impact evidence",
-        "  verify-plan --dry-run                     Preview verification plan",
-        "  verify-plan --dry-run --format=json       Preview verification plan as JSON",
-        "  verify-plan --yes                         Write generated verification-plan evidence",
         "  inspect                                   Inspect repository structure",
         "  graph                                     Render repository graph",
         "  plan \"<intent>\"                          Produce a supervised no-write plan",
@@ -1317,9 +1267,6 @@ fn help_text() -> String {
         "  monad impact --dry-run",
         "  monad impact --dry-run --format=json",
         "  monad dependency-impact --dry-run",
-        "  monad verify-plan --dry-run",
-        "  monad verify-plan --dry-run --format=json",
-        "  monad test-intelligence --dry-run",
         "  monad graph --format=mermaid",
         "  monad plan \"explain this repository\"",
         "  monad evolve verify-baseline --dry-run",
@@ -1340,7 +1287,6 @@ fn help_text() -> String {
         "  language-aware add writes use local embedded templates only.",
         "  sync writes generated evidence reports only.",
         "  impact writes generated evidence only and does not execute tools.",
-        "  verify-plan writes generated evidence only and does not execute tests.",
         "  adapters records command suggestions only; it does not run native tools.",
         "  --write is only supported for the context command.",
     ]
@@ -1387,31 +1333,6 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
     Ok(render_workspace_summary(&summary, output_format))
-}
-
-/// Renders or writes test-intelligence verification-planning evidence.
-fn render_verify_plan(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = monad_core::build_test_intelligence_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(monad_core::render_test_intelligence_plan(&plan)),
-            OutputFormat::Json => Ok(monad_core::render_test_intelligence_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result = monad_core::write_test_intelligence_evidence(&root)
-            .map_err(|error| error.to_string())?;
-        return Ok(monad_core::render_test_intelligence_apply_result(&result));
-    }
-
-    Err("verify-plan currently requires either --dry-run to preview or --yes to write generated verification-planning evidence".to_string())
 }
 
 /// Renders or writes dependency-impact evidence.
@@ -2362,63 +2283,6 @@ mod tests {
                 output_format: OutputFormat::Text,
             }
         );
-    }
-
-    #[test]
-    fn verify_plan_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "verify-plan", "--dry-run"])
-                .expect("verify-plan dry-run should parse"),
-            CliCommand::VerifyPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "verify-plan", "--dry-run", "--format=json"])
-                .expect("verify-plan dry-run json should parse"),
-            CliCommand::VerifyPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn test_intelligence_alias_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "test-intelligence", "--dry-run"])
-                .expect("test-intelligence alias should parse"),
-            CliCommand::VerifyPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn verify_plan_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "verify-plan", "--yes"])
-                .expect("verify-plan yes should parse"),
-            CliCommand::VerifyPlan {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn verify_plan_requires_mode() {
-        let error = parse_arguments(&["monad", "verify-plan"])
-            .expect_err("verify-plan should require mode");
-
-        assert!(error.contains("verify-plan currently requires either --dry-run"));
     }
 
     #[test]
