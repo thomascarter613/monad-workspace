@@ -1,3 +1,7 @@
+# scripts
+complete_*
+fix_*
+
 # Rust build output
 /target/
 

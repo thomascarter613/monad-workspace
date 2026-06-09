@@ -1,0 +1,1592 @@
+//! Thin command-line interface for Monad.
+//!
+//! The CLI should parse user intent, delegate durable behavior to
+//! `monad-core`, and print the result.
+//!
+//! Durable repository intelligence, inspection, graph construction, graph
+//! rendering, context-pack generation, context-pack export, and context
+//! artifact generation belong in `monad-core`.
+
+use monad_core::{
+    AddPlanOptions, BootstrapPromptArtifact, ComponentKind, ComponentName, ContextPackArtifact,
+    CurrentStateArtifact, HandoffArtifact, InitPlanOptions, InitPreset, OutputFormat,
+    RepositoryContextPackExportResult, RepositoryContextPackRenderFormat,
+    RepositoryGraphRenderFormat, WorkspaceContext, apply_add_plan, apply_init_plan,
+    build_local_agent_plan, build_repository_graph, checked_runtime_identity,
+    export_repository_context_pack_from_workspace, generate_bootstrap_prompt,
+    generate_context_pack, generate_current_state, generate_handoff, inspect_workspace,
+    load_manifest_from_workspace, render_add_apply_result, render_add_dry_run, render_agent_plan,
+    render_check_run_report, render_check_run_report_json, render_context_baseline_dry_run,
+    render_context_verify_summary, render_init_apply_result, render_init_dry_run,
+    render_repository_context_pack, render_repository_graph, render_repository_inspection_summary,
+    render_verify_baseline_dry_run, render_workspace_summary,
+    repository_context_pack_from_workspace, repository_inspection_summary_from_workspace,
+    run_monad_workspace_checks, traverse_workspace_bounded, verify_context,
+    workspace_summary_from_manifest, write_bootstrap_prompt_artifact, write_check_evidence_packet,
+    write_context_pack_artifact, write_current_state_artifact, write_handoff_artifact,
+};
+use std::env;
+use std::process::ExitCode;
+
+/// Parsed CLI command.
+///
+/// This enum intentionally stays small. It represents command intent only.
+/// The implementation still delegates product behavior to `monad-core`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CliCommand {
+    /// Print help text.
+    Help,
+
+    /// Print runtime identity.
+    Version,
+
+    /// Preview repository initialization plan.
+    Init {
+        /// Whether to run in dry-run mode.
+        dry_run: bool,
+
+        /// Whether to apply after explicit approval.
+        yes: bool,
+
+        /// Selected init preset.
+        preset: InitPreset,
+
+        /// Optional project name override.
+        project_name: Option<String>,
+    },
+
+    /// Print workspace summary.
+    Add {
+        /// Component kind to add.
+        kind: ComponentKind,
+
+        /// Component name to add.
+        name: ComponentName,
+
+        /// Whether to run in dry-run mode.
+        dry_run: bool,
+
+        /// Whether to apply after explicit approval.
+        yes: bool,
+    },
+
+    Info {
+        /// Requested output format.
+        output_format: OutputFormat,
+    },
+
+    /// Run workspace checks.
+    Check {
+        /// Requested output format.
+        output_format: OutputFormat,
+    },
+
+    /// Inspect repository structure.
+    Inspect {
+        /// Requested output format.
+        output_format: OutputFormat,
+    },
+
+    /// Render repository graph.
+    Graph {
+        /// Requested graph render format.
+        graph_format: RepositoryGraphRenderFormat,
+    },
+
+    /// Render or export AI-readable repository context pack.
+    Context {
+        /// Requested context-pack render format.
+        context_format: RepositoryContextPackRenderFormat,
+
+        /// Whether to write generated context-pack files.
+        write: bool,
+    },
+
+    /// Generate a context artifact and write it to the repository.
+    ContextGenerate {
+        /// Which context artifact to generate.
+        artifact: ContextArtifactKind,
+    },
+
+    /// Assemble and write a project-level context pack.
+    ContextPack,
+
+    /// Verify context files exist and meet structural expectations.
+    ContextVerify,
+
+    /// Plan verification baseline evolution.
+    EvolveVerifyBaseline {
+        /// Whether to run in dry-run mode.
+        dry_run: bool,
+    },
+
+    /// Plan context baseline evolution.
+    EvolveContextBaseline {
+        /// Whether to run in dry-run mode.
+        dry_run: bool,
+    },
+
+    /// Produce a supervised plan from a user intent.
+    Plan {
+        /// User intent to plan from.
+        intent: String,
+    },
+}
+
+/// Supported context artifact kinds for `context generate`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ContextArtifactKind {
+    /// Generate `.monad/context/current-state.md`.
+    CurrentState,
+
+    /// Generate `.monad/context/latest-handoff.md`.
+    Handoff,
+
+    /// Generate `docs/ai/BOOTSTRAP-PROMPT.md`.
+    Bootstrap,
+}
+
+impl CliCommand {
+    /// Parses CLI arguments into a command.
+    ///
+    /// Supports both single-word commands like `monad info` and multi-word
+    /// subcommands like `monad context generate current-state`.
+    fn parse(args: impl IntoIterator<Item = String>) -> Result<Self, String> {
+        let mut requested_format: Option<String> = None;
+        let mut requested_preset: Option<String> = None;
+        let mut requested_project_name: Option<String> = None;
+        let mut positional: Vec<String> = Vec::new();
+        let mut write = false;
+        let mut dry_run = false;
+        let mut yes = false;
+
+        for argument in args.into_iter().skip(1) {
+            if argument == "--help" || argument == "-h" {
+                return Ok(Self::Help);
+            }
+
+            if argument == "--version" || argument == "-V" {
+                return Ok(Self::Version);
+            }
+
+            if argument == "--write" {
+                write = true;
+                continue;
+            }
+
+            if argument == "--dry-run" {
+                dry_run = true;
+                continue;
+            }
+
+            if argument == "--yes" {
+                yes = true;
+                continue;
+            }
+
+            if let Some(value) = argument.strip_prefix("--format=") {
+                requested_format = Some(value.to_string());
+                continue;
+            }
+
+            if argument == "--format" {
+                return Err("expected a value after --format, such as --format=json".to_string());
+            }
+
+            if let Some(value) = argument.strip_prefix("--preset=") {
+                requested_preset = Some(value.to_string());
+                continue;
+            }
+
+            if argument == "--preset" {
+                return Err("expected a value after --preset, such as --preset=minimal".to_string());
+            }
+
+            if let Some(value) = argument.strip_prefix("--name=") {
+                requested_project_name = Some(value.to_string());
+                continue;
+            }
+
+            if argument == "--name" {
+                return Err("expected a value after --name, such as --name=my-project".to_string());
+            }
+
+            if argument.starts_with('-') {
+                return Err(format!("unsupported argument: {argument}"));
+            }
+
+            positional.push(argument);
+        }
+
+        // Convert positional args to string slices for pattern matching.
+        let parts: Vec<&str> = positional.iter().map(|s| s.as_str()).collect();
+
+        if yes && parts.first().copied() != Some("init") && parts.first().copied() != Some("add") {
+            return Err("--yes is only supported for init and add commands".to_string());
+        }
+
+        if (requested_preset.is_some() || requested_project_name.is_some())
+            && parts.first().copied() != Some("init")
+        {
+            return Err("--preset and --name are only supported for init command".to_string());
+        }
+
+        match parts.as_slice() {
+            [] => {
+                reject_write_for_non_context(write)?;
+                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Info { output_format })
+            }
+            ["help"] => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::Help)
+            }
+            ["version"] => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::Version)
+            }
+            ["add", kind, name] => {
+                reject_write_for_non_context(write)?;
+                require_add_mode(dry_run, yes)?;
+                if requested_format.is_some() {
+                    return Err("add does not support --format yet".to_string());
+                }
+                if requested_preset.is_some() {
+                    return Err("add does not support --preset yet".to_string());
+                }
+                if requested_project_name.is_some() {
+                    return Err("add does not support --name yet; pass the component name positionally".to_string());
+                }
+
+                Ok(Self::Add {
+                    kind: ComponentKind::parse(kind).map_err(|error| error.to_string())?,
+                    name: ComponentName::parse(name).map_err(|error| error.to_string())?,
+                    dry_run,
+                    yes,
+                })
+            }
+            ["init"] => {
+                reject_write_for_non_context(write)?;
+                require_init_mode(dry_run, yes)?;
+                reject_format_for_init(requested_format.as_deref())?;
+                let preset = parse_init_preset_or_default(requested_preset.as_deref())?;
+                Ok(Self::Init {
+                    dry_run,
+                    yes,
+                    preset,
+                    project_name: requested_project_name,
+                })
+            }
+            ["init", other, ..] => {
+                reject_write_for_non_context(write)?;
+                Err(format!("unknown init argument: {other}"))
+            }
+            ["info"] => {
+                reject_write_for_non_context(write)?;
+                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Info { output_format })
+            }
+            ["check"] => {
+                reject_write_for_non_context(write)?;
+                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Check { output_format })
+            }
+            ["inspect"] => {
+                reject_write_for_non_context(write)?;
+                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Inspect { output_format })
+            }
+            ["graph"] => {
+                reject_write_for_non_context(write)?;
+                let graph_format = parse_graph_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Graph { graph_format })
+            }
+            ["context"] => {
+                let context_format = parse_context_format_or_default(requested_format.as_deref())?;
+                Ok(Self::Context {
+                    context_format,
+                    write,
+                })
+            }
+            ["context", "pack"] => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::ContextPack)
+            }
+            ["context", "verify"] => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::ContextVerify)
+            }
+            ["context", "generate", "current-state"] => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::ContextGenerate {
+                    artifact: ContextArtifactKind::CurrentState,
+                })
+            }
+            ["context", "generate", "handoff"] => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::ContextGenerate {
+                    artifact: ContextArtifactKind::Handoff,
+                })
+            }
+            ["context", "generate", "bootstrap"] => {
+                reject_write_for_non_context(write)?;
+                Ok(Self::ContextGenerate {
+                    artifact: ContextArtifactKind::Bootstrap,
+                })
+            }
+            ["context", "generate"] => {
+                Err("missing artifact kind: try 'context generate current-state', 'context generate handoff', or 'context generate bootstrap'".to_string())
+            }
+            ["context", "generate", other] => Err(format!("unknown context artifact: {other}")),
+            ["context", other, ..] => Err(format!("unknown context subcommand: {other}")),
+            ["evolve", "verify-baseline"] => {
+                reject_write_for_non_context(write)?;
+                require_dry_run_for_evolve("verify-baseline", dry_run)?;
+                reject_format_for_evolve(requested_format.as_deref())?;
+                Ok(Self::EvolveVerifyBaseline { dry_run })
+            }
+            ["evolve", "verify-baseline", other] => {
+                reject_write_for_non_context(write)?;
+                Err(format!("unknown evolve verify-baseline argument: {other}"))
+            }
+            ["evolve", "context-baseline"] => {
+                reject_write_for_non_context(write)?;
+                require_dry_run_for_evolve("context-baseline", dry_run)?;
+                reject_format_for_evolve(requested_format.as_deref())?;
+                Ok(Self::EvolveContextBaseline { dry_run })
+            }
+            ["evolve", "context-baseline", other] => {
+                reject_write_for_non_context(write)?;
+                Err(format!("unknown evolve context-baseline argument: {other}"))
+            }
+            ["evolve"] => Err("missing evolve subcommand: try 'evolve verify-baseline --dry-run' or 'evolve context-baseline --dry-run'".to_string()),
+            ["evolve", other, ..] => Err(format!("unknown evolve subcommand: {other}")),
+            ["plan"] => Err(r#"missing plan intent: try 'plan "explain this repository"'"#.to_string()),
+            ["plan", intent_parts @ ..] => {
+                reject_write_for_non_context(write)?;
+                reject_format_for_plan(requested_format.as_deref())?;
+                let intent = intent_parts.join(" ");
+                Ok(Self::Plan { intent })
+            }
+            [single] => {
+                reject_write_for_non_context(write)?;
+                Err(format!("unknown command: {single}"))
+            }
+            [first, ..] => {
+                reject_write_for_non_context(write)?;
+                Err(format!("unknown command: {first}"))
+            }
+        }
+    }
+}
+
+/// CLI entrypoint.
+fn main() -> ExitCode {
+    match run(env::args()) {
+        Ok(output) => {
+            println!("{output}");
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            eprintln!("{message}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Runs a parsed command and returns printable output.
+fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
+    let command = CliCommand::parse(args)?;
+
+    match command {
+        CliCommand::Help => Ok(help_text()),
+        CliCommand::Version => render_version(),
+        CliCommand::Add {
+            kind,
+            name,
+            dry_run,
+            yes,
+        } => render_add(dry_run, yes, kind, name),
+        CliCommand::Init {
+            dry_run,
+            yes,
+            preset,
+            project_name,
+        } => render_init(dry_run, yes, preset, project_name),
+        CliCommand::Info { output_format } => render_info(output_format),
+        CliCommand::Check { output_format } => render_check(output_format),
+        CliCommand::Inspect { output_format } => render_inspect(output_format),
+        CliCommand::Graph { graph_format } => render_graph(graph_format),
+        CliCommand::Context {
+            context_format,
+            write,
+        } => render_context(context_format, write),
+        CliCommand::ContextGenerate { artifact } => render_context_generate(artifact),
+        CliCommand::ContextPack => render_context_pack(),
+        CliCommand::ContextVerify => render_context_verify(),
+        CliCommand::EvolveVerifyBaseline { dry_run } => render_evolve_verify_baseline(dry_run),
+        CliCommand::EvolveContextBaseline { dry_run } => render_evolve_context_baseline(dry_run),
+        CliCommand::Plan { intent } => render_plan(intent),
+    }
+}
+
+/// Rejects `--write` when the selected command does not support writing.
+fn reject_write_for_non_context(write: bool) -> Result<(), String> {
+    if write {
+        Err("--write is only supported for the context command".to_string())
+    } else {
+        Ok(())
+    }
+}
+/// Requires exactly one add mode for the guarded add implementation.
+fn require_add_mode(dry_run: bool, yes: bool) -> Result<(), String> {
+    match (dry_run, yes) {
+        (true, false) | (false, true) => Ok(()),
+        (false, false) => {
+            Err("add currently requires either --dry-run to preview or --yes to apply".to_string())
+        }
+        (true, true) => Err("add accepts either --dry-run or --yes, not both".to_string()),
+    }
+}
+
+/// Requires exactly one init mode for the guarded init implementation.
+fn require_init_mode(dry_run: bool, yes: bool) -> Result<(), String> {
+    match (dry_run, yes) {
+        (true, false) | (false, true) => Ok(()),
+        (false, false) => {
+            Err("init currently requires either --dry-run to preview or --yes to apply".to_string())
+        }
+        (true, true) => Err("init accepts either --dry-run or --yes, not both".to_string()),
+    }
+}
+
+/// Rejects output-format flags for the first init implementation.
+fn reject_format_for_init(requested_format: Option<&str>) -> Result<(), String> {
+    if requested_format.is_some() {
+        Err("--format is not supported for init yet".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+/// Parses an init preset or returns the default minimal preset.
+fn parse_init_preset_or_default(value: Option<&str>) -> Result<InitPreset, String> {
+    match value {
+        Some(value) => InitPreset::parse(value).map_err(|error| error.to_string()),
+        None => Ok(InitPreset::Minimal),
+    }
+}
+
+/// Requires dry-run mode for early evolution commands.
+///
+/// WP-E5-004 intentionally does not add apply/write behavior.
+fn require_dry_run_for_evolve(command_name: &str, dry_run: bool) -> Result<(), String> {
+    if dry_run {
+        Ok(())
+    } else {
+        Err(format!(
+            "evolve {command_name} currently requires --dry-run; write/apply behavior is not implemented"
+        ))
+    }
+}
+
+/// Rejects output-format flags for early evolution commands.
+fn reject_format_for_evolve(requested_format: Option<&str>) -> Result<(), String> {
+    if requested_format.is_some() {
+        Err("--format is not supported for evolve commands yet".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+/// Rejects output-format flags for the initial plan command.
+fn reject_format_for_plan(requested_format: Option<&str>) -> Result<(), String> {
+    if requested_format.is_some() {
+        Err("--format is not supported for plan yet".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+/// Parses the normal command output format.
+///
+/// Normal commands currently support only text and JSON.
+fn parse_output_format_or_default(value: Option<&str>) -> Result<OutputFormat, String> {
+    match value {
+        Some(value) => OutputFormat::parse(value).map_err(|error| error.to_string()),
+        None => Ok(OutputFormat::Text),
+    }
+}
+
+/// Parses the graph command render format.
+///
+/// Graph output supports text, JSON, Mermaid, and DOT.
+fn parse_graph_format_or_default(
+    value: Option<&str>,
+) -> Result<RepositoryGraphRenderFormat, String> {
+    match value {
+        Some(value) => RepositoryGraphRenderFormat::parse(value).map_err(|error| error.to_string()),
+        None => Ok(RepositoryGraphRenderFormat::Text),
+    }
+}
+
+/// Parses the context command render format.
+///
+/// Context output supports Markdown and JSON. The aliases `text` and `md`
+/// intentionally map to Markdown because the context pack is designed to be
+/// human-readable and LLM-readable by default.
+fn parse_context_format_or_default(
+    value: Option<&str>,
+) -> Result<RepositoryContextPackRenderFormat, String> {
+    match value {
+        Some(value) => {
+            RepositoryContextPackRenderFormat::parse(value).map_err(|error| error.to_string())
+        }
+        None => Ok(RepositoryContextPackRenderFormat::Markdown),
+    }
+}
+
+/// Builds help text.
+///
+/// Keep this text boring and stable. It is user-facing contract documentation.
+fn help_text() -> String {
+    [
+        "Monad",
+        "",
+        "Usage:",
+        "  monad [command] [--format=<format>] [--write] [--dry-run]",
+        "",
+        "Core commands:",
+        "  add <kind> <name> --dry-run              Preview component scaffold plan",
+        "  add <kind> <name> --yes                  Apply component scaffold after review",
+        "  init --dry-run                            Preview repository initialization plan",
+        "  init --preset=basic --dry-run             Preview the basic repository scaffold",
+        "  init --yes                                Apply repository initialization after review",
+        "  info                                      Show workspace summary",
+        "  check                                     Run workspace checks",
+        "  inspect                                   Inspect repository structure",
+        "  graph                                     Render repository graph",
+        "  plan \"<intent>\"                          Produce a supervised no-write plan",
+        "  version                                   Show runtime version",
+        "  help                                      Show this help",
+        "",
+        "Context commands:",
+        "  context                                   Render AI-readable repository context pack",
+        "  context --write                           Export repository context pack files",
+        "  context generate current-state            Generate current-state artifact",
+        "  context generate handoff                  Generate latest handoff artifact",
+        "  context generate bootstrap                Generate bootstrap prompt for AI sessions",
+        "  context pack                              Assemble project-level context pack",
+        "  context verify                            Verify context files exist and are well-formed",
+        "",
+        "Evolution dry-run commands:",
+        "  evolve verify-baseline --dry-run          Preview verification baseline files",
+        "  evolve context-baseline --dry-run         Preview context baseline files",
+        "",
+        "General formats:",
+        "  text",
+        "  json",
+        "",
+        "Graph formats:",
+        "  text",
+        "  json",
+        "  mermaid",
+        "  dot",
+        "",
+        "Context formats:",
+        "  markdown",
+        "  md",
+        "  text",
+        "  json",
+        "",
+        "Examples:",
+        "  monad add app web --dry-run",
+        "  monad inspect",
+        "  monad context --write",
+        "  monad check --format=json",
+        "  monad graph --format=mermaid",
+        "  monad plan \"explain this repository\"",
+        "  monad evolve verify-baseline --dry-run",
+        "  monad evolve context-baseline --dry-run",
+        "",
+        "Safety notes:",
+        "  plan is no-write and does not run commands.",
+        "  evolve commands are dry-run only in this MVP hardening phase.",
+        "  --write is only supported for the context command.",
+    ]
+    .join("\n")
+}
+
+/// Renders runtime, package, and release-preparation identity.
+///
+/// This output is intentionally more explicit than a normal `--version` line
+/// because Monad is currently preparing an internal MVP candidate cut. It must
+/// identify the compiled CLI package version without implying public release,
+/// installer availability, autonomous execution, or write/apply support.
+fn render_version() -> Result<String, String> {
+    let identity = checked_runtime_identity().map_err(|error| error.to_string())?;
+
+    let lines = vec![
+        identity.banner(),
+        String::new(),
+        "Package:".to_string(),
+        format!("  cli_crate: {}", env!("CARGO_PKG_NAME")),
+        format!("  version: {}", env!("CARGO_PKG_VERSION")),
+        String::new(),
+        "Release posture:".to_string(),
+        "  channel: internal-mvp-candidate".to_string(),
+        "  candidate_identifier: 0.1.0-internal-mvp-candidate".to_string(),
+        "  public_release: no".to_string(),
+        "  package_published: no".to_string(),
+        "  installer_available: no".to_string(),
+        String::new(),
+        "Safety posture:".to_string(),
+        "  execution_model: local-first".to_string(),
+        "  planning: no-write".to_string(),
+        "  evolution: dry-run-only".to_string(),
+        "  autonomous_agent_execution: no".to_string(),
+    ];
+
+    Ok(lines.join("\n"))
+}
+
+/// Renders workspace info.
+fn render_info(output_format: OutputFormat) -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+    let manifest = load_manifest_from_workspace(&context).map_err(|error| error.to_string())?;
+    let summary = workspace_summary_from_manifest(&context, &manifest);
+
+    Ok(render_workspace_summary(&summary, output_format))
+}
+
+/// Renders workspace checks.
+fn render_check(output_format: OutputFormat) -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+    let report = run_monad_workspace_checks(&context);
+
+    match output_format {
+        OutputFormat::Text => {
+            let evidence_path = write_check_evidence_packet(&context, &report)
+                .map_err(|error| error.to_string())?;
+            Ok(format!(
+                "{}\n\nEvidence report written: {}",
+                render_check_run_report(&report),
+                evidence_path.display()
+            ))
+        }
+        OutputFormat::Json => Ok(render_check_run_report_json(&report)),
+    }
+}
+
+/// Renders or applies component add output.
+fn render_add(
+    dry_run: bool,
+    yes: bool,
+    kind: ComponentKind,
+    name: ComponentName,
+) -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+    let options = AddPlanOptions::new(kind, name);
+
+    if dry_run {
+        return render_add_dry_run(&context, &options).map_err(|error| error.to_string());
+    }
+
+    if yes {
+        let result = apply_add_plan(&context, &options).map_err(|error| error.to_string())?;
+        return Ok(render_add_apply_result(&result));
+    }
+
+    Err("add currently requires either --dry-run to preview or --yes to apply".to_string())
+}
+
+/// Renders or applies repository initialization.
+fn render_init(
+    dry_run: bool,
+    yes: bool,
+    preset: InitPreset,
+    project_name: Option<String>,
+) -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+    let options = InitPlanOptions::new(preset, project_name);
+
+    if dry_run {
+        return render_init_dry_run(&context, &options).map_err(|error| error.to_string());
+    }
+
+    if yes {
+        let result = apply_init_plan(&context, &options).map_err(|error| error.to_string())?;
+        return Ok(render_init_apply_result(&result));
+    }
+
+    Err("init currently requires either --dry-run to preview or --yes to apply".to_string())
+}
+
+/// Renders verification baseline evolution dry-run output.
+fn render_evolve_verify_baseline(dry_run: bool) -> Result<String, String> {
+    if !dry_run {
+        return Err("evolve verify-baseline currently requires --dry-run".to_string());
+    }
+
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+
+    render_verify_baseline_dry_run(&context).map_err(|error| error.to_string())
+}
+
+/// Renders context baseline evolution dry-run output.
+fn render_evolve_context_baseline(dry_run: bool) -> Result<String, String> {
+    if !dry_run {
+        return Err("evolve context-baseline currently requires --dry-run".to_string());
+    }
+
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+
+    render_context_baseline_dry_run(&context).map_err(|error| error.to_string())
+}
+
+/// Renders a supervised, no-write plan from a user intent.
+fn render_plan(intent: String) -> Result<String, String> {
+    let plan = build_local_agent_plan(&intent).map_err(|error| error.to_string())?;
+
+    Ok(render_agent_plan(&plan))
+}
+
+/// Renders repository inspection.
+fn render_inspect(output_format: OutputFormat) -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+    let summary = repository_inspection_summary_from_workspace(&context)
+        .map_err(|error| error.to_string())?;
+
+    Ok(render_repository_inspection_summary(
+        &summary,
+        output_format,
+    ))
+}
+
+/// Renders repository graph.
+fn render_graph(graph_format: RepositoryGraphRenderFormat) -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+    let inspection = inspect_workspace(&context).map_err(|error| error.to_string())?;
+    let bounded_traversal =
+        traverse_workspace_bounded(&inspection).map_err(|error| error.to_string())?;
+    let graph = build_repository_graph(&bounded_traversal);
+
+    Ok(render_repository_graph(&graph, graph_format))
+}
+
+/// Renders or exports AI-readable repository context pack.
+fn render_context(
+    context_format: RepositoryContextPackRenderFormat,
+    write: bool,
+) -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+
+    if write {
+        let export_result = export_repository_context_pack_from_workspace(&context)
+            .map_err(|error| error.to_string())?;
+
+        Ok(render_context_export_summary(&export_result))
+    } else {
+        let pack =
+            repository_context_pack_from_workspace(&context).map_err(|error| error.to_string())?;
+        Ok(render_repository_context_pack(&pack, context_format))
+    }
+}
+
+/// Generates a context artifact and writes it to the repository.
+fn render_context_generate(artifact: ContextArtifactKind) -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+
+    match artifact {
+        ContextArtifactKind::CurrentState => {
+            let current_state =
+                generate_current_state(&context).map_err(|error| error.to_string())?;
+
+            write_current_state_artifact(&context, &current_state)
+                .map_err(|error| error.to_string())?;
+
+            Ok(render_current_state_summary(&context, &current_state))
+        }
+        ContextArtifactKind::Handoff => {
+            let handoff = generate_handoff(&context).map_err(|error| error.to_string())?;
+
+            write_handoff_artifact(&context, &handoff).map_err(|error| error.to_string())?;
+
+            Ok(render_handoff_summary(&context, &handoff))
+        }
+        ContextArtifactKind::Bootstrap => {
+            let bootstrap =
+                generate_bootstrap_prompt(&context).map_err(|error| error.to_string())?;
+
+            write_bootstrap_prompt_artifact(&context, &bootstrap)
+                .map_err(|error| error.to_string())?;
+
+            Ok(render_bootstrap_summary(&context, &bootstrap))
+        }
+    }
+}
+
+/// Renders a concise current-state generation summary.
+fn render_current_state_summary(
+    context: &WorkspaceContext,
+    artifact: &CurrentStateArtifact,
+) -> String {
+    let output_path = context.context_dir().join("current-state.md");
+
+    let mut lines = vec![
+        "Monad current-state artifact generated".to_string(),
+        format!("  output: {}", output_path.display()),
+        format!("  project: {}", artifact.project_name),
+        format!("  epics: {}", artifact.epics.len()),
+        format!("  runtime_modules: {}", artifact.runtime_modules.len()),
+    ];
+
+    if let Some(active) = artifact.active_epic() {
+        lines.push(format!("  active_epic: {} — {}", active.id, active.title));
+    }
+
+    let completed_count = artifact.completed_epics().len();
+    lines.push(format!("  completed_epics: {completed_count}"));
+
+    lines.join("\n")
+}
+
+/// Renders a concise handoff generation summary.
+fn render_handoff_summary(context: &WorkspaceContext, artifact: &HandoffArtifact) -> String {
+    let output_path = context.context_dir().join("latest-handoff.md");
+
+    let mut lines = vec![
+        "Monad handoff artifact generated".to_string(),
+        format!("  output: {}", output_path.display()),
+        format!("  project: {}", artifact.current_state.project_name),
+        format!("  epics: {}", artifact.current_state.epics.len()),
+        format!("  work_packets: {}", artifact.work_packets.len()),
+    ];
+
+    if let Some(active) = artifact.current_state.active_epic() {
+        lines.push(format!("  active_epic: {} — {}", active.id, active.title));
+    }
+
+    if let Some(active_wp) = artifact.active_work_packet() {
+        lines.push(format!(
+            "  active_work_packet: {} — {}",
+            active_wp.id, active_wp.title
+        ));
+    }
+
+    let completed_packets = artifact.completed_work_packets().len();
+    lines.push(format!("  completed_work_packets: {completed_packets}"));
+
+    lines.join("\n")
+}
+
+/// Renders a concise bootstrap prompt generation summary.
+fn render_bootstrap_summary(
+    context: &WorkspaceContext,
+    artifact: &BootstrapPromptArtifact,
+) -> String {
+    let output_path = context.root().join("docs/ai/BOOTSTRAP-PROMPT.md");
+
+    let mut lines = vec![
+        "Monad bootstrap prompt generated".to_string(),
+        format!("  output: {}", output_path.display()),
+        format!("  project: {}", artifact.project_name),
+        format!("  reading_order: {} files", artifact.reading_order.len()),
+        format!("  workflow_rules: {}", artifact.workflow_rules.len()),
+        format!("  source_files: {}", artifact.source_files.len()),
+    ];
+
+    if let Some(active_epic) = artifact.current_state.active_epic() {
+        lines.push(format!(
+            "  active_epic: {} — {}",
+            active_epic.id, active_epic.title
+        ));
+    }
+
+    if let Some(active_wp) = artifact.handoff.active_work_packet() {
+        lines.push(format!(
+            "  active_work_packet: {} — {}",
+            active_wp.id, active_wp.title
+        ));
+    }
+
+    lines.join("\n")
+}
+
+/// Assembles and writes a project-level context pack.
+fn render_context_pack() -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+
+    let artifact = generate_context_pack(&context).map_err(|error| error.to_string())?;
+
+    write_context_pack_artifact(&context, &artifact).map_err(|error| error.to_string())?;
+
+    Ok(render_context_pack_summary(&context, &artifact))
+}
+
+/// Renders a concise context pack assembly summary.
+fn render_context_pack_summary(
+    context: &WorkspaceContext,
+    artifact: &ContextPackArtifact,
+) -> String {
+    let output_path = context.context_dir().join("latest-context-pack.md");
+
+    let mut lines = vec![
+        "Monad context pack assembled".to_string(),
+        format!("  output: {}", output_path.display()),
+        format!("  project: {}", artifact.project_name),
+        format!("  epics: {}", artifact.current_state.epics.len()),
+        format!("  work_packets: {}", artifact.handoff.work_packets.len()),
+        format!("  decisions: {}", artifact.accepted_decisions.len()),
+        format!("  documents: {}", artifact.important_documents.len()),
+        format!("  source_files: {}", artifact.source_files.len()),
+    ];
+
+    if let Some(active_wp) = artifact.handoff.active_work_packet() {
+        lines.push(format!(
+            "  active_work_packet: {} — {}",
+            active_wp.id, active_wp.title
+        ));
+    }
+
+    lines.join("\n")
+}
+
+/// Verifies context files and renders the result.
+fn render_context_verify() -> Result<String, String> {
+    let context = WorkspaceContext::discover_from(".").map_err(|error| error.to_string())?;
+    let report = verify_context(&context);
+    let summary = render_context_verify_summary(&report);
+
+    if report.has_errors() {
+        Err(summary)
+    } else {
+        Ok(summary)
+    }
+}
+
+/// Renders a concise context-pack export summary.
+fn render_context_export_summary(result: &RepositoryContextPackExportResult) -> String {
+    let mut lines = vec![
+        "Monad repository context pack export".to_string(),
+        format!("  output_dir: {}", result.output_dir().display()),
+        format!("  files: {}", result.file_count()),
+        format!("  bytes: {}", result.total_bytes_written()),
+        "  exported_files:".to_string(),
+    ];
+
+    for file in result.files() {
+        lines.push(format!(
+            "    - {}: {} bytes={}",
+            file.format().as_str(),
+            file.path().display(),
+            file.bytes_written()
+        ));
+    }
+
+    lines.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_arguments(arguments: &[&str]) -> Result<CliCommand, String> {
+        CliCommand::parse(arguments.iter().map(|argument| argument.to_string()))
+    }
+
+    #[test]
+    fn no_command_defaults_to_info() {
+        let command = parse_arguments(&["monad"]).expect("command should parse");
+
+        assert_eq!(
+            command,
+            CliCommand::Info {
+                output_format: OutputFormat::Text
+            }
+        );
+    }
+
+    #[test]
+    fn help_command_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "help"]).expect("help should parse"),
+            CliCommand::Help
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "--help"]).expect("--help should parse"),
+            CliCommand::Help
+        );
+    }
+
+    #[test]
+    fn version_command_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "version"]).expect("version should parse"),
+            CliCommand::Version
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "--version"]).expect("--version should parse"),
+            CliCommand::Version
+        );
+    }
+
+    #[test]
+    fn init_dry_run_command_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "init", "--dry-run"]).expect("init should parse"),
+            CliCommand::Init {
+                dry_run: true,
+                yes: false,
+                preset: InitPreset::Minimal,
+                project_name: None,
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&[
+                "monad",
+                "init",
+                "--dry-run",
+                "--preset=polyglot-minimal",
+                "--name=example",
+            ])
+            .expect("init preset should parse"),
+            CliCommand::Init {
+                dry_run: true,
+                yes: false,
+                preset: InitPreset::PolyglotMinimal,
+                project_name: Some("example".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn init_requires_dry_run_or_yes() {
+        let error = parse_arguments(&["monad", "init"]).expect_err("init without mode should fail");
+
+        assert!(error.contains("init currently requires either --dry-run"));
+        assert!(error.contains("--yes"));
+    }
+
+    #[test]
+    fn init_yes_command_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "init", "--yes"]).expect("init --yes should parse"),
+            CliCommand::Init {
+                dry_run: false,
+                yes: true,
+                preset: InitPreset::Minimal,
+                project_name: None,
+            }
+        );
+    }
+
+    #[test]
+    fn init_rejects_dry_run_and_yes_together() {
+        let error = parse_arguments(&["monad", "init", "--dry-run", "--yes"])
+            .expect_err("init should reject conflicting modes");
+
+        assert!(error.contains("either --dry-run or --yes"));
+        assert!(error.contains("not both"));
+    }
+
+    #[test]
+    fn init_basic_preset_alias_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "init", "--dry-run", "--preset=basic"])
+                .expect("init basic preset should parse"),
+            CliCommand::Init {
+                dry_run: true,
+                yes: false,
+                preset: InitPreset::Minimal,
+                project_name: None,
+            }
+        );
+    }
+
+    #[test]
+    fn add_app_dry_run_command_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "add", "app", "web", "--dry-run"])
+                .expect("add app dry-run should parse"),
+            CliCommand::Add {
+                kind: ComponentKind::App,
+                name: ComponentName::parse("web").expect("test name should parse"),
+                dry_run: true,
+                yes: false,
+            }
+        );
+    }
+
+    #[test]
+    fn add_rejects_unsafe_component_name() {
+        let error = parse_arguments(&["monad", "add", "app", "../web", "--dry-run"])
+            .expect_err("unsafe component name should fail");
+
+        assert!(error.contains("invalid component name"));
+    }
+
+    #[test]
+    fn add_requires_dry_run_or_yes() {
+        let error = parse_arguments(&["monad", "add", "app", "web"])
+            .expect_err("add without mode should fail");
+
+        assert!(error.contains("add currently requires either --dry-run"));
+        assert!(error.contains("--yes"));
+    }
+
+    #[test]
+    fn add_yes_command_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "add", "app", "web", "--yes"])
+                .expect("add --yes should parse"),
+            CliCommand::Add {
+                kind: ComponentKind::App,
+                name: ComponentName::parse("web").expect("test name should parse"),
+                dry_run: false,
+                yes: true,
+            }
+        );
+    }
+
+    #[test]
+    fn add_rejects_dry_run_and_yes_together() {
+        let error = parse_arguments(&["monad", "add", "app", "web", "--dry-run", "--yes"])
+            .expect_err("add should reject conflicting modes");
+
+        assert!(error.contains("either --dry-run or --yes"));
+        assert!(error.contains("not both"));
+    }
+
+    #[test]
+    fn info_command_parses_text_and_json_formats() {
+        assert_eq!(
+            parse_arguments(&["monad", "info"]).expect("info should parse"),
+            CliCommand::Info {
+                output_format: OutputFormat::Text
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "info", "--format=json"]).expect("info json should parse"),
+            CliCommand::Info {
+                output_format: OutputFormat::Json
+            }
+        );
+    }
+
+    #[test]
+    fn check_command_parses_text_and_json_formats() {
+        assert_eq!(
+            parse_arguments(&["monad", "check"]).expect("check should parse"),
+            CliCommand::Check {
+                output_format: OutputFormat::Text
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "check", "--format=json"]).expect("check json should parse"),
+            CliCommand::Check {
+                output_format: OutputFormat::Json
+            }
+        );
+    }
+
+    #[test]
+    fn inspect_command_parses_text_and_json_formats() {
+        assert_eq!(
+            parse_arguments(&["monad", "inspect"]).expect("inspect should parse"),
+            CliCommand::Inspect {
+                output_format: OutputFormat::Text
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "inspect", "--format=json"])
+                .expect("inspect json should parse"),
+            CliCommand::Inspect {
+                output_format: OutputFormat::Json
+            }
+        );
+    }
+
+    #[test]
+    fn graph_command_parses_supported_formats() {
+        assert_eq!(
+            parse_arguments(&["monad", "graph"]).expect("graph should parse"),
+            CliCommand::Graph {
+                graph_format: RepositoryGraphRenderFormat::Text
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "graph", "--format=json"]).expect("graph json should parse"),
+            CliCommand::Graph {
+                graph_format: RepositoryGraphRenderFormat::Json
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "graph", "--format=mermaid"])
+                .expect("graph mermaid should parse"),
+            CliCommand::Graph {
+                graph_format: RepositoryGraphRenderFormat::Mermaid
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "graph", "--format=dot"]).expect("graph dot should parse"),
+            CliCommand::Graph {
+                graph_format: RepositoryGraphRenderFormat::Dot
+            }
+        );
+    }
+
+    #[test]
+    fn context_command_parses_supported_formats() {
+        assert_eq!(
+            parse_arguments(&["monad", "context"]).expect("context should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Markdown,
+                write: false,
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "context", "--format=markdown"])
+                .expect("context markdown should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Markdown,
+                write: false,
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "context", "--format=md"]).expect("context md should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Markdown,
+                write: false,
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "context", "--format=text"])
+                .expect("context text alias should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Markdown,
+                write: false,
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "context", "--format=json"])
+                .expect("context json should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Json,
+                write: false,
+            }
+        );
+    }
+
+    #[test]
+    fn context_command_parses_write_flag() {
+        assert_eq!(
+            parse_arguments(&["monad", "context", "--write"]).expect("context write should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Markdown,
+                write: true,
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "--write", "context"])
+                .expect("write before context should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Markdown,
+                write: true,
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "context", "--format=json", "--write"])
+                .expect("context json write should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Json,
+                write: true,
+            }
+        );
+    }
+
+    #[test]
+    fn context_generate_current_state_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "context", "generate", "current-state"])
+                .expect("context generate current-state should parse"),
+            CliCommand::ContextGenerate {
+                artifact: ContextArtifactKind::CurrentState
+            }
+        );
+    }
+
+    #[test]
+    fn context_generate_handoff_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "context", "generate", "handoff"])
+                .expect("context generate handoff should parse"),
+            CliCommand::ContextGenerate {
+                artifact: ContextArtifactKind::Handoff
+            }
+        );
+    }
+
+    #[test]
+    fn context_pack_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "context", "pack"]).expect("context pack should parse"),
+            CliCommand::ContextPack
+        );
+    }
+
+    #[test]
+    fn context_generate_without_artifact_returns_error() {
+        let error = parse_arguments(&["monad", "context", "generate"])
+            .expect_err("context generate without artifact should fail");
+
+        assert!(error.contains("missing artifact kind"));
+        assert!(error.contains("current-state"));
+    }
+
+    #[test]
+    fn context_generate_unknown_artifact_returns_error() {
+        let error = parse_arguments(&["monad", "context", "generate", "foobar"])
+            .expect_err("unknown artifact should fail");
+
+        assert!(error.contains("unknown context artifact"));
+        assert!(error.contains("foobar"));
+    }
+
+    #[test]
+    fn context_unknown_subcommand_returns_error() {
+        let error = parse_arguments(&["monad", "context", "foobar"])
+            .expect_err("unknown subcommand should fail");
+
+        assert!(error.contains("unknown context subcommand"));
+    }
+
+    #[test]
+    fn format_can_appear_before_command() {
+        assert_eq!(
+            parse_arguments(&["monad", "--format=json", "context"])
+                .expect("format before context should parse"),
+            CliCommand::Context {
+                context_format: RepositoryContextPackRenderFormat::Json,
+                write: false,
+            }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "--format=mermaid", "graph"])
+                .expect("format before graph should parse"),
+            CliCommand::Graph {
+                graph_format: RepositoryGraphRenderFormat::Mermaid
+            }
+        );
+    }
+
+    #[test]
+    fn write_flag_is_rejected_for_non_context_commands() {
+        let error = parse_arguments(&["monad", "inspect", "--write"])
+            .expect_err("inspect should not accept write");
+
+        assert_eq!(error, "--write is only supported for the context command");
+
+        let error = parse_arguments(&["monad", "--write", "graph"])
+            .expect_err("graph should not accept write");
+
+        assert_eq!(error, "--write is only supported for the context command");
+    }
+
+    #[test]
+    fn non_graph_commands_reject_graph_only_formats() {
+        let error = parse_arguments(&["monad", "inspect", "--format=mermaid"])
+            .expect_err("inspect should reject mermaid format");
+
+        assert!(error.contains("unsupported output format"));
+    }
+
+    #[test]
+    fn graph_command_rejects_unknown_formats() {
+        let error = parse_arguments(&["monad", "graph", "--format=svg"])
+            .expect_err("svg should not be supported yet");
+
+        assert!(error.contains("unsupported repository graph render format"));
+    }
+
+    #[test]
+    fn context_command_rejects_unknown_formats() {
+        let error = parse_arguments(&["monad", "context", "--format=xml"])
+            .expect_err("xml should not be supported for context packs");
+
+        assert!(error.contains("unsupported repository context pack render format"));
+    }
+
+    #[test]
+    fn unknown_command_returns_error() {
+        let error =
+            parse_arguments(&["monad", "unknown"]).expect_err("unknown command should fail");
+
+        assert_eq!(error, "unknown command: unknown");
+    }
+
+    #[test]
+    fn help_text_mentions_context_command_formats_and_write_mode() {
+        let text = help_text();
+
+        assert!(text.contains("context"));
+        assert!(text.contains("markdown"));
+        assert!(text.contains("md"));
+        assert!(text.contains("monad context --write"));
+    }
+
+    #[test]
+    fn help_text_mentions_graph_command_and_formats() {
+        let text = help_text();
+
+        assert!(text.contains("graph"));
+        assert!(text.contains("mermaid"));
+        assert!(text.contains("dot"));
+    }
+
+    #[test]
+    fn help_text_mentions_context_generate_current_state() {
+        let text = help_text();
+
+        assert!(text.contains("context generate current-state"));
+    }
+
+    #[test]
+    fn help_text_mentions_context_generate_handoff() {
+        let text = help_text();
+
+        assert!(text.contains("context generate handoff"));
+    }
+
+    #[test]
+    fn help_text_mentions_context_pack() {
+        let text = help_text();
+
+        assert!(text.contains("context pack"));
+    }
+
+    #[test]
+    fn context_generate_bootstrap_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "context", "generate", "bootstrap"])
+                .expect("context generate bootstrap should parse"),
+            CliCommand::ContextGenerate {
+                artifact: ContextArtifactKind::Bootstrap,
+            }
+        );
+    }
+
+    #[test]
+    fn help_text_mentions_context_generate_bootstrap() {
+        let text = help_text();
+
+        assert!(text.contains("context generate bootstrap"));
+    }
+
+    #[test]
+    fn context_verify_parses() {
+        assert_eq!(
+            parse_arguments(&["monad", "context", "verify"]).expect("context verify should parse"),
+            CliCommand::ContextVerify
+        );
+    }
+
+    #[test]
+    fn help_text_mentions_context_verify() {
+        let text = help_text();
+
+        assert!(text.contains("context verify"));
+    }
+    #[test]
+    fn plan_command_parses_multi_word_intent() {
+        assert_eq!(
+            parse_arguments(&["monad", "plan", "explain", "this", "repository"])
+                .expect("plan should parse"),
+            CliCommand::Plan {
+                intent: "explain this repository".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn plan_without_intent_returns_actionable_error() {
+        let error =
+            parse_arguments(&["monad", "plan"]).expect_err("plan without intent should fail");
+
+        assert!(error.contains("missing plan intent"));
+        assert!(error.contains("explain this repository"));
+    }
+
+    #[test]
+    fn plan_rejects_format_flags_for_now() {
+        let error = parse_arguments(&["monad", "plan", "explain", "--format=json"])
+            .expect_err("plan should reject --format for now");
+
+        assert_eq!(error, "--format is not supported for plan yet");
+    }
+
+    #[test]
+    fn evolve_verify_baseline_requires_dry_run_with_specific_error() {
+        let error = parse_arguments(&["monad", "evolve", "verify-baseline"])
+            .expect_err("verify-baseline should require dry-run");
+
+        assert!(error.contains("evolve verify-baseline currently requires --dry-run"));
+        assert!(error.contains("write/apply behavior is not implemented"));
+    }
+
+    #[test]
+    fn evolve_context_baseline_requires_dry_run_with_specific_error() {
+        let error = parse_arguments(&["monad", "evolve", "context-baseline"])
+            .expect_err("context-baseline should require dry-run");
+
+        assert!(error.contains("evolve context-baseline currently requires --dry-run"));
+        assert!(error.contains("write/apply behavior is not implemented"));
+    }
+
+    #[test]
+    fn evolve_dry_run_commands_parse() {
+        assert_eq!(
+            parse_arguments(&["monad", "evolve", "verify-baseline", "--dry-run"])
+                .expect("verify-baseline dry-run should parse"),
+            CliCommand::EvolveVerifyBaseline { dry_run: true }
+        );
+
+        assert_eq!(
+            parse_arguments(&["monad", "evolve", "context-baseline", "--dry-run"])
+                .expect("context-baseline dry-run should parse"),
+            CliCommand::EvolveContextBaseline { dry_run: true }
+        );
+    }
+
+    #[test]
+    fn help_text_mentions_plan_and_evolve_dry_run_commands() {
+        let text = help_text();
+
+        assert!(text.contains("init --dry-run"));
+        assert!(text.contains("add <kind> <name> --dry-run"));
+        assert!(text.contains("init --preset=basic --dry-run"));
+        assert!(text.contains("init --yes"));
+        assert!(text.contains("plan \"<intent>\""));
+        assert!(text.contains("monad plan \"explain this repository\""));
+        assert!(text.contains("evolve verify-baseline --dry-run"));
+        assert!(text.contains("evolve context-baseline --dry-run"));
+        assert!(text.contains("dry-run only"));
+        assert!(text.contains("plan is no-write"));
+    }
+}
