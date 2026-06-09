@@ -12,14 +12,12 @@ use monad_core::{
     ContextPackArtifact, CurrentStateArtifact, HandoffArtifact, InitPlanOptions, InitPreset,
     OutputFormat, ReleasePlanOptions, RepositoryContextPackExportResult,
     RepositoryContextPackRenderFormat, RepositoryGraphRenderFormat, WorkspaceContext,
-    apply_add_plan, apply_ai_context_plan, apply_init_plan, apply_sync_plan, apply_upgrade_plan,
-    build_ai_context_plan, build_local_agent_plan, build_release_plan, build_repository_graph,
-    build_sync_plan, build_upgrade_plan, checked_runtime_identity,
-    export_repository_context_pack_from_workspace, generate_bootstrap_prompt,
-    generate_context_pack, generate_current_state, generate_handoff, inspect_workspace,
-    load_manifest_from_workspace, render_add_apply_result, render_add_dry_run, render_agent_plan,
-    render_ai_context_apply_result, render_ai_context_apply_result_json, render_ai_context_plan,
-    render_ai_context_plan_json, render_check_run_report, render_check_run_report_json,
+    apply_add_plan, apply_init_plan, apply_sync_plan, apply_upgrade_plan, build_local_agent_plan,
+    build_release_plan, build_repository_graph, build_sync_plan, build_upgrade_plan,
+    checked_runtime_identity, export_repository_context_pack_from_workspace,
+    generate_bootstrap_prompt, generate_context_pack, generate_current_state, generate_handoff,
+    inspect_workspace, load_manifest_from_workspace, render_add_apply_result, render_add_dry_run,
+    render_agent_plan, render_check_run_report, render_check_run_report_json,
     render_context_baseline_dry_run, render_context_verify_summary, render_doctor_report,
     render_doctor_report_json, render_init_apply_result, render_init_dry_run, render_release_plan,
     render_release_plan_json, render_repository_context_pack, render_repository_graph,
@@ -80,18 +78,6 @@ enum CliCommand {
     },
 
     Info {
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
-    /// Generate provider-agnostic AI context and memory artifacts.
-    AiContext {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated AI context artifacts.
-        yes: bool,
-
         /// Requested output format.
         output_format: OutputFormat,
     },
@@ -327,13 +313,11 @@ impl CliCommand {
             && parts.first().copied() != Some("init")
             && parts.first().copied() != Some("add")
             && parts.first().copied() != Some("upgrade")
-            && parts.first().copied() != Some("ai-context")
             && parts.first().copied() != Some("sync")
             && parts.first().copied() != Some("upgrade")
         {
             return Err(
-                "--yes is only supported for init, add, sync, upgrade, and ai-context commands"
-                    .to_string(),
+                "--yes is only supported for init, add, sync, and upgrade commands".to_string(),
             );
         }
 
@@ -426,20 +410,6 @@ impl CliCommand {
             ["sync", other, ..] => {
                 reject_write_for_non_context(write)?;
                 Err(format!("unknown sync argument: {other}"))
-            }
-            ["ai-context"] => {
-                reject_write_for_non_context(write)?;
-                require_ai_context_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::AiContext {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["ai-context", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown ai-context argument: {other}"))
             }
             ["upgrade"] => {
                 reject_write_for_non_context(write)?;
@@ -603,11 +573,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             project_name,
         } => render_init(dry_run, yes, preset, project_name),
         CliCommand::Info { output_format } => render_info(output_format),
-        CliCommand::AiContext {
-            dry_run,
-            yes,
-            output_format,
-        } => render_ai_context(dry_run, yes, output_format),
         CliCommand::Upgrade {
             dry_run,
             yes,
@@ -656,17 +621,6 @@ fn require_add_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("add currently requires either --dry-run to preview or --yes to apply".to_string())
         }
         (true, true) => Err("add accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one AI context mode.
-fn require_ai_context_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => {
-            Err("ai-context currently requires either --dry-run to preview or --yes to write generated local artifacts".to_string())
-        }
-        (true, true) => Err("ai-context accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -826,9 +780,6 @@ fn help_text() -> String {
         "  doctor                                   Diagnose local environment and repo readiness",
         "  release --dry-run                       Plan release readiness without publishing",
         "  upgrade --dry-run                       Preview safe repository upgrade steps",
-        "  ai-context --dry-run                    Preview AI context/memory artifacts",
-        "  ai-context --dry-run --format=json      Preview AI context plan as JSON",
-        "  ai-context --yes                        Write generated local AI context artifacts",
         "  upgrade --dry-run --format=json         Preview upgrade plan as JSON",
         "  upgrade --yes                           Apply guarded generated upgrade metadata",
         "  release --dry-run --format=json         Render release readiness as JSON",
@@ -881,8 +832,6 @@ fn help_text() -> String {
         "  monad doctor",
         "  monad release --dry-run",
         "  monad upgrade --dry-run",
-        "  monad ai-context --dry-run",
-        "  monad ai-context --dry-run --format=json",
         "  monad upgrade --dry-run --format=json",
         "  monad release --dry-run --format=json",
         "  monad doctor --format=json",
@@ -897,7 +846,6 @@ fn help_text() -> String {
         "  doctor is read-only and does not install tools or mutate the environment.",
         "  release dry-run creates no tags and publishes no packages.",
         "  upgrade writes generated metadata/evidence only after --yes.",
-        "  ai-context never calls providers or sends repo data remotely.",
         "  plan is no-write and does not run commands.",
         "  evolve commands are dry-run only in this MVP hardening phase.",
         "  language-aware add writes use local embedded templates only.",
@@ -984,33 +932,6 @@ fn render_sync(dry_run: bool, yes: bool, output_format: OutputFormat) -> Result<
         "sync currently requires either --dry-run to preview or --yes to write generated evidence"
             .to_string(),
     )
-}
-
-/// Renders or writes AI context artifacts.
-fn render_ai_context(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = build_ai_context_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(render_ai_context_plan(&plan)),
-            OutputFormat::Json => Ok(render_ai_context_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result = apply_ai_context_plan(&root)?;
-        return match output_format {
-            OutputFormat::Text => Ok(render_ai_context_apply_result(&result)),
-            OutputFormat::Json => Ok(render_ai_context_apply_result_json(&result)),
-        };
-    }
-
-    Err("ai-context currently requires either --dry-run to preview or --yes to write generated local artifacts".to_string())
 }
 
 /// Renders or applies repository upgrade output.
@@ -1760,50 +1681,6 @@ mod tests {
                 output_format: OutputFormat::Json
             }
         );
-    }
-
-    #[test]
-    fn ai_context_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "ai-context", "--dry-run"])
-                .expect("ai-context dry-run should parse"),
-            CliCommand::AiContext {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "ai-context", "--dry-run", "--format=json"])
-                .expect("ai-context json should parse"),
-            CliCommand::AiContext {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn ai_context_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "ai-context", "--yes"])
-                .expect("ai-context yes should parse"),
-            CliCommand::AiContext {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn ai_context_requires_mode() {
-        let error =
-            parse_arguments(&["monad", "ai-context"]).expect_err("ai-context should require mode");
-
-        assert!(error.contains("ai-context currently requires either --dry-run"));
     }
 
     #[test]

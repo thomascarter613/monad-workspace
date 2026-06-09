@@ -7,7 +7,6 @@
 //! stays thin and delegates to this library.
 
 pub mod agents;
-pub mod ai_context;
 pub mod checks;
 pub mod component_add;
 pub mod context;
@@ -35,12 +34,6 @@ pub mod toolchain_detection;
 pub mod upgrade;
 pub mod workspace;
 
-pub use ai_context::{
-    AiContextApplyResult, AiContextArtifact, AiContextPlan, AiProviderConfig, AiProviderMode,
-    MemoryRecord, MemoryRecordKind, apply_ai_context_plan, build_ai_context_plan,
-    render_ai_context_apply_result, render_ai_context_apply_result_json, render_ai_context_plan,
-    render_ai_context_plan_json,
-};
 pub use checks::{
     AdapterCheckRun, CheckDefinition, CheckId, CheckRegistry, CheckResult, CheckRunReport,
     CheckSeverity, CheckStatus, DEFAULT_EVIDENCE_REPORT_PATH, EvidenceCheckResult,
