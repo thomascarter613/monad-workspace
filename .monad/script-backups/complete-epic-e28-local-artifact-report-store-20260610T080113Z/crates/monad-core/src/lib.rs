@@ -30,7 +30,6 @@ pub mod patch;
 pub mod policy;
 pub mod release;
 pub mod repo_contract;
-pub mod report_store;
 pub mod repository_context_pack;
 pub mod repository_graph;
 pub mod repository_inspection;
@@ -140,12 +139,6 @@ pub use release::{
 };
 pub use repo_contract::{
     RepositoryContract, RequiredPath, RequiredPathKind, check_repository_contract,
-};
-pub use report_store::{
-    ArtifactMetadata, LocalStoreApplyResult, LocalStoreContract, LocalStoreIndex, ReportMetadata,
-    StoreObjectKind, StoreRetentionClass, build_local_store_index, discover_artifacts,
-    discover_reports, render_local_store_apply_result, render_local_store_index,
-    render_local_store_index_json, write_local_store_evidence,
 };
 pub use repository_context_pack::{
     RepositoryContextPack, RepositoryContextPackExportResult, RepositoryContextPackExportedFile,

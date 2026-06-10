@@ -289,18 +289,6 @@ enum CliCommand {
         output_format: OutputFormat,
     },
 
-    /// Index the local report/artifact store without uploading or deleting objects.
-    ReportStore {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated report-store evidence.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
     /// Plan build-cache and incremental execution decisions without executing tasks.
     CachePlan {
         /// Whether to run in dry-run mode.
@@ -473,9 +461,6 @@ impl CliCommand {
             && parts.first().copied() != Some("analysis")
             && parts.first().copied() != Some("static-analysis")
             && parts.first().copied() != Some("sync")
-            && parts.first().copied() != Some("report-store")
-            && parts.first().copied() != Some("reports")
-            && parts.first().copied() != Some("artifacts")
             && parts.first().copied() != Some("cache-plan")
             && parts.first().copied() != Some("build-cache")
             && parts.first().copied() != Some("incremental-plan")
@@ -721,20 +706,6 @@ impl CliCommand {
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Check { output_format })
             }
-            ["report-store"] | ["reports"] | ["artifacts"] => {
-                reject_write_for_non_context(write)?;
-                require_report_store_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::ReportStore {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["report-store", other, ..] | ["reports", other, ..] | ["artifacts", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown report-store argument: {other}"))
-            }
             ["cache-plan"] | ["build-cache"] | ["incremental-plan"] => {
                 reject_write_for_non_context(write)?;
                 require_cache_plan_mode(dry_run, yes)?;
@@ -973,11 +944,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             yes,
             output_format,
         } => render_sync(dry_run, yes, output_format),
-        CliCommand::ReportStore {
-            dry_run,
-            yes,
-            output_format,
-        } => render_report_store(dry_run, yes, output_format),
         CliCommand::CachePlan {
             dry_run,
             yes,
@@ -1103,17 +1069,6 @@ fn require_upgrade_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("upgrade currently requires either --dry-run to preview or --yes to apply guarded generated metadata".to_string())
         }
         (true, true) => Err("upgrade accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one report-store mode.
-fn require_report_store_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => Err(
-            "report-store currently requires either --dry-run to preview or --yes to write generated report-store evidence".to_string(),
-        ),
-        (true, true) => Err("report-store accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -1343,9 +1298,6 @@ fn help_text() -> String {
         "  cache-plan --dry-run                      Preview cache-aware incremental plan",
         "  cache-plan --dry-run --format=json        Preview cache plan as JSON",
         "  cache-plan --yes                          Write generated cache-plan evidence",
-        "  report-store --dry-run                    Preview local report/artifact index",
-        "  report-store --dry-run --format=json      Preview local report/artifact index as JSON",
-        "  report-store --yes                        Write generated report-store evidence",
         "  inspect                                   Inspect repository structure",
         "  graph                                     Render repository graph",
         "  plan \"<intent>\"                          Produce a supervised no-write plan",
@@ -1421,10 +1373,6 @@ fn help_text() -> String {
         "  monad cache-plan --dry-run",
         "  monad cache-plan --dry-run --format=json",
         "  monad build-cache --dry-run",
-        "  monad report-store --dry-run",
-        "  monad report-store --dry-run --format=json",
-        "  monad reports --dry-run",
-        "  monad artifacts --dry-run",
         "  monad incremental-plan --dry-run",
         "  monad graph --format=mermaid",
         "  monad plan \"explain this repository\"",
@@ -1448,7 +1396,6 @@ fn help_text() -> String {
         "  impact writes generated evidence only and does not execute tools.",
         "  verify-plan writes generated evidence only and does not execute tests.",
         "  cache-plan writes generated evidence only and does not execute tasks.",
-        "  report-store writes generated evidence only and does not delete artifacts.",
         "  adapters records command suggestions only; it does not run native tools.",
         "  --write is only supported for the context command.",
     ]
@@ -1495,31 +1442,6 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
     Ok(render_workspace_summary(&summary, output_format))
-}
-
-/// Renders or writes local report/artifact store evidence.
-fn render_report_store(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let index = monad_core::build_local_store_index(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(monad_core::render_local_store_index(&index)),
-            OutputFormat::Json => Ok(monad_core::render_local_store_index_json(&index)),
-        };
-    }
-
-    if yes {
-        let result =
-            monad_core::write_local_store_evidence(&root).map_err(|error| error.to_string())?;
-        return Ok(monad_core::render_local_store_apply_result(&result));
-    }
-
-    Err("report-store currently requires either --dry-run to preview or --yes to write generated report-store evidence".to_string())
 }
 
 /// Renders or writes build-cache planning evidence.
@@ -2520,73 +2442,6 @@ mod tests {
                 output_format: OutputFormat::Text,
             }
         );
-    }
-
-    #[test]
-    fn report_store_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "report-store", "--dry-run"])
-                .expect("report-store dry-run should parse"),
-            CliCommand::ReportStore {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "report-store", "--dry-run", "--format=json"])
-                .expect("report-store dry-run json should parse"),
-            CliCommand::ReportStore {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn report_store_aliases_parse() {
-        assert_eq!(
-            parse_arguments(&["monad", "reports", "--dry-run"])
-                .expect("reports alias should parse"),
-            CliCommand::ReportStore {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "artifacts", "--dry-run"])
-                .expect("artifacts alias should parse"),
-            CliCommand::ReportStore {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn report_store_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "report-store", "--yes"])
-                .expect("report-store yes should parse"),
-            CliCommand::ReportStore {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn report_store_requires_mode() {
-        let error = parse_arguments(&["monad", "report-store"])
-            .expect_err("report-store should require mode");
-
-        assert!(error.contains("report-store currently requires either --dry-run"));
     }
 
     #[test]
