@@ -25,7 +25,6 @@ pub mod git;
 pub mod init;
 pub mod language_adapters;
 pub mod manifest;
-pub mod mcp_integration;
 pub mod output;
 pub mod patch;
 pub mod plugin_system;
@@ -124,14 +123,6 @@ pub use init::{
 pub use manifest::{
     CURRENT_MANIFEST_SCHEMA_VERSION, ManifestProject, ManifestRuntime, ManifestSchemaVersion,
     ManifestWorkspace, MonadManifest,
-};
-pub use mcp_integration::{
-    ExternalToolPolicyCheck, ExternalToolPolicyDecision, McpCapabilityKind, McpContextExport,
-    McpIntegrationApplyResult, McpIntegrationBoundary, McpIntegrationPlan, McpToolCapability,
-    build_mcp_context_export, build_mcp_integration_plan, default_mcp_capabilities,
-    evaluate_external_tool_policy, render_mcp_context_export_json,
-    render_mcp_integration_apply_result, render_mcp_integration_plan,
-    render_mcp_integration_plan_json, write_mcp_integration_evidence,
 };
 pub use output::{
     OutputFormat, RepositoryDependencySummaryEntry, RepositoryInspectionSummary,

@@ -289,18 +289,6 @@ enum CliCommand {
         output_format: OutputFormat,
     },
 
-    /// Plan MCP/context export and external tool policy without invoking tools.
-    McpPlan {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated MCP integration evidence.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
     /// Plan plugin and extension loading without loading or executing plugins.
     PluginPlan {
         /// Whether to run in dry-run mode.
@@ -509,9 +497,6 @@ impl CliCommand {
             && parts.first().copied() != Some("analysis")
             && parts.first().copied() != Some("static-analysis")
             && parts.first().copied() != Some("sync")
-            && parts.first().copied() != Some("mcp-plan")
-            && parts.first().copied() != Some("mcp")
-            && parts.first().copied() != Some("external-tools")
             && parts.first().copied() != Some("plugin-plan")
             && parts.first().copied() != Some("plugins")
             && parts.first().copied() != Some("extensions")
@@ -765,20 +750,6 @@ impl CliCommand {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Check { output_format })
-            }
-            ["mcp-plan"] | ["mcp"] | ["external-tools"] => {
-                reject_write_for_non_context(write)?;
-                require_mcp_plan_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::McpPlan {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["mcp-plan", other, ..] | ["mcp", other, ..] | ["external-tools", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown mcp-plan argument: {other}"))
             }
             ["plugin-plan"] | ["plugins"] | ["extensions"] => {
                 reject_write_for_non_context(write)?;
@@ -1060,11 +1031,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             yes,
             output_format,
         } => render_sync(dry_run, yes, output_format),
-        CliCommand::McpPlan {
-            dry_run,
-            yes,
-            output_format,
-        } => render_mcp_plan(dry_run, yes, output_format),
         CliCommand::PluginPlan {
             dry_run,
             yes,
@@ -1205,17 +1171,6 @@ fn require_upgrade_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("upgrade currently requires either --dry-run to preview or --yes to apply guarded generated metadata".to_string())
         }
         (true, true) => Err("upgrade accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one MCP plan mode.
-fn require_mcp_plan_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => Err(
-            "mcp-plan currently requires either --dry-run to preview or --yes to write generated MCP integration evidence".to_string(),
-        ),
-        (true, true) => Err("mcp-plan accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -1489,9 +1444,6 @@ fn help_text() -> String {
         "  plugin-plan --dry-run                    Preview plugin/extension loading plan",
         "  plugin-plan --dry-run --format=json      Preview plugin plan as JSON",
         "  plugin-plan --yes                        Write generated plugin-system evidence",
-        "  mcp-plan --dry-run                       Preview MCP/external tool integration plan",
-        "  mcp-plan --dry-run --format=json         Preview MCP integration plan as JSON",
-        "  mcp-plan --yes                           Write generated MCP integration evidence",
         "  inspect                                   Inspect repository structure",
         "  graph                                     Render repository graph",
         "  plan \"<intent>\"                          Produce a supervised no-write plan",
@@ -1576,10 +1528,6 @@ fn help_text() -> String {
         "  monad plugin-plan --dry-run",
         "  monad plugin-plan --dry-run --format=json",
         "  monad plugins --dry-run",
-        "  monad mcp-plan --dry-run",
-        "  monad mcp-plan --dry-run --format=json",
-        "  monad mcp --dry-run",
-        "  monad external-tools --dry-run",
         "  monad extensions --dry-run",
         "  monad presets --dry-run",
         "  monad artifacts --dry-run",
@@ -1609,7 +1557,6 @@ fn help_text() -> String {
         "  report-store writes generated evidence only and does not delete artifacts.",
         "  template-registry writes generated evidence only and does not apply templates.",
         "  plugin-plan writes generated evidence only and does not load plugins.",
-        "  mcp-plan writes generated evidence only and does not invoke external tools.",
         "  adapters records command suggestions only; it does not run native tools.",
         "  --write is only supported for the context command.",
     ]
@@ -1656,31 +1603,6 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
     Ok(render_workspace_summary(&summary, output_format))
-}
-
-/// Renders or writes local MCP integration evidence.
-fn render_mcp_plan(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = monad_core::build_mcp_integration_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(monad_core::render_mcp_integration_plan(&plan)),
-            OutputFormat::Json => Ok(monad_core::render_mcp_integration_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result =
-            monad_core::write_mcp_integration_evidence(&root).map_err(|error| error.to_string())?;
-        return Ok(monad_core::render_mcp_integration_apply_result(&result));
-    }
-
-    Err("mcp-plan currently requires either --dry-run to preview or --yes to write generated MCP integration evidence".to_string())
 }
 
 /// Renders or writes local plugin-system evidence.
@@ -2756,71 +2678,6 @@ mod tests {
                 output_format: OutputFormat::Text,
             }
         );
-    }
-
-    #[test]
-    fn mcp_plan_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "mcp-plan", "--dry-run"])
-                .expect("mcp-plan dry-run should parse"),
-            CliCommand::McpPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "mcp-plan", "--dry-run", "--format=json"])
-                .expect("mcp-plan dry-run json should parse"),
-            CliCommand::McpPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn mcp_plan_aliases_parse() {
-        assert_eq!(
-            parse_arguments(&["monad", "mcp", "--dry-run"]).expect("mcp alias should parse"),
-            CliCommand::McpPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "external-tools", "--dry-run"])
-                .expect("external-tools alias should parse"),
-            CliCommand::McpPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn mcp_plan_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "mcp-plan", "--yes"]).expect("mcp-plan yes should parse"),
-            CliCommand::McpPlan {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn mcp_plan_requires_mode() {
-        let error =
-            parse_arguments(&["monad", "mcp-plan"]).expect_err("mcp-plan should require mode");
-
-        assert!(error.contains("mcp-plan currently requires either --dry-run"));
     }
 
     #[test]
