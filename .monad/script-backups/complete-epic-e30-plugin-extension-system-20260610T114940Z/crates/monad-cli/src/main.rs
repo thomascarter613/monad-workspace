@@ -289,18 +289,6 @@ enum CliCommand {
         output_format: OutputFormat,
     },
 
-    /// Plan plugin and extension loading without loading or executing plugins.
-    PluginPlan {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated plugin-system evidence.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
     /// Index local templates and presets without rendering or applying them.
     TemplateRegistry {
         /// Whether to run in dry-run mode.
@@ -497,9 +485,6 @@ impl CliCommand {
             && parts.first().copied() != Some("analysis")
             && parts.first().copied() != Some("static-analysis")
             && parts.first().copied() != Some("sync")
-            && parts.first().copied() != Some("plugin-plan")
-            && parts.first().copied() != Some("plugins")
-            && parts.first().copied() != Some("extensions")
             && parts.first().copied() != Some("template-registry")
             && parts.first().copied() != Some("templates")
             && parts.first().copied() != Some("presets")
@@ -750,20 +735,6 @@ impl CliCommand {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Check { output_format })
-            }
-            ["plugin-plan"] | ["plugins"] | ["extensions"] => {
-                reject_write_for_non_context(write)?;
-                require_plugin_plan_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::PluginPlan {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["plugin-plan", other, ..] | ["plugins", other, ..] | ["extensions", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown plugin-plan argument: {other}"))
             }
             ["template-registry"] | ["templates"] | ["presets"] => {
                 reject_write_for_non_context(write)?;
@@ -1031,11 +1002,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             yes,
             output_format,
         } => render_sync(dry_run, yes, output_format),
-        CliCommand::PluginPlan {
-            dry_run,
-            yes,
-            output_format,
-        } => render_plugin_plan(dry_run, yes, output_format),
         CliCommand::TemplateRegistry {
             dry_run,
             yes,
@@ -1171,17 +1137,6 @@ fn require_upgrade_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("upgrade currently requires either --dry-run to preview or --yes to apply guarded generated metadata".to_string())
         }
         (true, true) => Err("upgrade accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one plugin-plan mode.
-fn require_plugin_plan_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => Err(
-            "plugin-plan currently requires either --dry-run to preview or --yes to write generated plugin-system evidence".to_string(),
-        ),
-        (true, true) => Err("plugin-plan accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -1441,9 +1396,6 @@ fn help_text() -> String {
         "  template-registry --dry-run               Preview local template/preset registry",
         "  template-registry --dry-run --format=json Preview template registry as JSON",
         "  template-registry --yes                   Write generated template-registry evidence",
-        "  plugin-plan --dry-run                    Preview plugin/extension loading plan",
-        "  plugin-plan --dry-run --format=json      Preview plugin plan as JSON",
-        "  plugin-plan --yes                        Write generated plugin-system evidence",
         "  inspect                                   Inspect repository structure",
         "  graph                                     Render repository graph",
         "  plan \"<intent>\"                          Produce a supervised no-write plan",
@@ -1525,10 +1477,6 @@ fn help_text() -> String {
         "  monad template-registry --dry-run",
         "  monad template-registry --dry-run --format=json",
         "  monad templates --dry-run",
-        "  monad plugin-plan --dry-run",
-        "  monad plugin-plan --dry-run --format=json",
-        "  monad plugins --dry-run",
-        "  monad extensions --dry-run",
         "  monad presets --dry-run",
         "  monad artifacts --dry-run",
         "  monad incremental-plan --dry-run",
@@ -1556,7 +1504,6 @@ fn help_text() -> String {
         "  cache-plan writes generated evidence only and does not execute tasks.",
         "  report-store writes generated evidence only and does not delete artifacts.",
         "  template-registry writes generated evidence only and does not apply templates.",
-        "  plugin-plan writes generated evidence only and does not load plugins.",
         "  adapters records command suggestions only; it does not run native tools.",
         "  --write is only supported for the context command.",
     ]
@@ -1603,31 +1550,6 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
     Ok(render_workspace_summary(&summary, output_format))
-}
-
-/// Renders or writes local plugin-system evidence.
-fn render_plugin_plan(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = monad_core::build_plugin_system_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(monad_core::render_plugin_system_plan(&plan)),
-            OutputFormat::Json => Ok(monad_core::render_plugin_system_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result =
-            monad_core::write_plugin_system_evidence(&root).map_err(|error| error.to_string())?;
-        return Ok(monad_core::render_plugin_system_apply_result(&result));
-    }
-
-    Err("plugin-plan currently requires either --dry-run to preview or --yes to write generated plugin-system evidence".to_string())
 }
 
 /// Renders or writes local template-registry evidence.
@@ -2678,73 +2600,6 @@ mod tests {
                 output_format: OutputFormat::Text,
             }
         );
-    }
-
-    #[test]
-    fn plugin_plan_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "plugin-plan", "--dry-run"])
-                .expect("plugin-plan dry-run should parse"),
-            CliCommand::PluginPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "plugin-plan", "--dry-run", "--format=json"])
-                .expect("plugin-plan dry-run json should parse"),
-            CliCommand::PluginPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn plugin_plan_aliases_parse() {
-        assert_eq!(
-            parse_arguments(&["monad", "plugins", "--dry-run"])
-                .expect("plugins alias should parse"),
-            CliCommand::PluginPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "extensions", "--dry-run"])
-                .expect("extensions alias should parse"),
-            CliCommand::PluginPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn plugin_plan_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "plugin-plan", "--yes"])
-                .expect("plugin-plan yes should parse"),
-            CliCommand::PluginPlan {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn plugin_plan_requires_mode() {
-        let error = parse_arguments(&["monad", "plugin-plan"])
-            .expect_err("plugin-plan should require mode");
-
-        assert!(error.contains("plugin-plan currently requires either --dry-run"));
     }
 
     #[test]

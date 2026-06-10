@@ -27,7 +27,6 @@ pub mod language_adapters;
 pub mod manifest;
 pub mod output;
 pub mod patch;
-pub mod plugin_system;
 pub mod policy;
 pub mod release;
 pub mod repo_contract;
@@ -135,13 +134,6 @@ pub use patch::{
     PatchValidationFinding, PatchValidationReport, PatchValidationSeverity, apply_patch_plan,
     build_patch_plan, render_patch_apply_result, render_patch_apply_result_json, render_patch_plan,
     render_patch_plan_json,
-};
-pub use plugin_system::{
-    ExtensionPoint, PluginLoadDecision, PluginLoadingPlanEntry, PluginManifestRecord,
-    PluginSafetyFinding, PluginSystemApplyResult, PluginSystemPlan, PluginTrustLevel,
-    build_plugin_system_plan, default_extension_points, discover_plugin_manifests,
-    evaluate_plugin_safety, plan_plugin_loading, render_plugin_system_apply_result,
-    render_plugin_system_plan, render_plugin_system_plan_json, write_plugin_system_evidence,
 };
 pub use release::{
     ReleaseCheck, ReleaseCheckCategory, ReleaseCheckSeverity, ReleaseDecision, ReleasePlan,
