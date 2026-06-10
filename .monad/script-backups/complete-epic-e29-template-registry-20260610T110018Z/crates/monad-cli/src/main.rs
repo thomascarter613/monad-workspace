@@ -289,18 +289,6 @@ enum CliCommand {
         output_format: OutputFormat,
     },
 
-    /// Index local templates and presets without rendering or applying them.
-    TemplateRegistry {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated template-registry evidence.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
     /// Index the local report/artifact store without uploading or deleting objects.
     ReportStore {
         /// Whether to run in dry-run mode.
@@ -485,9 +473,6 @@ impl CliCommand {
             && parts.first().copied() != Some("analysis")
             && parts.first().copied() != Some("static-analysis")
             && parts.first().copied() != Some("sync")
-            && parts.first().copied() != Some("template-registry")
-            && parts.first().copied() != Some("templates")
-            && parts.first().copied() != Some("presets")
             && parts.first().copied() != Some("report-store")
             && parts.first().copied() != Some("reports")
             && parts.first().copied() != Some("artifacts")
@@ -735,20 +720,6 @@ impl CliCommand {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Check { output_format })
-            }
-            ["template-registry"] | ["templates"] | ["presets"] => {
-                reject_write_for_non_context(write)?;
-                require_template_registry_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::TemplateRegistry {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["template-registry", other, ..] | ["templates", other, ..] | ["presets", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown template-registry argument: {other}"))
             }
             ["report-store"] | ["reports"] | ["artifacts"] => {
                 reject_write_for_non_context(write)?;
@@ -1002,11 +973,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             yes,
             output_format,
         } => render_sync(dry_run, yes, output_format),
-        CliCommand::TemplateRegistry {
-            dry_run,
-            yes,
-            output_format,
-        } => render_template_registry(dry_run, yes, output_format),
         CliCommand::ReportStore {
             dry_run,
             yes,
@@ -1137,19 +1103,6 @@ fn require_upgrade_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("upgrade currently requires either --dry-run to preview or --yes to apply guarded generated metadata".to_string())
         }
         (true, true) => Err("upgrade accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one template-registry mode.
-fn require_template_registry_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => Err(
-            "template-registry currently requires either --dry-run to preview or --yes to write generated template-registry evidence".to_string(),
-        ),
-        (true, true) => {
-            Err("template-registry accepts either --dry-run or --yes, not both".to_string())
-        }
     }
 }
 
@@ -1393,9 +1346,6 @@ fn help_text() -> String {
         "  report-store --dry-run                    Preview local report/artifact index",
         "  report-store --dry-run --format=json      Preview local report/artifact index as JSON",
         "  report-store --yes                        Write generated report-store evidence",
-        "  template-registry --dry-run               Preview local template/preset registry",
-        "  template-registry --dry-run --format=json Preview template registry as JSON",
-        "  template-registry --yes                   Write generated template-registry evidence",
         "  inspect                                   Inspect repository structure",
         "  graph                                     Render repository graph",
         "  plan \"<intent>\"                          Produce a supervised no-write plan",
@@ -1474,10 +1424,6 @@ fn help_text() -> String {
         "  monad report-store --dry-run",
         "  monad report-store --dry-run --format=json",
         "  monad reports --dry-run",
-        "  monad template-registry --dry-run",
-        "  monad template-registry --dry-run --format=json",
-        "  monad templates --dry-run",
-        "  monad presets --dry-run",
         "  monad artifacts --dry-run",
         "  monad incremental-plan --dry-run",
         "  monad graph --format=mermaid",
@@ -1503,7 +1449,6 @@ fn help_text() -> String {
         "  verify-plan writes generated evidence only and does not execute tests.",
         "  cache-plan writes generated evidence only and does not execute tasks.",
         "  report-store writes generated evidence only and does not delete artifacts.",
-        "  template-registry writes generated evidence only and does not apply templates.",
         "  adapters records command suggestions only; it does not run native tools.",
         "  --write is only supported for the context command.",
     ]
@@ -1550,31 +1495,6 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
     Ok(render_workspace_summary(&summary, output_format))
-}
-
-/// Renders or writes local template-registry evidence.
-fn render_template_registry(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = monad_core::build_template_registry_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(monad_core::render_template_registry_plan(&plan)),
-            OutputFormat::Json => Ok(monad_core::render_template_registry_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result = monad_core::write_template_registry_evidence(&root)
-            .map_err(|error| error.to_string())?;
-        return Ok(monad_core::render_template_registry_apply_result(&result));
-    }
-
-    Err("template-registry currently requires either --dry-run to preview or --yes to write generated template-registry evidence".to_string())
 }
 
 /// Renders or writes local report/artifact store evidence.
@@ -2600,73 +2520,6 @@ mod tests {
                 output_format: OutputFormat::Text,
             }
         );
-    }
-
-    #[test]
-    fn template_registry_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "template-registry", "--dry-run"])
-                .expect("template-registry dry-run should parse"),
-            CliCommand::TemplateRegistry {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "template-registry", "--dry-run", "--format=json"])
-                .expect("template-registry dry-run json should parse"),
-            CliCommand::TemplateRegistry {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            }
-        );
-    }
-
-    #[test]
-    fn template_registry_aliases_parse() {
-        assert_eq!(
-            parse_arguments(&["monad", "templates", "--dry-run"])
-                .expect("templates alias should parse"),
-            CliCommand::TemplateRegistry {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "presets", "--dry-run"])
-                .expect("presets alias should parse"),
-            CliCommand::TemplateRegistry {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn template_registry_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "template-registry", "--yes"])
-                .expect("template-registry yes should parse"),
-            CliCommand::TemplateRegistry {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            }
-        );
-    }
-
-    #[test]
-    fn template_registry_requires_mode() {
-        let error = parse_arguments(&["monad", "template-registry"])
-            .expect_err("template-registry should require mode");
-
-        assert!(error.contains("template-registry currently requires either --dry-run"));
     }
 
     #[test]

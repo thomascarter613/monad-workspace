@@ -37,7 +37,6 @@ pub mod repository_inspection;
 pub mod repository_policy;
 pub mod static_analysis;
 pub mod sync;
-pub mod template_registry;
 pub mod templates;
 pub mod test_intelligence;
 pub mod toolchain_detection;
@@ -182,15 +181,6 @@ pub use sync::{
     SyncApplyResult, SyncFinding, SyncFindingKind, SyncFindingSeverity, SyncPlan, apply_sync_plan,
     build_sync_plan, render_sync_apply_result, render_sync_evidence_markdown, render_sync_plan,
     render_sync_plan_json,
-};
-pub use template_registry::{
-    PresetMetadata, PresetUpgradeAction, PresetUpgradePlan, TemplateCompatibility,
-    TemplateMetadata as TemplateRegistryMetadata, TemplateRegistryApplyResult,
-    TemplateRegistryContract, TemplateRegistryPlan, build_template_registry_plan, discover_presets,
-    discover_templates, plan_preset_upgrades, render_template_registry_apply_result,
-    render_template_registry_plan, render_template_registry_plan_json,
-    validate_preset_compatibility, validate_template_compatibility,
-    write_template_registry_evidence,
 };
 pub use templates::{
     TemplateDefinition, TemplateId, TemplateMetadata, TemplateRegistry, TemplateSourceKind,

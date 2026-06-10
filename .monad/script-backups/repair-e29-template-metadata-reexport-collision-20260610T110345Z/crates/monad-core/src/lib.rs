@@ -185,12 +185,11 @@ pub use sync::{
 };
 pub use template_registry::{
     PresetMetadata, PresetUpgradeAction, PresetUpgradePlan, TemplateCompatibility,
-    TemplateMetadata as TemplateRegistryMetadata, TemplateRegistryApplyResult,
-    TemplateRegistryContract, TemplateRegistryPlan, build_template_registry_plan, discover_presets,
-    discover_templates, plan_preset_upgrades, render_template_registry_apply_result,
-    render_template_registry_plan, render_template_registry_plan_json,
-    validate_preset_compatibility, validate_template_compatibility,
-    write_template_registry_evidence,
+    TemplateMetadata, TemplateRegistryApplyResult, TemplateRegistryContract, TemplateRegistryPlan,
+    build_template_registry_plan, discover_presets, discover_templates, plan_preset_upgrades,
+    render_template_registry_apply_result, render_template_registry_plan,
+    render_template_registry_plan_json, validate_preset_compatibility,
+    validate_template_compatibility, write_template_registry_evidence,
 };
 pub use templates::{
     TemplateDefinition, TemplateId, TemplateMetadata, TemplateRegistry, TemplateSourceKind,
