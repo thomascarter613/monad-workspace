@@ -289,18 +289,6 @@ enum CliCommand {
         output_format: OutputFormat,
     },
 
-    /// Plan agent workflow sandbox behavior without executing actions.
-    SandboxPlan {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated sandbox evidence.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
     /// Plan local AI retrieval and vector memory without provider calls.
     RetrievalPlan {
         /// Whether to run in dry-run mode.
@@ -533,9 +521,6 @@ impl CliCommand {
             && parts.first().copied() != Some("analysis")
             && parts.first().copied() != Some("static-analysis")
             && parts.first().copied() != Some("sync")
-            && parts.first().copied() != Some("sandbox-plan")
-            && parts.first().copied() != Some("agent-sandbox")
-            && parts.first().copied() != Some("sandbox-verify")
             && parts.first().copied() != Some("retrieval-plan")
             && parts.first().copied() != Some("local-retrieval")
             && parts.first().copied() != Some("vector-memory")
@@ -795,22 +780,6 @@ impl CliCommand {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Check { output_format })
-            }
-            ["sandbox-plan"] | ["agent-sandbox"] | ["sandbox-verify"] => {
-                reject_write_for_non_context(write)?;
-                require_sandbox_plan_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::SandboxPlan {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["sandbox-plan", other, ..]
-            | ["agent-sandbox", other, ..]
-            | ["sandbox-verify", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown sandbox-plan argument: {other}"))
             }
             ["retrieval-plan"] | ["local-retrieval"] | ["vector-memory"] => {
                 reject_write_for_non_context(write)?;
@@ -1122,11 +1091,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             yes,
             output_format,
         } => render_sync(dry_run, yes, output_format),
-        CliCommand::SandboxPlan {
-            dry_run,
-            yes,
-            output_format,
-        } => render_sandbox_plan(dry_run, yes, output_format),
         CliCommand::RetrievalPlan {
             dry_run,
             yes,
@@ -1277,17 +1241,6 @@ fn require_upgrade_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("upgrade currently requires either --dry-run to preview or --yes to apply guarded generated metadata".to_string())
         }
         (true, true) => Err("upgrade accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one sandbox-plan mode.
-fn require_sandbox_plan_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => Err(
-            "sandbox-plan currently requires either --dry-run to preview or --yes to write generated sandbox evidence".to_string(),
-        ),
-        (true, true) => Err("sandbox-plan accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -1589,9 +1542,6 @@ fn help_text() -> String {
         "  retrieval-plan --dry-run                 Preview local AI retrieval/vector-memory plan",
         "  retrieval-plan --dry-run --format=json   Preview retrieval plan as JSON",
         "  retrieval-plan --yes                     Write generated retrieval evidence",
-        "  sandbox-plan --dry-run                  Preview agent workflow sandbox plan",
-        "  sandbox-plan --dry-run --format=json    Preview sandbox plan as JSON",
-        "  sandbox-plan --yes                      Write generated sandbox evidence",
         "  inspect                                   Inspect repository structure",
         "  graph                                     Render repository graph",
         "  plan \"<intent>\"                          Produce a supervised no-write plan",
@@ -1684,10 +1634,6 @@ fn help_text() -> String {
         "  monad retrieval-plan --dry-run --format=json",
         "  monad local-retrieval --dry-run",
         "  monad vector-memory --dry-run",
-        "  monad sandbox-plan --dry-run",
-        "  monad sandbox-plan --dry-run --format=json",
-        "  monad agent-sandbox --dry-run",
-        "  monad sandbox-verify --dry-run",
         "  monad extensions --dry-run",
         "  monad presets --dry-run",
         "  monad artifacts --dry-run",
@@ -1719,7 +1665,6 @@ fn help_text() -> String {
         "  plugin-plan writes generated evidence only and does not load plugins.",
         "  mcp-plan writes generated evidence only and does not invoke external tools.",
         "  retrieval-plan writes generated evidence only and does not call model providers.",
-        "  sandbox-plan writes generated evidence only and does not execute agent actions.",
         "  adapters records command suggestions only; it does not run native tools.",
         "  --write is only supported for the context command.",
     ]
@@ -1766,31 +1711,6 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
     Ok(render_workspace_summary(&summary, output_format))
-}
-
-/// Renders or writes local agent sandbox evidence.
-fn render_sandbox_plan(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = monad_core::build_agent_sandbox_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(monad_core::render_agent_sandbox_plan(&plan)),
-            OutputFormat::Json => Ok(monad_core::render_agent_sandbox_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result =
-            monad_core::write_agent_sandbox_evidence(&root).map_err(|error| error.to_string())?;
-        return Ok(monad_core::render_agent_sandbox_apply_result(&result));
-    }
-
-    Err("sandbox-plan currently requires either --dry-run to preview or --yes to write generated sandbox evidence".to_string())
 }
 
 /// Renders or writes local AI retrieval evidence.
@@ -2916,70 +2836,6 @@ mod tests {
                 output_format: OutputFormat::Text,
             }
         );
-    }
-
-    #[test]
-    fn sandbox_plan_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "sandbox-plan", "--dry-run"]),
-            Ok(CliCommand::SandboxPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            })
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "sandbox-plan", "--dry-run", "--format=json"]),
-            Ok(CliCommand::SandboxPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            })
-        );
-    }
-
-    #[test]
-    fn sandbox_plan_aliases_parse() {
-        assert_eq!(
-            parse_arguments(&["monad", "agent-sandbox", "--dry-run"]),
-            Ok(CliCommand::SandboxPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            })
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "sandbox-verify", "--dry-run"]),
-            Ok(CliCommand::SandboxPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            })
-        );
-    }
-
-    #[test]
-    fn sandbox_plan_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "sandbox-plan", "--yes"]),
-            Ok(CliCommand::SandboxPlan {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            })
-        );
-    }
-
-    #[test]
-    fn sandbox_plan_requires_mode() {
-        match parse_arguments(&["monad", "sandbox-plan"]) {
-            Ok(_) => panic!("sandbox-plan should require --dry-run or --yes"),
-            Err(error) => {
-                assert!(error.contains("sandbox-plan currently requires either --dry-run"));
-            }
-        }
     }
 
     #[test]

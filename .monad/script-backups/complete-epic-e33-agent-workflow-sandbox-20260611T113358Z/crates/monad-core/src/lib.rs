@@ -6,7 +6,6 @@
 //! Monad's architecture keeps durable product logic here, while the CLI crate
 //! stays thin and delegates to this library.
 
-pub mod agent_sandbox;
 pub mod agents;
 pub mod ai_context;
 pub mod build_cache;
@@ -49,13 +48,6 @@ pub mod upgrade;
 pub mod work_packet;
 pub mod workspace;
 
-pub use agent_sandbox::{
-    AgentDraftOperation, AgentSandboxActionDecision, AgentSandboxApplyResult, AgentSandboxBoundary,
-    AgentSandboxPlan, AgentSandboxPromotionApproval, AgentSandboxPromotionState,
-    AgentSandboxVerificationCommand, AgentSandboxWorkspace, build_agent_sandbox_plan,
-    render_agent_sandbox_apply_result, render_agent_sandbox_plan, render_agent_sandbox_plan_json,
-    write_agent_sandbox_evidence,
-};
 pub use ai_context::{
     AiContextApplyResult, AiContextArtifact, AiContextPlan, AiProviderConfig, AiProviderMode,
     MemoryRecord, MemoryRecordKind, apply_ai_context_plan, build_ai_context_plan,
