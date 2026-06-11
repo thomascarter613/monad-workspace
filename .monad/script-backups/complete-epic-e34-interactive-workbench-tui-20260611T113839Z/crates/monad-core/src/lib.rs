@@ -24,7 +24,6 @@ pub mod exec;
 pub mod file_ops;
 pub mod git;
 pub mod init;
-pub mod interactive_workbench;
 pub mod language_adapters;
 pub mod local_ai_retrieval;
 pub mod manifest;
@@ -130,13 +129,6 @@ pub use git::{
 pub use init::{
     InitApplyResult, InitPlanOptions, InitPreset, apply_init_plan, build_init_plan,
     render_init_apply_result, render_init_dry_run,
-};
-pub use interactive_workbench::{
-    InteractiveWorkbenchApplyResult, InteractiveWorkbenchPlan, WorkbenchApprovalReview,
-    WorkbenchIssueView, WorkbenchNavigationItem, WorkbenchNavigationModel, WorkbenchScreenKind,
-    WorkbenchShellFrame, WorkbenchViewerPane, build_interactive_workbench_plan,
-    render_interactive_workbench_apply_result, render_interactive_workbench_plan,
-    render_interactive_workbench_plan_json, write_interactive_workbench_evidence,
 };
 pub use local_ai_retrieval::{
     LocalAiDocumentChunk, LocalAiEmbedding, LocalAiEmbeddingProvider, LocalAiIndexedChunk,

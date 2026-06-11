@@ -289,18 +289,6 @@ enum CliCommand {
         output_format: OutputFormat,
     },
 
-    /// Plan interactive workbench/TUI behavior without starting an event loop.
-    WorkbenchPlan {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated workbench evidence.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
     /// Plan agent workflow sandbox behavior without executing actions.
     SandboxPlan {
         /// Whether to run in dry-run mode.
@@ -545,9 +533,6 @@ impl CliCommand {
             && parts.first().copied() != Some("analysis")
             && parts.first().copied() != Some("static-analysis")
             && parts.first().copied() != Some("sync")
-            && parts.first().copied() != Some("workbench-plan")
-            && parts.first().copied() != Some("workbench")
-            && parts.first().copied() != Some("tui")
             && parts.first().copied() != Some("sandbox-plan")
             && parts.first().copied() != Some("agent-sandbox")
             && parts.first().copied() != Some("sandbox-verify")
@@ -810,20 +795,6 @@ impl CliCommand {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Check { output_format })
-            }
-            ["workbench-plan"] | ["workbench"] | ["tui"] => {
-                reject_write_for_non_context(write)?;
-                require_workbench_plan_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::WorkbenchPlan {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["workbench-plan", other, ..] | ["workbench", other, ..] | ["tui", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown workbench-plan argument: {other}"))
             }
             ["sandbox-plan"] | ["agent-sandbox"] | ["sandbox-verify"] => {
                 reject_write_for_non_context(write)?;
@@ -1151,11 +1122,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             yes,
             output_format,
         } => render_sync(dry_run, yes, output_format),
-        CliCommand::WorkbenchPlan {
-            dry_run,
-            yes,
-            output_format,
-        } => render_workbench_plan(dry_run, yes, output_format),
         CliCommand::SandboxPlan {
             dry_run,
             yes,
@@ -1311,17 +1277,6 @@ fn require_upgrade_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("upgrade currently requires either --dry-run to preview or --yes to apply guarded generated metadata".to_string())
         }
         (true, true) => Err("upgrade accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one workbench-plan mode.
-fn require_workbench_plan_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => Err(
-            "workbench-plan currently requires either --dry-run to preview or --yes to write generated workbench evidence".to_string(),
-        ),
-        (true, true) => Err("workbench-plan accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -1637,9 +1592,6 @@ fn help_text() -> String {
         "  sandbox-plan --dry-run                  Preview agent workflow sandbox plan",
         "  sandbox-plan --dry-run --format=json    Preview sandbox plan as JSON",
         "  sandbox-plan --yes                      Write generated sandbox evidence",
-        "  workbench-plan --dry-run                 Preview interactive workbench/TUI plan",
-        "  workbench-plan --dry-run --format=json   Preview workbench plan as JSON",
-        "  workbench-plan --yes                     Write generated workbench evidence",
         "  inspect                                   Inspect repository structure",
         "  graph                                     Render repository graph",
         "  plan \"<intent>\"                          Produce a supervised no-write plan",
@@ -1736,10 +1688,6 @@ fn help_text() -> String {
         "  monad sandbox-plan --dry-run --format=json",
         "  monad agent-sandbox --dry-run",
         "  monad sandbox-verify --dry-run",
-        "  monad workbench-plan --dry-run",
-        "  monad workbench-plan --dry-run --format=json",
-        "  monad workbench --dry-run",
-        "  monad tui --dry-run",
         "  monad extensions --dry-run",
         "  monad presets --dry-run",
         "  monad artifacts --dry-run",
@@ -1772,7 +1720,6 @@ fn help_text() -> String {
         "  mcp-plan writes generated evidence only and does not invoke external tools.",
         "  retrieval-plan writes generated evidence only and does not call model providers.",
         "  sandbox-plan writes generated evidence only and does not execute agent actions.",
-        "  workbench-plan writes generated evidence only and does not start a TUI event loop.",
         "  adapters records command suggestions only; it does not run native tools.",
         "  --write is only supported for the context command.",
     ]
@@ -1819,33 +1766,6 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
     Ok(render_workspace_summary(&summary, output_format))
-}
-
-/// Renders or writes local interactive workbench evidence.
-fn render_workbench_plan(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = monad_core::build_interactive_workbench_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(monad_core::render_interactive_workbench_plan(&plan)),
-            OutputFormat::Json => Ok(monad_core::render_interactive_workbench_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result = monad_core::write_interactive_workbench_evidence(&root)
-            .map_err(|error| error.to_string())?;
-        return Ok(monad_core::render_interactive_workbench_apply_result(
-            &result,
-        ));
-    }
-
-    Err("workbench-plan currently requires either --dry-run to preview or --yes to write generated workbench evidence".to_string())
 }
 
 /// Renders or writes local agent sandbox evidence.
@@ -2996,70 +2916,6 @@ mod tests {
                 output_format: OutputFormat::Text,
             }
         );
-    }
-
-    #[test]
-    fn workbench_plan_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "workbench-plan", "--dry-run"]),
-            Ok(CliCommand::WorkbenchPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            })
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "workbench-plan", "--dry-run", "--format=json"]),
-            Ok(CliCommand::WorkbenchPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            })
-        );
-    }
-
-    #[test]
-    fn workbench_plan_aliases_parse() {
-        assert_eq!(
-            parse_arguments(&["monad", "workbench", "--dry-run"]),
-            Ok(CliCommand::WorkbenchPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            })
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "tui", "--dry-run"]),
-            Ok(CliCommand::WorkbenchPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            })
-        );
-    }
-
-    #[test]
-    fn workbench_plan_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "workbench-plan", "--yes"]),
-            Ok(CliCommand::WorkbenchPlan {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            })
-        );
-    }
-
-    #[test]
-    fn workbench_plan_requires_mode() {
-        match parse_arguments(&["monad", "workbench-plan"]) {
-            Ok(_) => panic!("workbench-plan should require --dry-run or --yes"),
-            Err(error) => {
-                assert!(error.contains("workbench-plan currently requires either --dry-run"));
-            }
-        }
     }
 
     #[test]
