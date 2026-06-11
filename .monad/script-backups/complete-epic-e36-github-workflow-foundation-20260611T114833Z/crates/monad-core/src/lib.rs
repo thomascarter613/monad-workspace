@@ -23,7 +23,6 @@ pub mod evolution;
 pub mod exec;
 pub mod file_ops;
 pub mod git;
-pub mod github_workflow;
 pub mod init;
 pub mod interactive_workbench;
 pub mod language_adapters;
@@ -128,14 +127,6 @@ pub use file_ops::{
 };
 pub use git::{
     GitEvolutionSafety, GitWorkingTreeStatus, inspect_git_working_tree, parse_git_status_porcelain,
-};
-pub use github_workflow::{
-    GithubBranchPrPlan, GithubIntegrationBoundary, GithubIssueCloseoutEvidence,
-    GithubIssueExportRecord, GithubPrReviewPack, GithubWorkflowApplyResult,
-    GithubWorkflowBoundaryDecision, GithubWorkflowPlan, build_github_workflow_plan,
-    render_github_issue_closeout_evidence, render_github_pr_review_pack,
-    render_github_workflow_apply_result, render_github_workflow_plan,
-    render_github_workflow_plan_json, write_github_workflow_evidence,
 };
 pub use init::{
     InitApplyResult, InitPlanOptions, InitPreset, apply_init_plan, build_init_plan,

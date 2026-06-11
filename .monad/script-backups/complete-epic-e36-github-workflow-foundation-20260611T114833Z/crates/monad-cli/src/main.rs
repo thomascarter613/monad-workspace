@@ -289,18 +289,6 @@ enum CliCommand {
         output_format: OutputFormat,
     },
 
-    /// Plan GitHub issue/branch/PR workflow without remote mutation.
-    GithubPlan {
-        /// Whether to run in dry-run mode.
-        dry_run: bool,
-
-        /// Whether to write generated GitHub workflow evidence.
-        yes: bool,
-
-        /// Requested output format.
-        output_format: OutputFormat,
-    },
-
     /// Plan local web workbench behavior without starting a server.
     WebWorkbenchPlan {
         /// Whether to run in dry-run mode.
@@ -569,9 +557,6 @@ impl CliCommand {
             && parts.first().copied() != Some("analysis")
             && parts.first().copied() != Some("static-analysis")
             && parts.first().copied() != Some("sync")
-            && parts.first().copied() != Some("github-plan")
-            && parts.first().copied() != Some("github-workflow")
-            && parts.first().copied() != Some("pr-plan")
             && parts.first().copied() != Some("web-workbench-plan")
             && parts.first().copied() != Some("web-workbench")
             && parts.first().copied() != Some("web-ui")
@@ -840,22 +825,6 @@ impl CliCommand {
                 reject_write_for_non_context(write)?;
                 let output_format = parse_output_format_or_default(requested_format.as_deref())?;
                 Ok(Self::Check { output_format })
-            }
-            ["github-plan"] | ["github-workflow"] | ["pr-plan"] => {
-                reject_write_for_non_context(write)?;
-                require_github_plan_mode(dry_run, yes)?;
-                let output_format = parse_output_format_or_default(requested_format.as_deref())?;
-                Ok(Self::GithubPlan {
-                    dry_run,
-                    yes,
-                    output_format,
-                })
-            }
-            ["github-plan", other, ..]
-            | ["github-workflow", other, ..]
-            | ["pr-plan", other, ..] => {
-                reject_write_for_non_context(write)?;
-                Err(format!("unknown github-plan argument: {other}"))
             }
             ["web-workbench-plan"] | ["web-workbench"] | ["web-ui"] => {
                 reject_write_for_non_context(write)?;
@@ -1213,11 +1182,6 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<String, String> {
             yes,
             output_format,
         } => render_sync(dry_run, yes, output_format),
-        CliCommand::GithubPlan {
-            dry_run,
-            yes,
-            output_format,
-        } => render_github_plan(dry_run, yes, output_format),
         CliCommand::WebWorkbenchPlan {
             dry_run,
             yes,
@@ -1383,17 +1347,6 @@ fn require_upgrade_mode(dry_run: bool, yes: bool) -> Result<(), String> {
             Err("upgrade currently requires either --dry-run to preview or --yes to apply guarded generated metadata".to_string())
         }
         (true, true) => Err("upgrade accepts either --dry-run or --yes, not both".to_string()),
-    }
-}
-
-/// Requires exactly one github-plan mode.
-fn require_github_plan_mode(dry_run: bool, yes: bool) -> Result<(), String> {
-    match (dry_run, yes) {
-        (true, false) | (false, true) => Ok(()),
-        (false, false) => Err(
-            "github-plan currently requires either --dry-run to preview or --yes to write generated GitHub workflow evidence".to_string(),
-        ),
-        (true, true) => Err("github-plan accepts either --dry-run or --yes, not both".to_string()),
     }
 }
 
@@ -1737,9 +1690,6 @@ fn help_text() -> String {
         "  web-workbench-plan --dry-run             Preview local web workbench plan",
         "  web-workbench-plan --dry-run --format=json Preview web workbench plan as JSON",
         "  web-workbench-plan --yes                 Write generated web workbench evidence",
-        "  github-plan --dry-run                   Preview GitHub issue/PR workflow plan",
-        "  github-plan --dry-run --format=json     Preview GitHub workflow plan as JSON",
-        "  github-plan --yes                       Write generated GitHub workflow evidence",
         "  inspect                                   Inspect repository structure",
         "  graph                                     Render repository graph",
         "  plan \"<intent>\"                          Produce a supervised no-write plan",
@@ -1844,10 +1794,6 @@ fn help_text() -> String {
         "  monad web-workbench-plan --dry-run --format=json",
         "  monad web-workbench --dry-run",
         "  monad web-ui --dry-run",
-        "  monad github-plan --dry-run",
-        "  monad github-plan --dry-run --format=json",
-        "  monad github-workflow --dry-run",
-        "  monad pr-plan --dry-run",
         "  monad extensions --dry-run",
         "  monad presets --dry-run",
         "  monad artifacts --dry-run",
@@ -1882,7 +1828,6 @@ fn help_text() -> String {
         "  sandbox-plan writes generated evidence only and does not execute agent actions.",
         "  workbench-plan writes generated evidence only and does not start a TUI event loop.",
         "  web-workbench-plan writes generated evidence only and does not start an HTTP server.",
-        "  github-plan writes generated evidence only and does not call GitHub APIs.",
         "  adapters records command suggestions only; it does not run native tools.",
         "  --write is only supported for the context command.",
     ]
@@ -1929,31 +1874,6 @@ fn render_info(output_format: OutputFormat) -> Result<String, String> {
     let summary = workspace_summary_from_manifest(&context, &manifest);
 
     Ok(render_workspace_summary(&summary, output_format))
-}
-
-/// Renders or writes local GitHub workflow evidence.
-fn render_github_plan(
-    dry_run: bool,
-    yes: bool,
-    output_format: OutputFormat,
-) -> Result<String, String> {
-    let root = std::env::current_dir().map_err(|error| error.to_string())?;
-
-    if dry_run {
-        let plan = monad_core::build_github_workflow_plan(&root);
-        return match output_format {
-            OutputFormat::Text => Ok(monad_core::render_github_workflow_plan(&plan)),
-            OutputFormat::Json => Ok(monad_core::render_github_workflow_plan_json(&plan)),
-        };
-    }
-
-    if yes {
-        let result =
-            monad_core::write_github_workflow_evidence(&root).map_err(|error| error.to_string())?;
-        return Ok(monad_core::render_github_workflow_apply_result(&result));
-    }
-
-    Err("github-plan currently requires either --dry-run to preview or --yes to write generated GitHub workflow evidence".to_string())
 }
 
 /// Renders or writes local web workbench evidence.
@@ -3155,73 +3075,6 @@ mod tests {
                 yes: true,
                 output_format: OutputFormat::Text,
             }
-        );
-    }
-
-    #[test]
-    fn github_plan_dry_run_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "github-plan", "--dry-run"]),
-            Ok(CliCommand::GithubPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            })
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "github-plan", "--dry-run", "--format=json"]),
-            Ok(CliCommand::GithubPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Json,
-            })
-        );
-    }
-
-    #[test]
-    fn github_plan_aliases_parse() {
-        assert_eq!(
-            parse_arguments(&["monad", "github-workflow", "--dry-run"]),
-            Ok(CliCommand::GithubPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            })
-        );
-
-        assert_eq!(
-            parse_arguments(&["monad", "pr-plan", "--dry-run"]),
-            Ok(CliCommand::GithubPlan {
-                dry_run: true,
-                yes: false,
-                output_format: OutputFormat::Text,
-            })
-        );
-    }
-
-    #[test]
-    fn github_plan_yes_command_parses() {
-        assert_eq!(
-            parse_arguments(&["monad", "github-plan", "--yes"]),
-            Ok(CliCommand::GithubPlan {
-                dry_run: false,
-                yes: true,
-                output_format: OutputFormat::Text,
-            })
-        );
-    }
-
-    #[test]
-    fn github_plan_requires_mode() {
-        let result = parse_arguments(&["monad", "github-plan"]);
-        assert!(
-            matches!(
-                result,
-                Err(ref error)
-                    if error.contains("github-plan currently requires either --dry-run")
-            ),
-            "expected github-plan to require --dry-run or --yes; got {result:?}"
         );
     }
 
