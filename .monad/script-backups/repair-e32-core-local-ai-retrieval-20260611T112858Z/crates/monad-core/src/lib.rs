@@ -24,7 +24,6 @@ pub mod file_ops;
 pub mod git;
 pub mod init;
 pub mod language_adapters;
-pub mod local_ai_retrieval;
 pub mod manifest;
 pub mod mcp_integration;
 pub mod output;
@@ -121,15 +120,6 @@ pub use git::{
 pub use init::{
     InitApplyResult, InitPlanOptions, InitPreset, apply_init_plan, build_init_plan,
     render_init_apply_result, render_init_dry_run,
-};
-pub use local_ai_retrieval::{
-    LocalAiDocumentChunk, LocalAiEmbedding, LocalAiEmbeddingProvider, LocalAiIndexedChunk,
-    LocalAiRetrievalApplyResult, LocalAiRetrievalContext, LocalAiRetrievalDocument,
-    LocalAiRetrievalPlan, LocalAiRetrievalQuery, LocalAiVectorStore, LocalRetrievalContract,
-    assemble_local_retrieval_context, build_local_retrieval_plan, chunk_retrieval_documents,
-    discover_retrieval_documents, embed_text_locally, index_retrieval_chunks,
-    render_local_retrieval_apply_result, render_local_retrieval_index_json,
-    render_local_retrieval_plan, render_local_retrieval_plan_json, write_local_retrieval_evidence,
 };
 pub use manifest::{
     CURRENT_MANIFEST_SCHEMA_VERSION, ManifestProject, ManifestRuntime, ManifestSchemaVersion,
