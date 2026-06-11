@@ -3134,15 +3134,12 @@ mod tests {
 
     #[test]
     fn web_workbench_plan_requires_mode() {
-        let result = parse_arguments(&["monad", "web-workbench-plan"]);
-        assert!(
-            matches!(
-                result,
-                Err(ref error)
-                    if error.contains("web-workbench-plan currently requires either --dry-run")
-            ),
-            "expected web-workbench-plan to require --dry-run or --yes; got {result:?}"
-        );
+        match parse_arguments(&["monad", "web-workbench-plan"]) {
+            Ok(_) => panic!("web-workbench-plan should require --dry-run or --yes"),
+            Err(error) => {
+                assert!(error.contains("web-workbench-plan currently requires either --dry-run"));
+            }
+        }
     }
 
     #[test]
@@ -3201,15 +3198,12 @@ mod tests {
 
     #[test]
     fn workbench_plan_requires_mode() {
-        let result = parse_arguments(&["monad", "workbench-plan"]);
-        assert!(
-            matches!(
-                result,
-                Err(ref error)
-                    if error.contains("workbench-plan currently requires either --dry-run")
-            ),
-            "expected workbench-plan to require --dry-run or --yes; got {result:?}"
-        );
+        match parse_arguments(&["monad", "workbench-plan"]) {
+            Ok(_) => panic!("workbench-plan should require --dry-run or --yes"),
+            Err(error) => {
+                assert!(error.contains("workbench-plan currently requires either --dry-run"));
+            }
+        }
     }
 
     #[test]
@@ -3268,15 +3262,12 @@ mod tests {
 
     #[test]
     fn sandbox_plan_requires_mode() {
-        let result = parse_arguments(&["monad", "sandbox-plan"]);
-        assert!(
-            matches!(
-                result,
-                Err(ref error)
-                    if error.contains("sandbox-plan currently requires either --dry-run")
-            ),
-            "expected sandbox-plan to require --dry-run or --yes; got {result:?}"
-        );
+        match parse_arguments(&["monad", "sandbox-plan"]) {
+            Ok(_) => panic!("sandbox-plan should require --dry-run or --yes"),
+            Err(error) => {
+                assert!(error.contains("sandbox-plan currently requires either --dry-run"));
+            }
+        }
     }
 
     #[test]
@@ -3335,15 +3326,12 @@ mod tests {
 
     #[test]
     fn retrieval_plan_requires_mode() {
-        let result = parse_arguments(&["monad", "retrieval-plan"]);
-        assert!(
-            matches!(
-                result,
-                Err(ref error)
-                    if error.contains("retrieval-plan currently requires either --dry-run")
-            ),
-            "expected retrieval-plan to require --dry-run or --yes; got {result:?}"
-        );
+        match parse_arguments(&["monad", "retrieval-plan"]) {
+            Ok(_) => panic!("retrieval-plan should require --dry-run or --yes"),
+            Err(error) => {
+                assert!(error.contains("retrieval-plan currently requires either --dry-run"));
+            }
+        }
     }
 
     #[test]

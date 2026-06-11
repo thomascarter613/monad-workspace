@@ -47,7 +47,6 @@ pub mod templates;
 pub mod test_intelligence;
 pub mod toolchain_detection;
 pub mod upgrade;
-pub mod web_workbench;
 pub mod work_packet;
 pub mod workspace;
 
@@ -256,12 +255,6 @@ pub use upgrade::{
     UpgradeStep, UpgradeStepSafety, apply_upgrade_plan, build_upgrade_plan,
     render_upgrade_apply_result, render_upgrade_apply_result_json,
     render_upgrade_evidence_markdown, render_upgrade_plan, render_upgrade_plan_json,
-};
-pub use web_workbench::{
-    WebApprovalContextView, WebRepositoryGraphView, WebWorkbenchApiEndpoint, WebWorkbenchApiMethod,
-    WebWorkbenchApplyResult, WebWorkbenchArchitecture, WebWorkbenchListView, WebWorkbenchPlan,
-    WebWorkbenchRouteKind, build_web_workbench_plan, render_web_workbench_apply_result,
-    render_web_workbench_plan, render_web_workbench_plan_json, write_web_workbench_evidence,
 };
 pub use work_packet::{
     WORK_PACKET_HANDOFF_PATH, WORK_PACKET_PLAN_JSON_PATH, WORK_PACKET_PLAN_MARKDOWN_PATH,
